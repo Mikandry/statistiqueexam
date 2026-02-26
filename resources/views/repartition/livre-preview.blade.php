@@ -10,6 +10,7 @@
         <script src="https://cdn.tailwindcss.com"></script>
     @endif
     <style>
+        .pdf-signature { display: none; }
         @media print {
             @page {
                 size: A4 landscape;
@@ -25,6 +26,18 @@
             .avoid-break { break-inside: avoid; }
             .print-tight { padding: 8mm; }
             .pdf-table, .pdf-table th, .pdf-table td { border-color: #0f172a !important; }
+            .pdf-signature {
+                display: block;
+                position: fixed;
+                right: 8mm;
+                bottom: 6mm;
+                font-size: 10px;
+                color: #334155;
+                background: rgba(255, 255, 255, 0.9);
+                padding: 2px 6px;
+                border: 1px solid #cbd5e1;
+                border-radius: 4px;
+            }
         }
     </style>
 </head>
@@ -236,6 +249,9 @@
             </div>
         </main>
     </div>
+</div>
+<div class="pdf-signature">
+    produce by Andry Michael copyright 2026 version 1.0
 </div>
 </body>
 </html>
