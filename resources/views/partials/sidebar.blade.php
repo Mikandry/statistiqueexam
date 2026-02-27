@@ -75,6 +75,10 @@
                 <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-blue-100 group-hover:text-blue-600">@</span>
                 <span class="flex-1">Admin Utilisateurs</span>
             </a>
+            <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-blue-200 hover:bg-blue-50/50 hover:text-blue-700 hover:shadow-md" href="{{ route('admin.references.index') }}">
+                <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-blue-100 group-hover:text-blue-600">+</span>
+                <span class="flex-1">Admin Référentiels</span>
+            </a>
         @endif
     </nav>
 

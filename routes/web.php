@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\StatisticController;
+use App\Http\Controllers\Admin\ReferenceManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\BepcRepartitionController;
 use App\Http\Controllers\AuthController;
@@ -71,4 +72,23 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('admin.statistics.update');
     Route::delete('/admin/statistics/centre/{centreEcritId}', [StatisticController::class, 'destroyCentre'])
         ->name('admin.statistics.destroy-centre');
+
+    Route::get('/admin/references', [ReferenceManagementController::class, 'index'])
+        ->name('admin.references.index');
+    Route::post('/admin/references/drens', [ReferenceManagementController::class, 'storeDren'])
+        ->name('admin.references.drens.store');
+    Route::put('/admin/references/drens/{dren}', [ReferenceManagementController::class, 'updateDren'])
+        ->name('admin.references.drens.update');
+    Route::post('/admin/references/ciscos', [ReferenceManagementController::class, 'storeCisco'])
+        ->name('admin.references.ciscos.store');
+    Route::put('/admin/references/ciscos/{cisco}', [ReferenceManagementController::class, 'updateCisco'])
+        ->name('admin.references.ciscos.update');
+    Route::post('/admin/references/centres-correction', [ReferenceManagementController::class, 'storeCentreCorrection'])
+        ->name('admin.references.centres-correction.store');
+    Route::put('/admin/references/centres-correction/{centreCorrection}', [ReferenceManagementController::class, 'updateCentreCorrection'])
+        ->name('admin.references.centres-correction.update');
+    Route::post('/admin/references/centres-ecrit', [ReferenceManagementController::class, 'storeCentreEcrit'])
+        ->name('admin.references.centres-ecrit.store');
+    Route::put('/admin/references/centres-ecrit/{centreEcrit}', [ReferenceManagementController::class, 'updateCentreEcrit'])
+        ->name('admin.references.centres-ecrit.update');
 });

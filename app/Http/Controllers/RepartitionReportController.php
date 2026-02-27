@@ -148,6 +148,11 @@ class RepartitionReportController extends Controller
 
     public function livrePdf(Request $request)
     {
+        $forcedType = strtoupper((string) $request->query('type_examen', self::TYPE_BEPC));
+        if (! in_array($forcedType, [self::TYPE_BEPC, self::TYPE_CEPE], true)) {
+            $request->merge(['type_examen' => self::TYPE_BEPC]);
+        }
+
         [$rows, $filters] = $this->getFilteredRows($request);
         $bookData = $this->buildBookData($rows);
         $totalGe = collect($bookData)->sum('ge_count');

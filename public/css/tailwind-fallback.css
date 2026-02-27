@@ -259,6 +259,8 @@ table { width: 100%; border-spacing: 0; }
     .md\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     .md\:grid-cols-8 { grid-template-columns: repeat(8, minmax(0, 1fr)); }
     .md\:grid-cols-\[220px_1fr_80px\] { grid-template-columns: 220px 1fr 80px; }
+    .md\:col-span-2 { grid-column: span 2 / span 2; }
+    .md\:col-span-3 { grid-column: span 3 / span 3; }
 }
 
 @media (min-width: 1024px) {

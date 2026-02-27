@@ -29,7 +29,6 @@ class BepcRepartitionController extends Controller
 
         $centresEcritDisponibles = CentreEcrit::query()
             ->where('type_examen', $typeExamen)
-            ->whereDoesntHave('repartitions')
             ->orderBy('nom')
             ->get(['id', 'centre_correction_id', 'nom', 'type_examen']);
 
@@ -210,12 +209,6 @@ class BepcRepartitionController extends Controller
                 ->withErrors(['centre_ecrit_id' => 'La hiérarchie DREN/CISCO/Centre sélectionnée est invalide.']);
         }
 
-        if (RepartitionSalle::query()->where('centre_ecrit_id', $centreEcrit->id)->exists()) {
-            return back()
-                ->withInput()
-                ->withErrors(['centre_ecrit_id' => "Ce centre d'écrit a déjà des données enregistrées."]);
-        }
-
         $nomSaisie = trim((string) ($request->user()?->name ?? ''));
 
         if ($nomSaisie === '') {
@@ -227,6 +220,11 @@ class BepcRepartitionController extends Controller
         DB::transaction(function () use ($validated, $langues, $sallesDisponibles, $typeExamen, $request, $centreEcrit, $nomSaisie, $hasForeignCandidates, $foreignSettings) {
             $axeDispatching = trim((string) $validated['axe_dispatching']);
             $pointLargage = trim((string) $validated['point_largage']);
+
+            RepartitionSalle::query()
+                ->where('centre_ecrit_id', $centreEcrit->id)
+                ->where('annee', $validated['annee'])
+                ->delete();
 
             if ($typeExamen === self::TYPE_BEPC) {
                 foreach ($langues as $langue) {

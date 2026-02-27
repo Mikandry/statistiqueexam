@@ -64,7 +64,8 @@
                     @if(auth()->user()?->isAdmin())
                         <a class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" href="{{ route('repartition.vacations', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Vacations</a>
                     @endif
-                    <a class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700" href="{{ route('repartition.livre.pdf', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Imprimer / PDF</a>
+                    <a class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700" href="{{ route('repartition.livre.pdf', ['annee' => $filters['annee'], 'type_examen' => 'BEPC', 'dren' => $filters['dren']]) }}">Imprimer PDF BEPC</a>
+                    <a class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700" href="{{ route('repartition.livre.pdf', ['annee' => $filters['annee'], 'type_examen' => 'CEPE', 'dren' => $filters['dren']]) }}">Imprimer PDF CEPE</a>
                 </div>
             </div>
         </div>
