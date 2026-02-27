@@ -7,7 +7,7 @@
     @if (file_exists(public_path('build/manifest.json')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @else
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
     @endif
 </head>
 <body class="bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900">
@@ -315,11 +315,6 @@
                             </div>
                         @endif
 
-                        <div class="mb-5 rounded-xl border border-slate-200/80 bg-white p-4 shadow-md">
-                            <h3 class="mb-3 text-sm font-semibold text-slate-700">Comparaison en graphe: candidats par langue / option</h3>
-                            <canvas id="comparisonChart" height="240"></canvas>
-                        </div>
-
                         <div class="flex justify-end">
                             <button class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:from-blue-700 hover:to-blue-800 hover:shadow-lg focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" type="submit">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -372,7 +367,6 @@
         const foreignEffectifsBlock = document.getElementById('foreign-effectifs');
         const foreignConfigInputs = Array.from(document.querySelectorAll('#foreign-config select, #foreign-config input'));
         const foreignEffectifInputs = Array.from(document.querySelectorAll('.foreign-input'));
-        const comparisonChart = document.getElementById('comparisonChart');
 
         const oldCisco = "{{ old('cisco_id') }}";
         const oldCc = "{{ old('centre_correction_id') }}";
@@ -418,7 +412,11 @@
 
         function refreshCentreEcrit(selectedCe = '') {
             const ccId = ccSelect.value;
-            const filtered = centresEcrit.filter((item) => String(item.centre_correction_id) === String(ccId));
+            const ciscoId = ciscoSelect.value;
+            const filtered = centresEcrit.filter((item) =>
+                String(item.cisco_id) === String(ciscoId) &&
+                (String(ccId) === '' || String(item.centre_correction_id) === String(ccId))
+            );
             fillSelect(ceSelect, filtered, 'Sélectionner', selectedCe);
             if (!filtered.some((item) => String(item.id) === String(ceSelect.value))) {
                 ceSelect.value = '';
@@ -494,109 +492,16 @@
             applyRoomAvailability();
         }
 
-        function collectChartData() {
-            const totals = {};
-            effectifInputs.forEach((input) => {
-                if (input.disabled) {
-                    return;
-                }
-
-                const category = String(input.dataset.category || '').trim();
-                const value = Number.parseInt(String(input.value || '0'), 10);
-                if (!category || Number.isNaN(value)) {
-                    return;
-                }
-
-                totals[category] = (totals[category] || 0) + value;
-            });
-
-            return Object.entries(totals)
-                .map(([label, value]) => ({ label, value }))
-                .filter((item) => item.value > 0);
-        }
-
-        function renderComparisonChart() {
-            if (!comparisonChart) {
-                return;
-            }
-
-            const ctx = comparisonChart.getContext('2d');
-            if (!ctx) {
-                return;
-            }
-
-            const data = collectChartData();
-            const cssWidth = Math.max(comparisonChart.clientWidth || 600, 320);
-            const cssHeight = Number.parseInt(comparisonChart.getAttribute('height') || '240', 10);
-            const ratio = window.devicePixelRatio || 1;
-            comparisonChart.width = Math.floor(cssWidth * ratio);
-            comparisonChart.height = Math.floor(cssHeight * ratio);
-            ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-
-            ctx.clearRect(0, 0, cssWidth, cssHeight);
-            ctx.fillStyle = '#475569';
-            ctx.font = '12px Arial';
-
-            if (data.length === 0) {
-                ctx.fillText('Aucune donnée à comparer pour le moment.', 16, 26);
-                return;
-            }
-
-            const pad = { top: 16, right: 18, bottom: 56, left: 42 };
-            const chartW = cssWidth - pad.left - pad.right;
-            const chartH = cssHeight - pad.top - pad.bottom;
-            const max = Math.max(...data.map((d) => d.value), 1);
-            const gap = 12;
-            const barW = Math.max(20, (chartW - gap * (data.length - 1)) / data.length);
-            const colors = ['#2563eb', '#059669', '#d97706', '#9333ea', '#e11d48', '#0f766e', '#475569'];
-
-            ctx.strokeStyle = '#cbd5e1';
-            ctx.beginPath();
-            ctx.moveTo(pad.left, pad.top);
-            ctx.lineTo(pad.left, pad.top + chartH);
-            ctx.lineTo(pad.left + chartW, pad.top + chartH);
-            ctx.stroke();
-
-            data.forEach((item, index) => {
-                const x = pad.left + index * (barW + gap);
-                const h = Math.round((item.value / max) * (chartH - 6));
-                const y = pad.top + chartH - h;
-
-                ctx.fillStyle = colors[index % colors.length];
-                ctx.fillRect(x, y, barW, h);
-
-                ctx.fillStyle = '#0f172a';
-                ctx.font = '11px Arial';
-                ctx.fillText(String(item.value), x, Math.max(y - 6, 10));
-
-                const label = item.label.length > 18 ? item.label.slice(0, 16) + '..' : item.label;
-                ctx.save();
-                ctx.translate(x + (barW / 2), pad.top + chartH + 10);
-                ctx.rotate(-0.55);
-                ctx.fillStyle = '#334155';
-                ctx.fillText(label, 0, 0);
-                ctx.restore();
-            });
-        }
-
         drenSelect.addEventListener('change', () => refreshCisco(''));
         ciscoSelect.addEventListener('change', () => refreshCentreCorrection(''));
         ccSelect.addEventListener('change', () => refreshCentreEcrit(''));
         axeInput.addEventListener('input', refreshPointSuggestions);
-        effectifInputs.forEach((input) => input.addEventListener('input', renderComparisonChart));
         if (unusableRoomsInput) {
-            unusableRoomsInput.addEventListener('input', () => {
-                applyRoomAvailability();
-                renderComparisonChart();
-            });
+            unusableRoomsInput.addEventListener('input', applyRoomAvailability);
         }
         if (foreignModeCheckbox) {
-            foreignModeCheckbox.addEventListener('change', () => {
-                applyForeignModeState();
-                renderComparisonChart();
-            });
+            foreignModeCheckbox.addEventListener('change', applyForeignModeState);
         }
-        window.addEventListener('resize', renderComparisonChart);
 
         refreshCisco(oldCisco);
         if (oldCisco) {
@@ -613,7 +518,6 @@
         refreshPointSuggestions();
         applyForeignModeState();
         applyRoomAvailability();
-        renderComparisonChart();
     })();
 </script>
 </body>
