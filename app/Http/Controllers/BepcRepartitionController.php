@@ -28,9 +28,10 @@ class BepcRepartitionController extends Controller
         }
 
         $centresEcritDisponibles = CentreEcrit::query()
+            ->where('type_examen', $typeExamen)
             ->whereDoesntHave('repartitions')
             ->orderBy('nom')
-            ->get(['id', 'centre_correction_id', 'nom']);
+            ->get(['id', 'centre_correction_id', 'nom', 'type_examen']);
 
         $axesSuggestions = DB::table('repartition_salles')
             ->whereNotNull('axe_dispatching')
@@ -61,7 +62,10 @@ class BepcRepartitionController extends Controller
             'typeExamen' => $typeExamen,
             'drens' => Dren::query()->orderBy('nom')->get(['id', 'nom']),
             'ciscos' => Cisco::query()->orderBy('nom')->get(['id', 'dren_id', 'nom']),
-            'centresCorrection' => CentreCorrection::query()->orderBy('nom')->get(['id', 'cisco_id', 'nom']),
+            'centresCorrection' => CentreCorrection::query()
+                ->where('type_examen', $typeExamen)
+                ->orderBy('nom')
+                ->get(['id', 'cisco_id', 'nom', 'type_examen']),
             'centresEcrit' => $centresEcritDisponibles,
             'axesSuggestions' => $axesSuggestions,
             'pointSuggestionsByAxe' => $pointSuggestionsByAxe,
@@ -187,12 +191,20 @@ class BepcRepartitionController extends Controller
 
         $dren = Dren::findOrFail((int) $validated['dren_id']);
         $cisco = Cisco::findOrFail((int) $validated['cisco_id']);
-        $centreCorrection = CentreCorrection::findOrFail((int) $validated['centre_correction_id']);
-        $centreEcrit = CentreEcrit::findOrFail((int) $validated['centre_ecrit_id']);
+        $centreCorrection = CentreCorrection::query()
+            ->where('type_examen', $typeExamen)
+            ->whereKey((int) $validated['centre_correction_id'])
+            ->firstOrFail();
+        $centreEcrit = CentreEcrit::query()
+            ->where('type_examen', $typeExamen)
+            ->whereKey((int) $validated['centre_ecrit_id'])
+            ->firstOrFail();
 
         if ($cisco->dren_id !== $dren->id ||
             $centreCorrection->cisco_id !== $cisco->id ||
-            $centreEcrit->centre_correction_id !== $centreCorrection->id) {
+            $centreEcrit->centre_correction_id !== $centreCorrection->id ||
+            $centreCorrection->type_examen !== $typeExamen ||
+            $centreEcrit->type_examen !== $typeExamen) {
             return back()
                 ->withInput()
                 ->withErrors(['centre_ecrit_id' => 'La hiérarchie DREN/CISCO/Centre sélectionnée est invalide.']);

@@ -92,12 +92,20 @@ class RepartitionReportController extends Controller
             ];
         });
 
+        $langueOptionChart = $totalsByLangue
+            ->map(fn (int $value, string $label) => [
+                'label' => $label,
+                'value' => $value,
+            ])
+            ->values();
+
         return view('repartition.dashboard', [
             'rows' => $rows,
             'filters' => $filters,
             'annees' => $annees,
             'drens' => $drens,
             'totalsByLangue' => $totalsByLangue,
+            'langueOptionChart' => $langueOptionChart,
             'recapByDren' => $recapByDrenPaginated,
             'chartData' => $chartData,
             'globalStats' => [
@@ -312,15 +320,6 @@ class RepartitionReportController extends Controller
             ['bloc' => 'Transcription CEPE', 'activite' => 'Equipe transcription', 'regle' => '12 agents par tranche de 1000 candidats', 'agents' => 12 * $tranchesMilleGlobal],
         ]);
 
-        $langueOptionChart = $rows
-            ->groupBy('langue')
-            ->map(fn (Collection $group, string $langue) => [
-                'label' => $langue,
-                'value' => (int) $group->sum('effectif'),
-            ])
-            ->sortByDesc('value')
-            ->values();
-
         return view('repartition.vacations', [
             'filters' => $filters,
             'annees' => $annees,
@@ -344,7 +343,6 @@ class RepartitionReportController extends Controller
             'ciscoActivities' => $ciscoActivities,
             'centreActivities' => $centreActivities,
             'correctionTranscriptionActivities' => $correctionTranscriptionActivities,
-            'langueOptionChart' => $langueOptionChart,
         ]);
     }
 

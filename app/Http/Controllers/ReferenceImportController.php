@@ -11,6 +11,10 @@ use Illuminate\Http\Request;
 
 class ReferenceImportController extends Controller
 {
+    private const TYPE_BEPC = 'BEPC';
+
+    private const TYPE_CEPE = 'CEPE';
+
     public function index()
     {
         return view('imports.index');
@@ -80,9 +84,14 @@ class ReferenceImportController extends Controller
         $errors = 0;
 
         foreach ($rows as $line) {
+            $typeExamen = $this->normalizeExamType($line['type_examen'] ?? null);
             $drenNom = trim((string) ($line['dren'] ?? ''));
             $ciscoNom = trim((string) ($line['cisco'] ?? ''));
             $nom = trim((string) ($line['nom'] ?? ''));
+            if ($typeExamen === null) {
+                $errors++;
+                continue;
+            }
             if ($drenNom === '' || $ciscoNom === '' || $nom === '') {
                 continue;
             }
@@ -98,7 +107,11 @@ class ReferenceImportController extends Controller
                 continue;
             }
 
-            $centre = CentreCorrection::query()->firstOrNew(['cisco_id' => $cisco->id, 'nom' => $nom]);
+            $centre = CentreCorrection::query()->firstOrNew([
+                'cisco_id' => $cisco->id,
+                'nom' => $nom,
+                'type_examen' => $typeExamen,
+            ]);
             if ($centre->exists) {
                 $updated++;
             } else {
@@ -118,10 +131,15 @@ class ReferenceImportController extends Controller
         $errors = 0;
 
         foreach ($rows as $line) {
+            $typeExamen = $this->normalizeExamType($line['type_examen'] ?? null);
             $drenNom = trim((string) ($line['dren'] ?? ''));
             $ciscoNom = trim((string) ($line['cisco'] ?? ''));
             $ccNom = trim((string) ($line['centre_correction'] ?? ''));
             $nom = trim((string) ($line['nom'] ?? ''));
+            if ($typeExamen === null) {
+                $errors++;
+                continue;
+            }
             if ($drenNom === '' || $ciscoNom === '' || $ccNom === '' || $nom === '') {
                 continue;
             }
@@ -136,7 +154,11 @@ class ReferenceImportController extends Controller
                 $errors++;
                 continue;
             }
-            $centreCorrection = CentreCorrection::query()->where('cisco_id', $cisco->id)->where('nom', $ccNom)->first();
+            $centreCorrection = CentreCorrection::query()
+                ->where('cisco_id', $cisco->id)
+                ->where('nom', $ccNom)
+                ->where('type_examen', $typeExamen)
+                ->first();
             if (! $centreCorrection) {
                 $errors++;
                 continue;
@@ -145,6 +167,7 @@ class ReferenceImportController extends Controller
             $centreEcrit = CentreEcrit::query()->firstOrNew([
                 'centre_correction_id' => $centreCorrection->id,
                 'nom' => $nom,
+                'type_examen' => $typeExamen,
             ]);
             if ($centreEcrit->exists) {
                 $updated++;
@@ -209,5 +232,15 @@ class ReferenceImportController extends Controller
         fclose($handle);
 
         return $rows;
+    }
+
+    private function normalizeExamType(mixed $value): ?string
+    {
+        $typeExamen = strtoupper(trim((string) ($value ?? '')));
+        if ($typeExamen === '') {
+            return self::TYPE_BEPC;
+        }
+
+        return in_array($typeExamen, [self::TYPE_BEPC, self::TYPE_CEPE], true) ? $typeExamen : null;
     }
 }

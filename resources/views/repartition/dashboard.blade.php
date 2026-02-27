@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Service de l'Organisation des Examens</title>
-    @if (file_exists(public_path('build/manifest.json')))
+     @if (file_exists(public_path('build/manifest.json')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @else
-        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
     @endif
 </head>
 <body class="bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900">
@@ -110,6 +110,11 @@
                     </div>
 
                     <div class="mb-6 overflow-hidden rounded-xl border border-slate-200/80 bg-white p-5 shadow-md">
+                        <h2 class="mb-3 text-sm font-bold uppercase tracking-wider text-slate-500">Diagramme comparatif langues / options</h2>
+                        <canvas id="langueOptionChart" height="220"></canvas>
+                    </div>
+
+                    <div class="mb-6 overflow-hidden rounded-xl border border-slate-200/80 bg-white p-5 shadow-md">
                         <h2 class="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">Diagramme DREN (candidats)</h2>
                         @php $maxValue = max((int) $chartData->max('value'), 1); @endphp
                         <div class="space-y-3">
@@ -206,5 +211,76 @@
         </main>
     </div>
 </div>
+<script>
+    (function () {
+        const chartData = @json($langueOptionChart ?? []);
+        const canvas = document.getElementById('langueOptionChart');
+        if (!canvas) {
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            return;
+        }
+
+        function drawChart() {
+            const width = Math.max(canvas.clientWidth || 600, 320);
+            const height = 220;
+            const ratio = window.devicePixelRatio || 1;
+            canvas.width = Math.floor(width * ratio);
+            canvas.height = Math.floor(height * ratio);
+            ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+            ctx.clearRect(0, 0, width, height);
+
+            if (!Array.isArray(chartData) || chartData.length === 0) {
+                ctx.fillStyle = '#475569';
+                ctx.font = '13px Arial';
+                ctx.fillText('Aucune donnée disponible.', 16, 24);
+                return;
+            }
+
+            const pad = { top: 14, right: 16, bottom: 60, left: 42 };
+            const chartW = width - pad.left - pad.right;
+            const chartH = height - pad.top - pad.bottom;
+            const max = Math.max(...chartData.map((x) => Number(x.value || 0)), 1);
+            const gap = 10;
+            const barW = Math.max(18, (chartW - gap * (chartData.length - 1)) / chartData.length);
+            const colors = ['#2563eb', '#059669', '#d97706', '#9333ea', '#e11d48', '#0f766e', '#475569'];
+
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.beginPath();
+            ctx.moveTo(pad.left, pad.top);
+            ctx.lineTo(pad.left, pad.top + chartH);
+            ctx.lineTo(pad.left + chartW, pad.top + chartH);
+            ctx.stroke();
+
+            chartData.forEach((item, i) => {
+                const v = Number(item.value || 0);
+                const x = pad.left + i * (barW + gap);
+                const h = Math.round((v / max) * (chartH - 6));
+                const y = pad.top + chartH - h;
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.fillRect(x, y, barW, h);
+
+                ctx.fillStyle = '#0f172a';
+                ctx.font = '11px Arial';
+                ctx.fillText(String(v), x, Math.max(y - 5, 10));
+
+                const label = String(item.label || '');
+                const shortLabel = label.length > 22 ? label.slice(0, 20) + '..' : label;
+                ctx.save();
+                ctx.translate(x + (barW / 2), pad.top + chartH + 10);
+                ctx.rotate(-0.55);
+                ctx.fillStyle = '#334155';
+                ctx.fillText(shortLabel, 0, 0);
+                ctx.restore();
+            });
+        }
+
+        drawChart();
+        window.addEventListener('resize', drawChart);
+    })();
+</script>
 </body>
 </html>

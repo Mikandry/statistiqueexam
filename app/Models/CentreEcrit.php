@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CentreEcrit extends Model
 {
-    protected $fillable = ['centre_correction_id', 'nom'];
+    protected $fillable = ['centre_correction_id', 'nom', 'type_examen'];
 
     public function centreCorrection(): BelongsTo
     {

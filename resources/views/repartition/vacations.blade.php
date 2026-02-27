@@ -69,11 +69,6 @@
                 Récap calculé par niveau: Central (nombres fixes), DREN, CISCO, EPS, Centres d'examen, Centres de correction et transcription. Les niveaux déconcentrés sont liés aux volumes DREN/CISCO/centres/salles/candidats de votre base.
             </div>
 
-            <div class="mb-5 rounded-xl border border-slate-200 bg-white p-4">
-                <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Diagramme comparatif langues / options</h2>
-                <canvas id="langueOptionChart" height="220"></canvas>
-            </div>
-
             <div class="mb-5 grid grid-cols-2 gap-3 md:grid-cols-8">
                 <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <div class="text-xs uppercase tracking-wide text-slate-500">Candidats</div>
@@ -346,76 +341,5 @@
         </main>
     </div>
 </div>
-<script>
-    (function () {
-        const chartData = @json($langueOptionChart ?? []);
-        const canvas = document.getElementById('langueOptionChart');
-        if (!canvas) {
-            return;
-        }
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-            return;
-        }
-
-        function drawChart() {
-            const width = Math.max(canvas.clientWidth || 600, 320);
-            const height = 220;
-            const ratio = window.devicePixelRatio || 1;
-            canvas.width = Math.floor(width * ratio);
-            canvas.height = Math.floor(height * ratio);
-            ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-            ctx.clearRect(0, 0, width, height);
-
-            if (!Array.isArray(chartData) || chartData.length === 0) {
-                ctx.fillStyle = '#475569';
-                ctx.font = '13px Arial';
-                ctx.fillText('Aucune donnée disponible.', 16, 24);
-                return;
-            }
-
-            const pad = { top: 14, right: 16, bottom: 60, left: 42 };
-            const chartW = width - pad.left - pad.right;
-            const chartH = height - pad.top - pad.bottom;
-            const max = Math.max(...chartData.map((x) => Number(x.value || 0)), 1);
-            const gap = 10;
-            const barW = Math.max(18, (chartW - gap * (chartData.length - 1)) / chartData.length);
-            const colors = ['#2563eb', '#059669', '#d97706', '#9333ea', '#e11d48', '#0f766e', '#475569'];
-
-            ctx.strokeStyle = '#cbd5e1';
-            ctx.beginPath();
-            ctx.moveTo(pad.left, pad.top);
-            ctx.lineTo(pad.left, pad.top + chartH);
-            ctx.lineTo(pad.left + chartW, pad.top + chartH);
-            ctx.stroke();
-
-            chartData.forEach((item, i) => {
-                const v = Number(item.value || 0);
-                const x = pad.left + i * (barW + gap);
-                const h = Math.round((v / max) * (chartH - 6));
-                const y = pad.top + chartH - h;
-                ctx.fillStyle = colors[i % colors.length];
-                ctx.fillRect(x, y, barW, h);
-
-                ctx.fillStyle = '#0f172a';
-                ctx.font = '11px Arial';
-                ctx.fillText(String(v), x, Math.max(y - 5, 10));
-
-                const label = String(item.label || '');
-                const shortLabel = label.length > 22 ? label.slice(0, 20) + '..' : label;
-                ctx.save();
-                ctx.translate(x + (barW / 2), pad.top + chartH + 10);
-                ctx.rotate(-0.55);
-                ctx.fillStyle = '#334155';
-                ctx.fillText(shortLabel, 0, 0);
-                ctx.restore();
-            });
-        }
-
-        drawChart();
-        window.addEventListener('resize', drawChart);
-    })();
-</script>
 </body>
 </html>

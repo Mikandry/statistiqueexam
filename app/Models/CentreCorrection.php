@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CentreCorrection extends Model
 {
-    protected $fillable = ['cisco_id', 'nom'];
+    protected $fillable = ['cisco_id', 'nom', 'type_examen'];
 
     public function cisco(): BelongsTo
     {
