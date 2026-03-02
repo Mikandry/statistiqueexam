@@ -38,6 +38,8 @@ Route::middleware('auth')->group(function () {
         ->name('repartition.livre.pdf');
     Route::get('/repartition/export/excel', [RepartitionReportController::class, 'exportExcel'])
         ->name('repartition.export.excel');
+    Route::get('/repartition/export/dispatching/preview', [RepartitionReportController::class, 'dispatchingPreview'])
+        ->name('repartition.export.dispatching.preview');
     Route::get('/repartition/export/dispatching', [RepartitionReportController::class, 'exportDispatchingExcel'])
         ->name('repartition.export.dispatching');
 

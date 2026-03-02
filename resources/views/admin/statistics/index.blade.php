@@ -44,8 +44,31 @@
                     @endif
 
                     <div class="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                        La modification reste par salle. La suppression se fait par centre (toutes les salles/lignes du centre).
+                        La salle est verrouillée en modification: seul l'effectif est éditable. La suppression se fait par centre (toutes les salles/lignes du centre).
                     </div>
+
+                    <form method="GET" class="mb-6 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-4">
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700" for="annee">Année</label>
+                            <select id="annee" name="annee" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <option value="">Toutes</option>
+                                @foreach($annees as $annee)
+                                    <option value="{{ $annee }}" {{ $filters['annee'] === $annee ? 'selected' : '' }}>{{ $annee }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700" for="type_examen">Type d'examen</label>
+                            <select id="type_examen" name="type_examen" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <option value="ALL" {{ $filters['type_examen'] === 'ALL' ? 'selected' : '' }}>Tous</option>
+                                <option value="BEPC" {{ $filters['type_examen'] === 'BEPC' ? 'selected' : '' }}>BEPC</option>
+                                <option value="CEPE" {{ $filters['type_examen'] === 'CEPE' ? 'selected' : '' }}>CEPE</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2 flex items-end">
+                            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white" type="submit">Filtrer</button>
+                        </div>
+                    </form>
 
                     <div class="overflow-hidden rounded-xl border border-slate-200/80 bg-white p-5 shadow-md">
                         <div class="overflow-x-auto">
@@ -69,14 +92,14 @@
                                     <tr class="transition-colors duration-150 hover:bg-slate-50/80">
                                         <td class="border border-slate-200 px-3 py-2">{{ $stat->id }}</td>
                                         <td class="border border-slate-200 px-3 py-2">{{ $stat->centreEcrit->nom ?? '-' }}</td>
-                                        <td class="border border-slate-200 px-3 py-2">
+                                        <td class="border border-slate-200 px-3 py-2 bg-slate-50">
                                             <form method="POST" action="{{ route('admin.statistics.update', $stat) }}">
                                                 @csrf
                                                 @method('PUT')
-                                                <input class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="annee" value="{{ $stat->annee }}" required>
+                                                <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600" name="annee" value="{{ $stat->annee }}" readonly disabled>
                                         </td>
-                                        <td class="border border-slate-200 px-3 py-2"><input class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="langue" value="{{ $stat->langue }}" required></td>
-                                        <td class="border border-slate-200 px-3 py-2"><input class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="number" name="numero_salle" value="{{ $stat->numero_salle }}" min="1" required></td>
+                                        <td class="border border-slate-200 px-3 py-2 bg-slate-50"><input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600" name="langue" value="{{ $stat->langue }}" readonly disabled></td>
+                                        <td class="border border-slate-200 px-3 py-2 bg-slate-50"><input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600" type="number" name="numero_salle" value="{{ $stat->numero_salle }}" min="1" readonly disabled></td>
                                         <td class="border border-slate-200 px-3 py-2"><input class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="number" name="effectif" value="{{ $stat->effectif }}" min="0" required></td>
                                         <td class="border border-slate-200 px-3 py-2">{{ $stat->saisi_par }}</td>
                                         <td class="border border-slate-200 px-3 py-2">

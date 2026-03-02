@@ -26,6 +26,7 @@
                         <div class="flex flex-wrap gap-2">
                             <a class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow" href="{{ route('bepc.repartition.create') }}">Saisie</a>
                             <a class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow" href="{{ route('repartition.export.excel', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Export Excel</a>
+                            <a class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow" href="{{ route('repartition.export.dispatching.preview', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Prévisualisation Dispatching</a>
                             <a class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow" href="{{ route('repartition.export.dispatching', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Export Dispatching</a>
                             @if(auth()->user()?->isAdmin())
                                 <a class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow" href="{{ route('repartition.vacations', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Vacations</a>
@@ -69,7 +70,7 @@
                         </div>
                     </form>
 
-                    <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
                         <div class="group rounded-xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50 p-5 shadow-md transition-all duration-200 hover:shadow-lg">
                             <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total candidats</div>
                             <div class="mt-2 text-3xl font-bold text-slate-900">{{ number_format($globalStats['total_candidats'], 0, ',', ' ') }}</div>
@@ -82,6 +83,11 @@
                             <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total centres d'écrit</div>
                             <div class="mt-2 text-3xl font-bold text-slate-900">{{ number_format($globalStats['total_centres_ecrit'], 0, ',', ' ') }}</div>
                             <div class="mt-2 text-xs font-medium text-slate-500">DREN: {{ $globalStats['total_drens'] }} | CISCO: {{ $globalStats['total_ciscos'] }}</div>
+                        </div>
+                        <div class="group rounded-xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50 p-5 shadow-md transition-all duration-200 hover:shadow-lg">
+                            <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Centres saisis / non saisis</div>
+                            <div class="mt-2 text-2xl font-bold text-slate-900">{{ number_format($centresSaisieStats['saisis'], 0, ',', ' ') }} / {{ number_format($centresSaisieStats['non_saisis'], 0, ',', ' ') }}</div>
+                            <div class="mt-2 text-xs font-medium text-slate-500">Total centres attendus: {{ number_format($centresSaisieStats['total'], 0, ',', ' ') }}</div>
                         </div>
                     </div>
 

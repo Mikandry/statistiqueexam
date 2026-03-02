@@ -367,6 +367,9 @@
         const foreignEffectifsBlock = document.getElementById('foreign-effectifs');
         const foreignConfigInputs = Array.from(document.querySelectorAll('#foreign-config select, #foreign-config input'));
         const foreignEffectifInputs = Array.from(document.querySelectorAll('.foreign-input'));
+        const form = document.querySelector('form[action="{{ route('bepc.repartition.store') }}"]');
+        const optionAReplaceInput = document.getElementById('foreign_option_a_replace_malagasy');
+        const optionBReplaceInput = document.getElementById('foreign_option_b_replace_malagasy');
 
         const oldCisco = "{{ old('cisco_id') }}";
         const oldCc = "{{ old('centre_correction_id') }}";
@@ -492,6 +495,50 @@
             applyRoomAvailability();
         }
 
+        function enforceForeignPerRoomExclusivity(changedInput) {
+            if (!changedInput || !changedInput.name) {
+                return;
+            }
+
+            const room = changedInput.dataset.salle;
+            if (!room) {
+                return;
+            }
+
+            const isOptionA = changedInput.name.includes('foreign_effectifs[option_a]');
+            const oppositeName = isOptionA
+                ? `foreign_effectifs[option_b][${room}]`
+                : `foreign_effectifs[option_a][${room}]`;
+            const oppositeInput = document.querySelector(`input[name="${oppositeName}"]`);
+
+            if (!oppositeInput) {
+                return;
+            }
+
+            const currentValue = Number.parseInt(changedInput.value || '0', 10) || 0;
+            if (currentValue > 0) {
+                oppositeInput.value = '0';
+                oppositeInput.disabled = true;
+            } else {
+                oppositeInput.disabled = false;
+                applyRoomAvailability();
+            }
+        }
+
+        function syncForeignReplacementRequirements() {
+            const optionAValues = Array.from(document.querySelectorAll('input[name^="foreign_effectifs[option_a]"]'));
+            const optionBValues = Array.from(document.querySelectorAll('input[name^="foreign_effectifs[option_b]"]'));
+            const hasOptionA = optionAValues.some((input) => (Number.parseInt(input.value || '0', 10) || 0) > 0);
+            const hasOptionB = optionBValues.some((input) => (Number.parseInt(input.value || '0', 10) || 0) > 0);
+
+            if (optionAReplaceInput) {
+                optionAReplaceInput.required = !!(foreignModeCheckbox && foreignModeCheckbox.checked && hasOptionA);
+            }
+            if (optionBReplaceInput) {
+                optionBReplaceInput.required = !!(foreignModeCheckbox && foreignModeCheckbox.checked && hasOptionB);
+            }
+        }
+
         drenSelect.addEventListener('change', () => refreshCisco(''));
         ciscoSelect.addEventListener('change', () => refreshCentreCorrection(''));
         ccSelect.addEventListener('change', () => refreshCentreEcrit(''));
@@ -501,6 +548,28 @@
         }
         if (foreignModeCheckbox) {
             foreignModeCheckbox.addEventListener('change', applyForeignModeState);
+        }
+        foreignEffectifInputs.forEach((input) => {
+            input.addEventListener('input', () => {
+                enforceForeignPerRoomExclusivity(input);
+                syncForeignReplacementRequirements();
+            });
+        });
+        if (form) {
+            form.addEventListener('submit', (event) => {
+                const conflicts = [];
+                for (let salle = 1; salle <= {{ $nombreSalles }}; salle++) {
+                    const a = Number.parseInt((document.querySelector(`input[name="foreign_effectifs[option_a][${salle}]"]`)?.value || '0'), 10) || 0;
+                    const b = Number.parseInt((document.querySelector(`input[name="foreign_effectifs[option_b][${salle}]"]`)?.value || '0'), 10) || 0;
+                    if (a > 0 && b > 0) {
+                        conflicts.push(salle);
+                    }
+                }
+                if (conflicts.length > 0) {
+                    event.preventDefault();
+                    alert(`Conflit étrangers Option A/B sur salle(s): ${conflicts.join(', ')}`);
+                }
+            });
         }
 
         refreshCisco(oldCisco);
@@ -518,6 +587,7 @@
         refreshPointSuggestions();
         applyForeignModeState();
         applyRoomAvailability();
+        syncForeignReplacementRequirements();
     })();
 </script>
 </body>

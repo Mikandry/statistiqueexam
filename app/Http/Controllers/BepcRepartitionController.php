@@ -28,9 +28,23 @@ class BepcRepartitionController extends Controller
         }
 
         $centresEcritDisponibles = CentreEcrit::query()
-            ->where('type_examen', $typeExamen)
-            ->orderBy('nom')
-            ->get(['id', 'centre_correction_id', 'nom', 'type_examen']);
+            ->join('centre_corrections as cc', 'cc.id', '=', 'centre_ecrits.centre_correction_id')
+            ->where('centre_ecrits.type_examen', $typeExamen)
+            ->whereDoesntHave('repartitions', function ($query) use ($typeExamen) {
+                if ($typeExamen === self::TYPE_CEPE) {
+                    $query->where('langue', self::CEPE_KEY);
+                } else {
+                    $query->where('langue', '!=', self::CEPE_KEY);
+                }
+            })
+            ->orderBy('centre_ecrits.nom')
+            ->get([
+                'centre_ecrits.id',
+                'centre_ecrits.centre_correction_id',
+                'centre_ecrits.nom',
+                'centre_ecrits.type_examen',
+                'cc.cisco_id',
+            ]);
 
         $axesSuggestions = DB::table('repartition_salles')
             ->whereNotNull('axe_dispatching')
@@ -93,6 +107,7 @@ class BepcRepartitionController extends Controller
 
         $nombreSalles = (int) $validated['nombre_salles'];
         $typeExamen = $validated['type_examen'];
+        $totalCandidatsSaisis = 0;
         $sallesInutilisables = $this->parseRoomNumbers((string) ($validated['salles_inutilisables'] ?? ''), $nombreSalles);
         $sallesDisponibles = array_values(array_diff(range(1, $nombreSalles), $sallesInutilisables));
 
@@ -127,6 +142,8 @@ class BepcRepartitionController extends Controller
                                 'effectifs' => "Valeur invalide pour {$langue} - Salle {$salle}.",
                             ]);
                     }
+
+                    $totalCandidatsSaisis += (int) $value;
                 }
             }
         } else {
@@ -147,6 +164,8 @@ class BepcRepartitionController extends Controller
                             'effectifs_total' => "Valeur invalide pour CEPE - Salle {$salle}.",
                         ]);
                 }
+
+                $totalCandidatsSaisis += (int) $value;
             }
         }
 
@@ -156,19 +175,13 @@ class BepcRepartitionController extends Controller
             $optionALv = (string) $request->input('foreign_option_a_lv', '');
             $optionAReplace = trim((string) $request->input('foreign_option_a_replace_malagasy', ''));
             $optionBReplace = trim((string) $request->input('foreign_option_b_replace_malagasy', ''));
+            $totalOptionA = 0;
+            $totalOptionB = 0;
 
             if (! in_array($optionALv, ['ALL', 'Esp'], true)) {
                 return back()
                     ->withInput()
                     ->withErrors(['foreign_option_a_lv' => 'Choisissez ALL ou Esp pour les étrangers Option A.']);
-            }
-
-            if ($optionAReplace === '' || $optionBReplace === '') {
-                return back()
-                    ->withInput()
-                    ->withErrors([
-                        'foreign_option_a_replace_malagasy' => 'Renseignez les langues de remplacement du Malagasy pour Option A et Option B.',
-                    ]);
             }
 
             foreach ($sallesDisponibles as $salle) {
@@ -179,6 +192,34 @@ class BepcRepartitionController extends Controller
                         ->withInput()
                         ->withErrors(['foreign_effectifs' => "Valeur invalide pour les candidats étrangers - Salle {$salle}."]);
                 }
+
+                if ((int) $valueA > 0 && (int) $valueB > 0) {
+                    return back()
+                        ->withInput()
+                        ->withErrors(['foreign_effectifs' => "La salle {$salle} ne peut pas avoir étrangers Option A et Option B en même temps."]);
+                }
+
+                $totalOptionA += (int) $valueA;
+                $totalOptionB += (int) $valueB;
+                $totalCandidatsSaisis += (int) $valueA + (int) $valueB;
+            }
+
+            if ($totalOptionA === 0 && $totalOptionB === 0) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['foreign_effectifs' => 'Activez l\'exception étrangers uniquement si vous avez des effectifs à saisir.']);
+            }
+
+            if ($totalOptionA > 0 && $optionAReplace === '') {
+                return back()
+                    ->withInput()
+                    ->withErrors(['foreign_option_a_replace_malagasy' => 'Renseignez la langue de remplacement Malagasy pour les étrangers Option A.']);
+            }
+
+            if ($totalOptionB > 0 && $optionBReplace === '') {
+                return back()
+                    ->withInput()
+                    ->withErrors(['foreign_option_b_replace_malagasy' => 'Renseignez la langue de remplacement Malagasy pour les étrangers Option B.']);
             }
 
             $foreignSettings = [
@@ -186,6 +227,14 @@ class BepcRepartitionController extends Controller
                 'option_a_replace' => $optionAReplace,
                 'option_b_replace' => $optionBReplace,
             ];
+        }
+
+        if ($totalCandidatsSaisis <= 0) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'effectifs' => 'Le total des candidats est 0. Veuillez saisir au moins une valeur supérieure à 0.',
+                ]);
         }
 
         $dren = Dren::findOrFail((int) $validated['dren_id']);

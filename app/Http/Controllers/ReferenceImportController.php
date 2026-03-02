@@ -50,6 +50,9 @@ class ReferenceImportController extends Controller
         $created = 0;
         $updated = 0;
         $errors = 0;
+        $drensByNormalized = Dren::query()
+            ->get(['id', 'nom'])
+            ->keyBy(fn (Dren $dren) => $this->normalizeLabel($dren->nom));
 
         foreach ($rows as $line) {
             $drenNom = trim((string) ($line['dren'] ?? ''));
@@ -58,13 +61,22 @@ class ReferenceImportController extends Controller
                 continue;
             }
 
-            $dren = Dren::query()->where('nom', $drenNom)->first();
+            $dren = $drensByNormalized->get($this->normalizeLabel($drenNom));
             if (! $dren) {
                 $errors++;
                 continue;
             }
 
-            $cisco = Cisco::query()->firstOrNew(['dren_id' => $dren->id, 'nom' => $nom]);
+            $existingCisco = Cisco::query()
+                ->where('dren_id', $dren->id)
+                ->get(['id', 'nom'])
+                ->first(fn (Cisco $cisco) => $this->normalizeLabel($cisco->nom) === $this->normalizeLabel($nom));
+
+            $cisco = $existingCisco ?? new Cisco(['dren_id' => $dren->id, 'nom' => $nom]);
+            if (! $existingCisco) {
+                $cisco->nom = $nom;
+            }
+
             if ($cisco->exists) {
                 $updated++;
             } else {
@@ -78,13 +90,21 @@ class ReferenceImportController extends Controller
 
     public function importCentresCorrection(Request $request): RedirectResponse
     {
+        $forcedTypeExamen = $this->normalizeExamType($request->input('type_examen'));
+        if ($forcedTypeExamen === null) {
+            return back()->withErrors(['type_examen' => 'Type d\'examen invalide (BEPC ou CEPE).']);
+        }
+
         $rows = $this->parseCsvRows($request, 'centres_correction_file');
         $created = 0;
         $updated = 0;
         $errors = 0;
+        $drensByNormalized = Dren::query()
+            ->get(['id', 'nom'])
+            ->keyBy(fn (Dren $dren) => $this->normalizeLabel($dren->nom));
 
         foreach ($rows as $line) {
-            $typeExamen = $this->normalizeExamType($line['type_examen'] ?? null);
+            $typeExamen = $forcedTypeExamen ?? $this->normalizeExamType($line['type_examen'] ?? null);
             $drenNom = trim((string) ($line['dren'] ?? ''));
             $ciscoNom = trim((string) ($line['cisco'] ?? ''));
             $nom = trim((string) ($line['nom'] ?? ''));
@@ -96,22 +116,34 @@ class ReferenceImportController extends Controller
                 continue;
             }
 
-            $dren = Dren::query()->where('nom', $drenNom)->first();
+            $dren = $drensByNormalized->get($this->normalizeLabel($drenNom));
             if (! $dren) {
                 $errors++;
                 continue;
             }
-            $cisco = Cisco::query()->where('dren_id', $dren->id)->where('nom', $ciscoNom)->first();
+            $cisco = Cisco::query()
+                ->where('dren_id', $dren->id)
+                ->get(['id', 'dren_id', 'nom'])
+                ->first(fn (Cisco $item) => $this->normalizeLabel($item->nom) === $this->normalizeLabel($ciscoNom));
             if (! $cisco) {
                 $errors++;
                 continue;
             }
 
-            $centre = CentreCorrection::query()->firstOrNew([
-                'cisco_id' => $cisco->id,
-                'nom' => $nom,
-                'type_examen' => $typeExamen,
-            ]);
+            $centre = CentreCorrection::query()
+                ->where('cisco_id', $cisco->id)
+                ->where('type_examen', $typeExamen)
+                ->get(['id', 'cisco_id', 'nom', 'type_examen'])
+                ->first(fn (CentreCorrection $item) => $this->normalizeLabel($item->nom) === $this->normalizeLabel($nom));
+
+            if (! $centre) {
+                $centre = new CentreCorrection([
+                    'cisco_id' => $cisco->id,
+                    'nom' => $nom,
+                    'type_examen' => $typeExamen,
+                ]);
+            }
+
             if ($centre->exists) {
                 $updated++;
             } else {
@@ -125,13 +157,21 @@ class ReferenceImportController extends Controller
 
     public function importCentresEcrit(Request $request): RedirectResponse
     {
+        $forcedTypeExamen = $this->normalizeExamType($request->input('type_examen'));
+        if ($forcedTypeExamen === null) {
+            return back()->withErrors(['type_examen' => 'Type d\'examen invalide (BEPC ou CEPE).']);
+        }
+
         $rows = $this->parseCsvRows($request, 'centres_ecrit_file');
         $created = 0;
         $updated = 0;
         $errors = 0;
+        $drensByNormalized = Dren::query()
+            ->get(['id', 'nom'])
+            ->keyBy(fn (Dren $dren) => $this->normalizeLabel($dren->nom));
 
         foreach ($rows as $line) {
-            $typeExamen = $this->normalizeExamType($line['type_examen'] ?? null);
+            $typeExamen = $forcedTypeExamen ?? $this->normalizeExamType($line['type_examen'] ?? null);
             $drenNom = trim((string) ($line['dren'] ?? ''));
             $ciscoNom = trim((string) ($line['cisco'] ?? ''));
             $ccNom = trim((string) ($line['centre_correction'] ?? ''));
@@ -144,31 +184,43 @@ class ReferenceImportController extends Controller
                 continue;
             }
 
-            $dren = Dren::query()->where('nom', $drenNom)->first();
+            $dren = $drensByNormalized->get($this->normalizeLabel($drenNom));
             if (! $dren) {
                 $errors++;
                 continue;
             }
-            $cisco = Cisco::query()->where('dren_id', $dren->id)->where('nom', $ciscoNom)->first();
+            $cisco = Cisco::query()
+                ->where('dren_id', $dren->id)
+                ->get(['id', 'dren_id', 'nom'])
+                ->first(fn (Cisco $item) => $this->normalizeLabel($item->nom) === $this->normalizeLabel($ciscoNom));
             if (! $cisco) {
                 $errors++;
                 continue;
             }
             $centreCorrection = CentreCorrection::query()
                 ->where('cisco_id', $cisco->id)
-                ->where('nom', $ccNom)
                 ->where('type_examen', $typeExamen)
-                ->first();
+                ->get(['id', 'cisco_id', 'nom', 'type_examen'])
+                ->first(fn (CentreCorrection $item) => $this->normalizeLabel($item->nom) === $this->normalizeLabel($ccNom));
             if (! $centreCorrection) {
                 $errors++;
                 continue;
             }
 
-            $centreEcrit = CentreEcrit::query()->firstOrNew([
-                'centre_correction_id' => $centreCorrection->id,
-                'nom' => $nom,
-                'type_examen' => $typeExamen,
-            ]);
+            $centreEcrit = CentreEcrit::query()
+                ->where('centre_correction_id', $centreCorrection->id)
+                ->where('type_examen', $typeExamen)
+                ->get(['id', 'centre_correction_id', 'nom', 'type_examen'])
+                ->first(fn (CentreEcrit $item) => $this->normalizeLabel($item->nom) === $this->normalizeLabel($nom));
+
+            if (! $centreEcrit) {
+                $centreEcrit = new CentreEcrit([
+                    'centre_correction_id' => $centreCorrection->id,
+                    'nom' => $nom,
+                    'type_examen' => $typeExamen,
+                ]);
+            }
+
             if ($centreEcrit->exists) {
                 $updated++;
             } else {
@@ -213,7 +265,7 @@ class ReferenceImportController extends Controller
         }
 
         $headers = array_map(function ($header) {
-            return strtolower(trim((string) $header));
+            return strtolower(trim($this->sanitizeCsvValue((string) $header)));
         }, $headers);
 
         $rows = [];
@@ -224,7 +276,7 @@ class ReferenceImportController extends Controller
 
             $assoc = [];
             foreach ($headers as $index => $header) {
-                $assoc[$header] = trim((string) ($row[$index] ?? ''));
+                $assoc[$header] = trim($this->sanitizeCsvValue((string) ($row[$index] ?? '')));
             }
             $rows[] = $assoc;
         }
@@ -242,5 +294,26 @@ class ReferenceImportController extends Controller
         }
 
         return in_array($typeExamen, [self::TYPE_BEPC, self::TYPE_CEPE], true) ? $typeExamen : null;
+    }
+
+    private function sanitizeCsvValue(string $value): string
+    {
+        $clean = preg_replace('/^\xEF\xBB\xBF/', '', $value) ?? $value;
+        if (! mb_check_encoding($clean, 'UTF-8')) {
+            $converted = @mb_convert_encoding($clean, 'UTF-8', 'Windows-1252,ISO-8859-1,UTF-8');
+            $clean = is_string($converted) ? $converted : $clean;
+        }
+
+        return $clean;
+    }
+
+    private function normalizeLabel(string $value): string
+    {
+        $value = mb_strtolower(trim($this->sanitizeCsvValue($value)));
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        $value = is_string($ascii) ? $ascii : $value;
+        $value = preg_replace('/[^a-z0-9]+/i', ' ', $value) ?? $value;
+
+        return trim($value);
     }
 }

@@ -12,32 +12,54 @@ class StatisticController extends Controller
 {
     public function index(Request $request): View
     {
-        $stats = RepartitionSalle::query()
+        $filters = [
+            'annee' => (string) $request->query('annee', ''),
+            'type_examen' => strtoupper((string) $request->query('type_examen', 'ALL')),
+        ];
+
+        if (! in_array($filters['type_examen'], ['ALL', 'BEPC', 'CEPE'], true)) {
+            $filters['type_examen'] = 'ALL';
+        }
+
+        $statsQuery = RepartitionSalle::query()
             ->with('centreEcrit')
             ->orderByDesc('annee')
             ->orderBy('centre_ecrit_id')
             ->orderBy('langue')
-            ->orderBy('numero_salle')
-            ->paginate(30)
-            ->withQueryString();
+            ->orderBy('numero_salle');
+
+        if ($filters['annee'] !== '') {
+            $statsQuery->where('annee', $filters['annee']);
+        }
+        if ($filters['type_examen'] === 'BEPC') {
+            $statsQuery->where('langue', '!=', 'TOTAL');
+        } elseif ($filters['type_examen'] === 'CEPE') {
+            $statsQuery->where('langue', 'TOTAL');
+        }
+
+        $stats = $statsQuery->paginate(30)->withQueryString();
+        $annees = RepartitionSalle::query()
+            ->select('annee')
+            ->distinct()
+            ->orderByDesc('annee')
+            ->pluck('annee');
 
         return view('admin.statistics.index', [
             'stats' => $stats,
+            'filters' => $filters,
+            'annees' => $annees,
         ]);
     }
 
     public function update(Request $request, RepartitionSalle $stat): RedirectResponse
     {
         $validated = $request->validate([
-            'annee' => ['required', 'regex:/^\d{4}-\d{4}$/'],
-            'langue' => ['required', 'string', 'max:255'],
-            'numero_salle' => ['required', 'integer', 'min:1', 'max:200'],
             'effectif' => ['required', 'integer', 'min:0', 'max:1000'],
         ]);
 
         $stat->update($validated);
 
-        return back()->with('status', 'Statistique modifiée.');
+        return back()->with('status', 'Effectif modifié. Salle/année/langue verrouillées.');
     }
 
     public function destroyCentre(Request $request, int $centreEcritId): RedirectResponse

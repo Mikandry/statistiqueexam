@@ -7,6 +7,12 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class RepartitionReportController extends Controller
 {
@@ -18,13 +24,14 @@ class RepartitionReportController extends Controller
 
     private const CEPE_KEY = 'TOTAL';
 
-    private const MAX_SALLES_PER_TABLE = 25;
+    private const MAX_SALLES_PER_TABLE = 20;
 
     private const CENTRES_PER_PAGE = 2;
 
     public function dashboard(Request $request)
     {
         [$rows, $filters, $annees, $drens] = $this->getFilteredRows($request);
+        $centresSaisieStats = $this->getCentresSaisieStats($filters);
 
         $totalsByLangue = $rows
             ->groupBy(fn ($row) => $row->langue === self::CEPE_KEY ? 'Total CEPE' : $row->langue)
@@ -108,6 +115,7 @@ class RepartitionReportController extends Controller
             'langueOptionChart' => $langueOptionChart,
             'recapByDren' => $recapByDrenPaginated,
             'chartData' => $chartData,
+            'centresSaisieStats' => $centresSaisieStats,
             'globalStats' => [
                 'total_candidats' => $rows->sum('effectif'),
                 'total_salles' => $this->countDistinctSalles($rows),
@@ -125,13 +133,15 @@ class RepartitionReportController extends Controller
         $bookData = $this->buildBookData($rows);
         $totalGe = collect($bookData)->sum('ge_count');
         $totalPe = collect($bookData)->sum('pe');
-        $booksByDren = $this->buildBooksByDren($rows, $bookData);
+        $recapSheets = $this->buildRecapSheets($bookData);
+        $centrePagesByDren = $this->paginateCentresByDren($bookData);
 
         return view('repartition.livre-preview', [
             'filters' => $filters,
             'annees' => $annees,
             'drens' => $drens,
-            'booksByDren' => $booksByDren,
+            'centrePagesByDren' => $centrePagesByDren,
+            'recapSheets' => $recapSheets,
             'globalStats' => [
                 'total_candidats' => $rows->sum('effectif'),
                 'total_salles' => $this->countDistinctSalles($rows),
@@ -157,13 +167,15 @@ class RepartitionReportController extends Controller
         $bookData = $this->buildBookData($rows);
         $totalGe = collect($bookData)->sum('ge_count');
         $totalPe = collect($bookData)->sum('pe');
-        $booksByDren = $this->buildBooksByDren($rows, $bookData);
+        $recapSheets = $this->buildRecapSheets($bookData);
+        $centrePagesByDren = $this->paginateCentresByDren($bookData);
 
         return response()->view('repartition.livre-preview', [
             'filters' => $filters,
             'annees' => [],
             'drens' => [],
-            'booksByDren' => $booksByDren,
+            'centrePagesByDren' => $centrePagesByDren,
+            'recapSheets' => $recapSheets,
             'globalStats' => [
                 'total_candidats' => $rows->sum('effectif'),
                 'total_salles' => $this->countDistinctSalles($rows),
@@ -355,243 +367,412 @@ class RepartitionReportController extends Controller
     {
         [$rows, $filters] = $this->getFilteredRows($request);
 
-        $centreRows = $rows
+        $centreRows = $this->buildStatsExportRows($rows, $filters['type_examen']);
+        [$headers, $numericKeys] = $this->getStatsExportMeta($filters['type_examen']);
+
+        $csvRows = [$headers];
+        $grandTotal = array_fill_keys($numericKeys, 0);
+
+        foreach ($centreRows->groupBy('dren') as $dren => $drenRows) {
+            $drenTotal = [];
+            foreach ($numericKeys as $key) {
+                $drenTotal[$key] = (int) $drenRows->sum($key);
+            }
+
+            foreach ($drenRows as $line) {
+                $csvRows[] = $this->lineToStatsCsvRow($line, $filters['type_examen']);
+            }
+
+            $csvRows[] = $this->buildStatsTotalRow("TOTAL DREN {$dren}", $drenTotal, $filters['type_examen']);
+            $csvRows[] = [''];
+
+            foreach ($numericKeys as $key) {
+                $grandTotal[$key] += $drenTotal[$key];
+            }
+        }
+
+        $csvRows[] = $this->buildStatsTotalRow('TOTAL GLOBAL', $grandTotal, $filters['type_examen']);
+
+        $spreadsheet = new Spreadsheet();
+        $detailSheet = $spreadsheet->getActiveSheet();
+        $detailSheet->setTitle('DETAIL');
+
+        $detailRow = 1;
+        foreach ($csvRows as $line) {
+            $detailSheet->fromArray($line, null, "A{$detailRow}");
+            $detailRow++;
+        }
+        $detailLastCol = $detailSheet->getHighestColumn();
+        $detailSheet->getStyle("A1:{$detailLastCol}1")->getFont()->setBold(true);
+        $detailSheet->getStyle("A1:{$detailLastCol}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $detailLastColIndex = Coordinate::columnIndexFromString($detailLastCol);
+        for ($i = 1; $i <= $detailLastColIndex; $i++) {
+            $detailSheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
+        }
+
+        $recapSheet = $spreadsheet->createSheet();
+        $recapSheet->setTitle('RECAP_CENTRES');
+        $recapHeaders = ['DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'ALL', 'ESP', 'ANG', 'B', 'SALLE', 'TOTAL'];
+        $recapSheet->fromArray($recapHeaders, null, 'A1');
+
+        $centreRecapRows = $rows
             ->groupBy(fn ($row) => implode('|', [$row->dren, $row->cisco, $row->centre_correction, $row->centre_ecrit]))
             ->map(function (Collection $group) {
-                $sum = function (string $langue) use ($group): int {
-                    return (int) $group->where('langue', $langue)->sum('effectif');
-                };
-
-                $first = $group->first();
-                $anglais = $sum('Anglais');
-                $esp = $sum('Esp');
-                $allemand = $sum('Allemand');
-                $optionB = $sum('Option B');
-                $e = $sum(self::CEPE_KEY);
+                $sum = fn (string $langue): int => (int) $group->where('langue', $langue)->sum('effectif');
 
                 return [
-                    'dren' => $first->dren,
-                    'cisco' => $first->cisco,
-                    'centre_correction' => $first->centre_correction,
-                    'centre_ecrit' => $first->centre_ecrit,
-                    'anglais' => $anglais,
-                    'esp' => $esp,
-                    'allemand' => $allemand,
-                    'option_b' => $optionB,
-                    'e' => $e,
-                    'total' => $anglais + $esp + $allemand + $optionB + $e,
+                    'dren' => (string) $group->first()->dren,
+                    'cisco' => (string) $group->first()->cisco,
+                    'centre_correction' => (string) $group->first()->centre_correction,
+                    'centre_ecrit' => (string) $group->first()->centre_ecrit,
+                    'all' => $sum('Allemand'),
+                    'esp' => $sum('Esp'),
+                    'ang' => $sum('Anglais'),
+                    'b' => $sum('Option B'),
+                    'salle' => $this->countDistinctSalles($group),
+                    'total' => (int) $group->sum('effectif'),
                 ];
             })
             ->sortBy(['dren', 'cisco', 'centre_correction', 'centre_ecrit'])
             ->values();
 
-        $csvRows = [];
-        $csvRows[] = [
-            'DREN',
-            'CISCO',
-            'CENTRE CORRECTION',
-            'CENTRE ECRIT',
-            'OPTION A - ANGLAIS',
-            'OPTION A - ESP',
-            'OPTION A - ALLEMAND',
-            'OPTION B',
-            'E',
-            'TOTAL',
-        ];
-
-        $grandTotal = [
-            'anglais' => 0,
-            'esp' => 0,
-            'allemand' => 0,
-            'option_b' => 0,
-            'e' => 0,
-            'total' => 0,
-        ];
-
-        foreach ($centreRows->groupBy('dren') as $dren => $drenRows) {
-            $drenTotal = [
-                'anglais' => (int) $drenRows->sum('anglais'),
-                'esp' => (int) $drenRows->sum('esp'),
-                'allemand' => (int) $drenRows->sum('allemand'),
-                'option_b' => (int) $drenRows->sum('option_b'),
-                'e' => (int) $drenRows->sum('e'),
-                'total' => (int) $drenRows->sum('total'),
-            ];
-
-            foreach ($drenRows as $line) {
-                $csvRows[] = [
-                    $line['dren'],
-                    $line['cisco'],
-                    $line['centre_correction'],
-                    $line['centre_ecrit'],
-                    $line['anglais'],
-                    $line['esp'],
-                    $line['allemand'],
-                    $line['option_b'],
-                    $line['e'],
-                    $line['total'],
-                ];
-            }
-
-            $csvRows[] = [
-                "TOTAL DREN {$dren}",
-                '',
-                '',
-                '',
-                $drenTotal['anglais'],
-                $drenTotal['esp'],
-                $drenTotal['allemand'],
-                $drenTotal['option_b'],
-                $drenTotal['e'],
-                $drenTotal['total'],
-            ];
-            $csvRows[] = [''];
-
-            foreach ($grandTotal as $key => $value) {
-                $grandTotal[$key] = $value + $drenTotal[$key];
-            }
+        $recapRow = 2;
+        foreach ($centreRecapRows as $line) {
+            $recapSheet->fromArray([
+                $line['dren'],
+                $line['cisco'],
+                $line['centre_correction'],
+                $line['centre_ecrit'],
+                $line['all'],
+                $line['esp'],
+                $line['ang'],
+                $line['b'],
+                $line['salle'],
+                $line['total'],
+            ], null, "A{$recapRow}");
+            $recapRow++;
+        }
+        $recapSheet->getStyle('A1:J1')->getFont()->setBold(true);
+        $recapSheet->getStyle('A1:J1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $recapTableLastRow = max(1, $recapRow - 1);
+        $recapSheet->getStyle("A1:J{$recapTableLastRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        foreach (range('A', 'J') as $col) {
+            $recapSheet->getColumnDimension($col)->setAutoSize(true);
         }
 
-        $csvRows[] = [
-            'TOTAL GLOBAL',
-            '',
-            '',
-            '',
-            $grandTotal['anglais'],
-            $grandTotal['esp'],
-            $grandTotal['allemand'],
-            $grandTotal['option_b'],
-            $grandTotal['e'],
-            $grandTotal['total'],
-        ];
+        $spreadsheet->setActiveSheetIndex(0);
+        $writer = new Xlsx($spreadsheet);
+        $fileName = 'recap_repartition_'.($filters['annee'] !== '' ? $filters['annee'].'_' : '').strtolower($filters['type_examen']).'.xlsx';
 
-        $fileName = 'recap_repartition_'.($filters['annee'] !== '' ? $filters['annee'].'_' : '').strtolower($filters['type_examen']).'.csv';
-
-        return response()->streamDownload(function () use ($csvRows) {
-            $output = fopen('php://output', 'wb');
-            fwrite($output, "\xEF\xBB\xBF");
-            foreach ($csvRows as $row) {
-                fputcsv($output, $row, ';');
-            }
-            fclose($output);
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
         }, $fileName, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    public function dispatchingPreview(Request $request)
+    {
+        [$rows, $filters, $annees, $drens] = $this->getFilteredRows($request);
+        $dispatchRows = $this->buildDispatchingRows($rows);
+
+        return view('repartition.dispatching-preview', [
+            'filters' => $filters,
+            'annees' => $annees,
+            'drens' => $drens,
+            'dispatchingByAxe' => $dispatchRows->groupBy('axe_dispatching'),
+            'globalStats' => [
+                'total_centres' => $dispatchRows->count(),
+                'total_candidats' => (int) $dispatchRows->sum('candidats'),
+                'total_salles' => (int) $dispatchRows->sum('salles'),
+                'total_axes' => $dispatchRows->pluck('axe_dispatching')->unique()->count(),
+                'total_points' => $dispatchRows->pluck('point_largage')->unique()->count(),
+            ],
         ]);
     }
 
     public function exportDispatchingExcel(Request $request)
     {
         [$rows, $filters] = $this->getFilteredRows($request);
+        $dispatchRows = $this->buildDispatchingRows($rows);
+        $spreadsheet = new Spreadsheet();
+        $spreadsheet->removeSheetByIndex(0);
 
-        $centreRows = $rows
+        $usedSheetNames = [];
+        if ($dispatchRows->isEmpty()) {
+            $sheet = $spreadsheet->createSheet();
+            $sheet->setTitle('DISPATCHING');
+            $sheet->setCellValue('A1', 'Aucune donnée pour les filtres sélectionnés.');
+        }
+
+        foreach ($dispatchRows->groupBy('axe_dispatching') as $axe => $axeRows) {
+            $sheet = $spreadsheet->createSheet();
+            $sheetName = $this->makeExcelSheetName($axe, $usedSheetNames);
+            $sheet->setTitle($sheetName);
+
+            $sheet->fromArray([
+                ['DISPATCHING '.$filters['type_examen'].' '.($filters['annee'] !== '' ? $filters['annee'] : date('Y'))],
+                ['AXE: '.$axe],
+                ['DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE D\'ECRIT', 'CODE', 'ESP', 'ALL', 'ANG', 'B', 'S', 'TOTAL'],
+            ], null, 'A1');
+            $sheet->mergeCells('A1:K1');
+            $sheet->mergeCells('A2:K2');
+
+            $rowIndex = 4;
+            foreach ($axeRows->groupBy('point_largage') as $point => $pointRows) {
+                $sheet->setCellValue("A{$rowIndex}", 'POINT DE LARGAGE: '.$point);
+                $sheet->mergeCells("A{$rowIndex}:K{$rowIndex}");
+                $rowIndex++;
+
+                foreach ($pointRows as $line) {
+                    $sheet->fromArray([[
+                        $line['dren'],
+                        $line['cisco'],
+                        $line['centre_correction'],
+                        $line['centre_ecrit'],
+                        $line['code_centre'],
+                        (int) $line['esp'],
+                        (int) $line['allemand'],
+                        (int) $line['anglais'],
+                        (int) $line['option_b'],
+                        (int) $line['salles'],
+                        (int) $line['candidats'],
+                    ]], null, "A{$rowIndex}");
+                    $rowIndex++;
+                }
+
+                $sheet->fromArray([[
+                    'TOTAL POINT '.$point,
+                    '',
+                    '',
+                    '',
+                    '',
+                    (int) $pointRows->sum('esp'),
+                    (int) $pointRows->sum('allemand'),
+                    (int) $pointRows->sum('anglais'),
+                    (int) $pointRows->sum('option_b'),
+                    (int) $pointRows->sum('salles'),
+                    (int) $pointRows->sum('candidats'),
+                ]], null, "A{$rowIndex}");
+                $rowIndex++;
+            }
+
+            $sheet->fromArray([[
+                'TOTAL AXE '.$axe,
+                '',
+                '',
+                '',
+                '',
+                (int) $axeRows->sum('esp'),
+                (int) $axeRows->sum('allemand'),
+                (int) $axeRows->sum('anglais'),
+                (int) $axeRows->sum('option_b'),
+                (int) $axeRows->sum('salles'),
+                (int) $axeRows->sum('candidats'),
+            ]], null, "A{$rowIndex}");
+            $rowIndex++;
+            $sheet->setCellValue("A{$rowIndex}", 'ESP: Espagnol, ALL: Allemand, ANG: Anglais, B: Option B, S: Salles');
+            $sheet->mergeCells("A{$rowIndex}:K{$rowIndex}");
+
+            foreach (range('A', 'K') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+
+            $headerRange = 'A3:K3';
+            $lastDataRow = $rowIndex;
+            $tableRange = "A3:K{$lastDataRow}";
+            $sheet->getStyle('A1:K2')->getFont()->setBold(true);
+            $sheet->getStyle('A1:K2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle($headerRange)->getFont()->setBold(true);
+            $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+            $sheet->getStyle($tableRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        }
+
+        $spreadsheet->setActiveSheetIndex(0);
+        $writer = new Xlsx($spreadsheet);
+        $fileName = 'dispatching_'.($filters['annee'] !== '' ? $filters['annee'].'_' : '').strtolower($filters['type_examen']).'.xlsx';
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private function buildStatsExportRows(Collection $rows, string $typeExamen): Collection
+    {
+        return $rows
+            ->groupBy(fn ($row) => implode('|', [
+                $row->dren,
+                $row->cisco,
+                $row->centre_correction,
+                $row->centre_ecrit,
+                $row->type_examen,
+                $row->numero_salle,
+            ]))
+            ->map(function (Collection $group) {
+                $first = $group->first();
+                $sum = fn (string $langue): int => (int) $group->where('langue', $langue)->sum('effectif');
+                $sumStartsWith = fn (string $prefix): int => (int) $group->filter(fn ($row) => str_starts_with((string) $row->langue, $prefix))->sum('effectif');
+
+                $anglais = $sum('Anglais');
+                $esp = $sum('Esp');
+                $allemand = $sum('Allemand');
+                $optionB = $sum('Option B');
+                $etrangerOptionA = $sumStartsWith('Etranger Option A');
+                $etrangerOptionB = $sumStartsWith('Etranger Option B');
+                $totalCepe = $sum(self::CEPE_KEY);
+
+                return [
+                    'dren' => $first->dren,
+                    'cisco' => $first->cisco,
+                    'centre_correction' => $first->centre_correction,
+                    'centre_ecrit' => $first->centre_ecrit,
+                    'type_examen' => $first->type_examen,
+                    'numero_salle' => (int) $first->numero_salle,
+                    'anglais' => $anglais,
+                    'esp' => $esp,
+                    'allemand' => $allemand,
+                    'option_b' => $optionB,
+                    'etranger_option_a' => $etrangerOptionA,
+                    'etranger_option_b' => $etrangerOptionB,
+                    'total_cepe' => $totalCepe,
+                    'total' => $anglais + $esp + $allemand + $optionB + $etrangerOptionA + $etrangerOptionB + $totalCepe,
+                ];
+            })
+            ->sortBy(['dren', 'cisco', 'centre_correction', 'centre_ecrit', 'numero_salle'])
+            ->values();
+    }
+
+    private function getStatsExportMeta(string $typeExamen): array
+    {
+        if ($typeExamen === self::TYPE_CEPE) {
+            return [[
+                'DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'SALLE', 'TOTAL CEPE',
+            ], ['total_cepe']];
+        }
+
+        if ($typeExamen === self::TYPE_BEPC) {
+            return [[
+                'DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'SALLE',
+                'OPTION A - ANGLAIS', 'OPTION A - ESP', 'OPTION A - ALLEMAND', 'OPTION B',
+                'ETRANGER OPTION A', 'ETRANGER OPTION B', 'TOTAL',
+            ], ['anglais', 'esp', 'allemand', 'option_b', 'etranger_option_a', 'etranger_option_b', 'total']];
+        }
+
+        return [[
+            'DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'TYPE EXAMEN', 'SALLE',
+            'OPTION A - ANGLAIS', 'OPTION A - ESP', 'OPTION A - ALLEMAND', 'OPTION B',
+            'ETRANGER OPTION A', 'ETRANGER OPTION B', 'TOTAL CEPE', 'TOTAL',
+        ], ['anglais', 'esp', 'allemand', 'option_b', 'etranger_option_a', 'etranger_option_b', 'total_cepe', 'total']];
+    }
+
+    private function lineToStatsCsvRow(array $line, string $typeExamen): array
+    {
+        if ($typeExamen === self::TYPE_CEPE) {
+            return [
+                $line['dren'],
+                $line['cisco'],
+                $line['centre_correction'],
+                $line['centre_ecrit'],
+                $line['numero_salle'],
+                $line['total_cepe'],
+            ];
+        }
+
+        if ($typeExamen === self::TYPE_BEPC) {
+            return [
+                $line['dren'],
+                $line['cisco'],
+                $line['centre_correction'],
+                $line['centre_ecrit'],
+                $line['numero_salle'],
+                $line['anglais'],
+                $line['esp'],
+                $line['allemand'],
+                $line['option_b'],
+                $line['etranger_option_a'],
+                $line['etranger_option_b'],
+                $line['total'],
+            ];
+        }
+
+        return [
+            $line['dren'],
+            $line['cisco'],
+            $line['centre_correction'],
+            $line['centre_ecrit'],
+            $line['type_examen'],
+            $line['numero_salle'],
+            $line['anglais'],
+            $line['esp'],
+            $line['allemand'],
+            $line['option_b'],
+            $line['etranger_option_a'],
+            $line['etranger_option_b'],
+            $line['total_cepe'],
+            $line['total'],
+        ];
+    }
+
+    private function buildStatsTotalRow(string $label, array $totals, string $typeExamen): array
+    {
+        if ($typeExamen === self::TYPE_CEPE) {
+            return [$label, '', '', '', '', $totals['total_cepe'] ?? 0];
+        }
+
+        if ($typeExamen === self::TYPE_BEPC) {
+            return [
+                $label, '', '', '', '',
+                $totals['anglais'] ?? 0,
+                $totals['esp'] ?? 0,
+                $totals['allemand'] ?? 0,
+                $totals['option_b'] ?? 0,
+                $totals['etranger_option_a'] ?? 0,
+                $totals['etranger_option_b'] ?? 0,
+                $totals['total'] ?? 0,
+            ];
+        }
+
+        return [
+            $label, '', '', '', '', '',
+            $totals['anglais'] ?? 0,
+            $totals['esp'] ?? 0,
+            $totals['allemand'] ?? 0,
+            $totals['option_b'] ?? 0,
+            $totals['etranger_option_a'] ?? 0,
+            $totals['etranger_option_b'] ?? 0,
+            $totals['total_cepe'] ?? 0,
+            $totals['total'] ?? 0,
+        ];
+    }
+
+    private function buildDispatchingRows(Collection $rows): Collection
+    {
+        return $rows
             ->groupBy(fn ($row) => implode('|', [$row->centre_ecrit_id, $row->annee, $row->type_examen]))
             ->map(function (Collection $group) {
                 $first = $group->first();
+                $sum = fn (string $langue): int => (int) $group->where('langue', $langue)->sum('effectif');
 
                 return [
+                    'dren' => $first->dren,
+                    'cisco' => $first->cisco,
+                    'centre_correction' => $first->centre_correction,
+                    'centre_ecrit' => $first->centre_ecrit,
+                    'code_centre' => mb_strtoupper(mb_substr(trim((string) $first->centre_ecrit), 0, 3)),
                     'axe_dispatching' => trim((string) ($first->axe_dispatching ?? '')) ?: 'AXE NON RENSEIGNE',
                     'point_largage' => trim((string) ($first->point_largage ?? '')) ?: 'POINT NON RENSEIGNE',
-                    'centre_ecrit' => $first->centre_ecrit,
+                    'esp' => $sum('Esp'),
+                    'allemand' => $sum('Allemand'),
+                    'anglais' => $sum('Anglais'),
+                    'option_b' => $sum('Option B'),
                     'candidats' => (int) $group->sum('effectif'),
                     'salles' => $this->countDistinctSalles($group),
                 ];
             })
-            ->sortBy(['axe_dispatching', 'point_largage', 'centre_ecrit'])
+            ->sortBy(['axe_dispatching', 'point_largage', 'dren', 'cisco', 'centre_ecrit'])
             ->values();
-
-        $xmlEscape = fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_XML1, 'UTF-8');
-        $buildCell = function (string $value, string $type = 'String', string $style = 'Text', ?int $mergeAcross = null) use ($xmlEscape): string {
-            $merge = $mergeAcross !== null ? ' ss:MergeAcross="'.$mergeAcross.'"' : '';
-
-            return '<Cell ss:StyleID="'.$style.'"'.$merge.'><Data ss:Type="'.$type.'">'.$xmlEscape($value).'</Data></Cell>';
-        };
-
-        $buildNumberCell = fn (int $value, string $style = 'Number'): string => $buildCell((string) $value, 'Number', $style);
-        $buildEmptyCell = fn (): string => '<Cell ss:StyleID="Text"><Data ss:Type="String"></Data></Cell>';
-        $buildRow = fn (array $cells): string => '<Row>'.implode('', $cells).'</Row>';
-
-        $workbook = [];
-        $workbook[] = '<?xml version="1.0" encoding="UTF-8"?>';
-        $workbook[] = '<?mso-application progid="Excel.Sheet"?>';
-        $workbook[] = '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel">';
-        $workbook[] = '<Styles>';
-        $workbook[] = '<Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/></Style>';
-        $workbook[] = '<Style ss:ID="Title"><Font ss:Bold="1" ss:Size="12"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>';
-        $workbook[] = '<Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#E2E8F0" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>';
-        $workbook[] = '<Style ss:ID="Text"><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>';
-        $workbook[] = '<Style ss:ID="Number"><Alignment ss:Horizontal="Right"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>';
-        $workbook[] = '<Style ss:ID="Footer"><Font ss:Italic="1"/><Alignment ss:Horizontal="Center"/></Style>';
-        $workbook[] = '</Styles>';
-
-        $usedSheetNames = [];
-        foreach ($centreRows->groupBy('axe_dispatching') as $axe => $axeRows) {
-            $sheetName = $this->makeExcelSheetName($axe, $usedSheetNames);
-            $workbook[] = '<Worksheet ss:Name="'.$xmlEscape($sheetName).'">';
-            $workbook[] = '<Table>';
-            $workbook[] = '<Column ss:Width="180"/><Column ss:Width="180"/><Column ss:Width="240"/><Column ss:Width="120"/><Column ss:Width="110"/><Column ss:Width="130"/><Column ss:Width="160"/><Column ss:Width="170"/>';
-            $workbook[] = $buildRow([$buildCell('ORGANISATION DES EXAMENS SOE', 'String', 'Title', 7)]);
-            $workbook[] = $buildRow([$buildCell('AXE: '.$axe, 'String', 'Header', 7)]);
-            $workbook[] = $buildRow([
-                $buildCell('AXE DE DISPATCHING', 'String', 'Header'),
-                $buildCell('POINT DE LARGAGE', 'String', 'Header'),
-                $buildCell('NOM DU CENTRE', 'String', 'Header'),
-                $buildCell('NOMBRE DE CANDIDATS', 'String', 'Header'),
-                $buildCell('TOTAL SALLES', 'String', 'Header'),
-                $buildCell('NOMBRE DE SOUBIQUE', 'String', 'Header'),
-                $buildCell('INSTRUCTIONS', 'String', 'Header'),
-                $buildCell('OBSERVATION', 'String', 'Header'),
-            ]);
-
-            foreach ($axeRows->groupBy('point_largage') as $point => $pointRows) {
-                $workbook[] = $buildRow([$buildCell('POINT DE LARGAGE: '.$point, 'String', 'Header', 7)]);
-
-                foreach ($pointRows as $line) {
-                    $workbook[] = $buildRow([
-                        $buildCell($line['axe_dispatching']),
-                        $buildCell($line['point_largage']),
-                        $buildCell($line['centre_ecrit']),
-                        $buildNumberCell((int) $line['candidats']),
-                        $buildNumberCell((int) $line['salles']),
-                        $buildEmptyCell(),
-                        $buildEmptyCell(),
-                        $buildEmptyCell(),
-                    ]);
-                }
-
-                $workbook[] = $buildRow([
-                    $buildCell(''),
-                    $buildCell('TOTAL '.$point, 'String', 'Header'),
-                    $buildCell('', 'String', 'Header'),
-                    $buildNumberCell((int) $pointRows->sum('candidats'), 'Header'),
-                    $buildNumberCell((int) $pointRows->sum('salles'), 'Header'),
-                    $buildCell('', 'String', 'Header'),
-                    $buildCell('', 'String', 'Header'),
-                    $buildCell('', 'String', 'Header'),
-                ]);
-            }
-
-            $workbook[] = $buildRow([
-                $buildCell('TOTAL AXE '.$axe, 'String', 'Header', 2),
-                $buildNumberCell((int) $axeRows->sum('candidats'), 'Header'),
-                $buildNumberCell((int) $axeRows->sum('salles'), 'Header'),
-                $buildCell('', 'String', 'Header'),
-                $buildCell('', 'String', 'Header'),
-                $buildCell('', 'String', 'Header'),
-            ]);
-            $workbook[] = $buildRow([$buildCell('RAMAROSON Andry Michael, 0340604716, all copyright', 'String', 'Footer', 7)]);
-            $workbook[] = '</Table>';
-            $workbook[] = '<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><PageSetup><Header x:Data="&amp;COrganisation des examens SOE"/><Footer x:Data="&amp;LRAMAROSON Andry Michael, 0340604716, all copyright"/></PageSetup></WorksheetOptions>';
-            $workbook[] = '</Worksheet>';
-        }
-        $workbook[] = '</Workbook>';
-
-        $fileName = 'dispatching_axes_points_'.($filters['annee'] !== '' ? $filters['annee'].'_' : '').strtolower($filters['type_examen']).'.xml';
-
-        return response()->streamDownload(function () use ($workbook) {
-            echo implode('', $workbook);
-        }, $fileName, [
-            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
-        ]);
     }
 
     private function makeExcelSheetName(string $axe, array &$usedSheetNames): string
@@ -613,6 +794,50 @@ class RepartitionReportController extends Controller
         $usedSheetNames[] = $name;
 
         return $name;
+    }
+
+    private function getCentresSaisieStats(array $filters): array
+    {
+        $centresQuery = DB::table('centre_ecrits as ce')
+            ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
+            ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
+            ->join('drens as d', 'd.id', '=', 'cs.dren_id');
+
+        if ($filters['dren'] !== '') {
+            $centresQuery->where('d.nom', $filters['dren']);
+        }
+        if ($filters['type_examen'] === self::TYPE_BEPC || $filters['type_examen'] === self::TYPE_CEPE) {
+            $centresQuery->where('ce.type_examen', $filters['type_examen']);
+        }
+
+        $totalCentres = (int) $centresQuery->distinct('ce.id')->count('ce.id');
+
+        $saisisQuery = DB::table('repartition_salles as rs')
+            ->join('centre_ecrits as ce', 'ce.id', '=', 'rs.centre_ecrit_id')
+            ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
+            ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
+            ->join('drens as d', 'd.id', '=', 'cs.dren_id');
+
+        if ($filters['annee'] !== '') {
+            $saisisQuery->where('rs.annee', $filters['annee']);
+        }
+        if ($filters['dren'] !== '') {
+            $saisisQuery->where('d.nom', $filters['dren']);
+        }
+        if ($filters['type_examen'] === self::TYPE_BEPC) {
+            $saisisQuery->where('rs.langue', '!=', self::CEPE_KEY);
+        } elseif ($filters['type_examen'] === self::TYPE_CEPE) {
+            $saisisQuery->where('rs.langue', self::CEPE_KEY);
+        }
+
+        $centresSaisis = (int) $saisisQuery->distinct('ce.id')->count('ce.id');
+        $centresNonSaisis = max(0, $totalCentres - $centresSaisis);
+
+        return [
+            'total' => $totalCentres,
+            'saisis' => $centresSaisis,
+            'non_saisis' => $centresNonSaisis,
+        ];
     }
 
     private function getFilteredRows(Request $request): array
@@ -772,32 +997,93 @@ class RepartitionReportController extends Controller
         return $rows
             ->groupBy('dren')
             ->map(function (Collection $drenRows, string $drenName) use ($centresByDren) {
-                $totauxLangues = $drenRows
-                    ->groupBy(fn ($row) => $row->langue === self::CEPE_KEY ? 'Total CEPE' : $row->langue)
-                    ->map(fn (Collection $group) => $group->sum('effectif'))
-                    ->filter(fn (int $value) => $value > 0)
-                    ->sortDesc();
-
                 $centres = ($centresByDren->get($drenName, collect()))->values()->all();
 
                 return [
                     'dren' => $drenName,
-                    'recap' => [
-                        'total_candidats' => (int) $drenRows->sum('effectif'),
-                        'total_salles' => $this->countDistinctSalles($drenRows),
-                        'total_centres' => $drenRows
-                            ->map(fn ($row) => $row->centre_ecrit_id.'|'.$row->annee.'|'.$row->type_examen)
-                            ->unique()
-                            ->count(),
-                        'total_pe' => collect($centres)->sum('pe'),
-                        'total_ge' => collect($centres)->sum('ge_count'),
-                        'totaux_langues' => $totauxLangues,
-                    ],
-                    'pages' => array_chunk($centres, self::CENTRES_PER_PAGE),
+                    'pages' => $this->paginateCentresForPdf($centres),
                 ];
             })
             ->values()
             ->toArray();
+    }
+
+    private function buildRecapSheets(array $bookData): array
+    {
+        return collect($bookData)
+            ->groupBy('dren')
+            ->map(function (Collection $centres, string $dren) {
+                $rows = $centres->map(function (array $centre) {
+                    return [
+                        'cisco' => $centre['cisco'],
+                        'centre_correction' => $centre['centre_correction'],
+                        'centre_ecrit' => $centre['centre_ecrit'],
+                        'candidats' => (int) $centre['total_candidats'],
+                        'salles' => (int) $centre['total_salles'],
+                        'ge_total' => (int) $centre['ge_count'],
+                        'ge_repartition' => implode('+', array_map(fn (int $n) => (string) $n, $centre['ge_distribution'] ?? [])),
+                    ];
+                })->values();
+
+                return [
+                    'dren' => $dren,
+                    'rows' => $rows->all(),
+                    'total_centres' => $rows->count(),
+                    'total_candidats' => (int) $rows->sum('candidats'),
+                    'total_salles' => (int) $rows->sum('salles'),
+                    'total_ge' => (int) $rows->sum('ge_total'),
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
+    private function paginateCentresByDren(array $centres): array
+    {
+        return collect($centres)
+            ->groupBy('dren')
+            ->map(function (Collection $drenCentres, string $dren) {
+                $pages = [];
+                $currentPage = [];
+
+                foreach ($drenCentres->values()->all() as $centre) {
+                    if ($currentPage === []) {
+                        $currentPage[] = $centre;
+                        continue;
+                    }
+
+                    $first = $currentPage[0];
+                    $canPair = count($currentPage) === 1
+                        && ((int) ($first['pe'] ?? 0)) <= self::MAX_SALLES_PER_TABLE
+                        && ((int) ($centre['pe'] ?? 0)) <= self::MAX_SALLES_PER_TABLE;
+
+                    if ($canPair) {
+                        $currentPage[] = $centre;
+                        $pages[] = $currentPage;
+                        $currentPage = [];
+                        continue;
+                    }
+
+                    $pages[] = $currentPage;
+                    $currentPage = [$centre];
+                }
+
+                if ($currentPage !== []) {
+                    $pages[] = $currentPage;
+                }
+
+                return [
+                    'dren' => $dren,
+                    'pages' => $pages,
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
+    private function paginateCentresForPdf(array $centres): array
+    {
+        return array_chunk($centres, self::CENTRES_PER_PAGE);
     }
 
     private function paginateCollection(Collection $items, int $perPage, string $pageName, Request $request): LengthAwarePaginator
