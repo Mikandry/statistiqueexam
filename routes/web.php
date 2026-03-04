@@ -36,6 +36,12 @@ Route::middleware('auth')->group(function () {
         ->name('repartition.livre.preview');
     Route::get('/repartition/livre/pdf', [RepartitionReportController::class, 'livrePdf'])
         ->name('repartition.livre.pdf');
+    Route::get('/repartition/livre/export/xlsx', [RepartitionReportController::class, 'livreExcel'])
+        ->name('repartition.livre.excel');
+    Route::get('/repartition/livraison/cepe', [RepartitionReportController::class, 'cepeLivraison'])
+        ->name('repartition.livraison.cepe');
+    Route::get('/repartition/livraison/cepe/export/xlsx', [RepartitionReportController::class, 'cepeLivraisonExcel'])
+        ->name('repartition.livraison.cepe.excel');
     Route::get('/repartition/export/excel', [RepartitionReportController::class, 'exportExcel'])
         ->name('repartition.export.excel');
     Route::get('/repartition/export/dispatching/preview', [RepartitionReportController::class, 'dispatchingPreview'])
@@ -81,16 +87,24 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('admin.references.drens.store');
     Route::put('/admin/references/drens/{dren}', [ReferenceManagementController::class, 'updateDren'])
         ->name('admin.references.drens.update');
+    Route::delete('/admin/references/drens/{dren}', [ReferenceManagementController::class, 'destroyDren'])
+        ->name('admin.references.drens.destroy');
     Route::post('/admin/references/ciscos', [ReferenceManagementController::class, 'storeCisco'])
         ->name('admin.references.ciscos.store');
     Route::put('/admin/references/ciscos/{cisco}', [ReferenceManagementController::class, 'updateCisco'])
         ->name('admin.references.ciscos.update');
+    Route::delete('/admin/references/ciscos/{cisco}', [ReferenceManagementController::class, 'destroyCisco'])
+        ->name('admin.references.ciscos.destroy');
     Route::post('/admin/references/centres-correction', [ReferenceManagementController::class, 'storeCentreCorrection'])
         ->name('admin.references.centres-correction.store');
     Route::put('/admin/references/centres-correction/{centreCorrection}', [ReferenceManagementController::class, 'updateCentreCorrection'])
         ->name('admin.references.centres-correction.update');
+    Route::delete('/admin/references/centres-correction/{centreCorrection}', [ReferenceManagementController::class, 'destroyCentreCorrection'])
+        ->name('admin.references.centres-correction.destroy');
     Route::post('/admin/references/centres-ecrit', [ReferenceManagementController::class, 'storeCentreEcrit'])
         ->name('admin.references.centres-ecrit.store');
     Route::put('/admin/references/centres-ecrit/{centreEcrit}', [ReferenceManagementController::class, 'updateCentreEcrit'])
         ->name('admin.references.centres-ecrit.update');
+    Route::delete('/admin/references/centres-ecrit/{centreEcrit}', [ReferenceManagementController::class, 'destroyCentreEcrit'])
+        ->name('admin.references.centres-ecrit.destroy');
 });

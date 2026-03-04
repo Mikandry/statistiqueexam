@@ -129,8 +129,15 @@
                                                 <input class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="nom" value="{{ $dren->nom }}" required>
                                         </td>
                                         <td class="border border-slate-200 px-3 py-2">
-                                                <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Modifier</button>
+                                                <div class="flex flex-wrap gap-2">
+                                                    <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Modifier</button>
                                             </form>
+                                                    <form method="POST" action="{{ route('admin.references.drens.destroy', $dren) }}" onsubmit="return confirm('Supprimer la DREN {{ addslashes($dren->nom) }} et tout son héritage (CISCO, centres, statistiques) ?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button class="rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50" type="submit">Supprimer</button>
+                                                    </form>
+                                                </div>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -157,8 +164,15 @@
                                         </td>
                                         <td class="border border-slate-200 px-3 py-2"><input class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="nom" value="{{ $cisco->nom }}" required></td>
                                         <td class="border border-slate-200 px-3 py-2">
-                                                <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Modifier</button>
+                                                <div class="flex flex-wrap gap-2">
+                                                    <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Modifier</button>
                                             </form>
+                                                    <form method="POST" action="{{ route('admin.references.ciscos.destroy', $cisco) }}" onsubmit="return confirm('Supprimer le CISCO {{ addslashes($cisco->nom) }} et tous ses centres/statistiques ?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button class="rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50" type="submit">Supprimer</button>
+                                                    </form>
+                                                </div>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -191,8 +205,15 @@
                                                 </select>
                                         </td>
                                         <td class="border border-slate-200 px-3 py-2">
-                                                <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Modifier</button>
+                                                <div class="flex flex-wrap gap-2">
+                                                    <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Modifier</button>
                                             </form>
+                                                    <form method="POST" action="{{ route('admin.references.centres-correction.destroy', $cc) }}" onsubmit="return confirm('Supprimer le centre de correction {{ addslashes($cc->nom) }} ({{ $cc->type_examen }}) et tous ses centres d\\'écrit/statistiques ?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button class="rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50" type="submit">Supprimer</button>
+                                                    </form>
+                                                </div>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -225,8 +246,15 @@
                                                 </select>
                                         </td>
                                         <td class="border border-slate-200 px-3 py-2">
-                                                <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Modifier</button>
+                                                <div class="flex flex-wrap gap-2">
+                                                    <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Modifier</button>
                                             </form>
+                                                    <form method="POST" action="{{ route('admin.references.centres-ecrit.destroy', $ce) }}" onsubmit="return confirm('Supprimer le centre d\\'écrit {{ addslashes($ce->nom) }} ({{ $ce->type_examen }}) et ses statistiques ?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button class="rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50" type="submit">Supprimer</button>
+                                                    </form>
+                                                </div>
                                         </td>
                                     </tr>
                                 @endforeach

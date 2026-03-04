@@ -55,6 +55,16 @@
             <span class="flex-1">Livre</span>
             <span class="text-xs text-slate-400">PDF</span>
         </a>
+
+        <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-teal-200 hover:bg-teal-50/50 hover:text-teal-700 hover:shadow-md" href="{{ route('repartition.livraison.cepe') }}">
+            <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-teal-100 group-hover:text-teal-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M20 13V7a2 2 0 00-2-2h-3V3H9v2H6a2 2 0 00-2 2v6m16 0H4m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" />
+                </svg>
+            </span>
+            <span class="flex-1">Livraison CEPE</span>
+            <span class="text-xs text-slate-400">CISCO</span>
+        </a>
         
         <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-rose-200 hover:bg-rose-50/50 hover:text-rose-700 hover:shadow-md" href="{{ route('imports.index') }}">
             <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-rose-100 group-hover:text-rose-600">

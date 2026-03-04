@@ -54,6 +54,14 @@ class ReferenceManagementController extends Controller
         return back()->with('status', 'DREN modifié.');
     }
 
+    public function destroyDren(Dren $dren): RedirectResponse
+    {
+        $drenName = $dren->nom;
+        $dren->delete();
+
+        return back()->with('status', "DREN {$drenName} supprimé(e) avec ses CISCO et centres associés.");
+    }
+
     public function storeCisco(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -82,6 +90,14 @@ class ReferenceManagementController extends Controller
         ]);
 
         return back()->with('status', 'CISCO modifié.');
+    }
+
+    public function destroyCisco(Cisco $cisco): RedirectResponse
+    {
+        $ciscoName = $cisco->nom;
+        $cisco->delete();
+
+        return back()->with('status', "CISCO {$ciscoName} supprimé(e) avec ses centres associés.");
     }
 
     public function storeCentreCorrection(Request $request): RedirectResponse
@@ -116,6 +132,15 @@ class ReferenceManagementController extends Controller
         ]);
 
         return back()->with('status', 'Centre de correction modifié.');
+    }
+
+    public function destroyCentreCorrection(CentreCorrection $centreCorrection): RedirectResponse
+    {
+        $centreName = $centreCorrection->nom;
+        $typeExamen = $centreCorrection->type_examen;
+        $centreCorrection->delete();
+
+        return back()->with('status', "Centre de correction {$centreName} ({$typeExamen}) supprimé avec ses centres d'écrit et statistiques associées.");
     }
 
     public function storeCentreEcrit(Request $request): RedirectResponse
@@ -164,5 +189,14 @@ class ReferenceManagementController extends Controller
         ]);
 
         return back()->with('status', 'Centre d\'écrit modifié.');
+    }
+
+    public function destroyCentreEcrit(CentreEcrit $centreEcrit): RedirectResponse
+    {
+        $centreName = $centreEcrit->nom;
+        $typeExamen = $centreEcrit->type_examen;
+        $centreEcrit->delete();
+
+        return back()->with('status', "Centre d'écrit {$centreName} ({$typeExamen}) supprimé avec ses statistiques associées.");
     }
 }

@@ -190,6 +190,349 @@ class RepartitionReportController extends Controller
         ]);
     }
 
+    public function livreExcel(Request $request)
+    {
+        [$rows, $filters] = $this->getFilteredRows($request);
+        $bookData = collect($this->buildBookData($rows));
+        $recapSheets = collect($this->buildRecapSheets($bookData->all()));
+
+        $spreadsheet = new Spreadsheet();
+        $recapSheet = $spreadsheet->getActiveSheet();
+        $recapSheet->setTitle('RECAP_DREN');
+
+        if ($recapSheets->isEmpty()) {
+            $recapSheet->setCellValue('A1', 'Aucune donnee pour les filtres selectionnes.');
+        } else {
+            $recapHeaders = [
+                'DREN',
+                'CISCO',
+                'CENTRE CORRECTION',
+                'CENTRE ECRIT',
+                'CANDIDATS',
+                'PE',
+                'GE TOTAL',
+                'REPARTITION GE',
+            ];
+            $recapSheet->fromArray($recapHeaders, null, 'A1');
+
+            $recapRow = 2;
+            foreach ($recapSheets as $recap) {
+                foreach (($recap['rows'] ?? []) as $line) {
+                    $recapSheet->fromArray([
+                        $recap['dren'],
+                        $line['cisco'],
+                        $line['centre_correction'],
+                        $line['centre_ecrit'],
+                        (int) $line['candidats'],
+                        (int) $line['pe'],
+                        (int) $line['ge_total'],
+                        (string) ($line['ge_repartition'] ?? ''),
+                    ], null, "A{$recapRow}");
+                    $recapRow++;
+                }
+            }
+
+            $this->styleSheetWithHeader($recapSheet);
+        }
+
+        $detailSheet = $spreadsheet->createSheet();
+        $detailSheet->setTitle('LIVRE_DETAIL');
+
+        if ($bookData->isEmpty()) {
+            $detailSheet->setCellValue('A1', 'Aucune donnee detaillee disponible.');
+        } else {
+            $detailHeaders = [
+                'DREN',
+                'CISCO',
+                'CENTRE CORRECTION',
+                'CENTRE ECRIT',
+                'TYPE EXAMEN',
+                'ANNEE',
+                'SALLE',
+                'TOTAL CEPE',
+                'ANGLAIS',
+                'ESP',
+                'ALLEMAND',
+                'OPTION B',
+                'TOTAL SALLE',
+                'PE',
+                'GE TOTAL',
+                'REPARTITION GE',
+                'AXE DISPATCHING',
+                'POINT LARGAGE',
+            ];
+            $detailSheet->fromArray($detailHeaders, null, 'A1');
+
+            $detailRows = $rows
+                ->groupBy(fn ($row) => implode('|', [
+                    $row->dren,
+                    $row->cisco,
+                    $row->centre_correction,
+                    $row->centre_ecrit,
+                    $row->type_examen,
+                    $row->annee,
+                    $row->centre_ecrit_id,
+                    $row->numero_salle,
+                ]))
+                ->map(function (Collection $salleRows) use ($bookData) {
+                    $first = $salleRows->first();
+                    $centre = $bookData->first(function (array $item) use ($first) {
+                        return $item['dren'] === $first->dren
+                            && $item['cisco'] === $first->cisco
+                            && $item['centre_correction'] === $first->centre_correction
+                            && $item['centre_ecrit'] === $first->centre_ecrit
+                            && $item['type_examen'] === $first->type_examen
+                            && $item['annee'] === $first->annee;
+                    });
+
+                    return [
+                        'dren' => (string) $first->dren,
+                        'cisco' => (string) $first->cisco,
+                        'centre_correction' => (string) $first->centre_correction,
+                        'centre_ecrit' => (string) $first->centre_ecrit,
+                        'type_examen' => (string) $first->type_examen,
+                        'annee' => (string) $first->annee,
+                        'salle' => (int) $first->numero_salle,
+                        'total_cepe' => (int) $salleRows->where('langue', self::CEPE_KEY)->sum('effectif'),
+                        'anglais' => (int) $salleRows->where('langue', 'Anglais')->sum('effectif'),
+                        'esp' => (int) $salleRows->where('langue', 'Esp')->sum('effectif'),
+                        'allemand' => (int) $salleRows->where('langue', 'Allemand')->sum('effectif'),
+                        'option_b' => (int) $salleRows->where('langue', 'Option B')->sum('effectif'),
+                        'total_salle' => (int) $salleRows->sum('effectif'),
+                        'pe' => (int) ($centre['pe'] ?? 0),
+                        'ge_count' => (int) ($centre['ge_count'] ?? 0),
+                        'ge_distribution' => implode('+', array_map(fn (int $n) => (string) $n, $centre['ge_distribution'] ?? [])),
+                        'axe_dispatching' => (string) ($first->axe_dispatching ?? ''),
+                        'point_largage' => (string) ($first->point_largage ?? ''),
+                    ];
+                })
+                ->sortBy(['dren', 'cisco', 'centre_correction', 'centre_ecrit', 'annee', 'salle'])
+                ->values();
+
+            $detailRow = 2;
+            $centreSeen = [];
+            foreach ($detailRows as $line) {
+                $centreKey = implode('|', [
+                    $line['dren'],
+                    $line['cisco'],
+                    $line['centre_correction'],
+                    $line['centre_ecrit'],
+                    $line['type_examen'],
+                    $line['annee'],
+                ]);
+                $firstSalleForCentre = ! isset($centreSeen[$centreKey]);
+                $centreSeen[$centreKey] = true;
+
+                $detailSheet->fromArray([
+                    $line['dren'],
+                    $line['cisco'],
+                    $line['centre_correction'],
+                    $line['centre_ecrit'],
+                    $line['type_examen'],
+                    $line['annee'],
+                    $line['salle'],
+                    $line['total_cepe'],
+                    $line['anglais'],
+                    $line['esp'],
+                    $line['allemand'],
+                    $line['option_b'],
+                    $line['total_salle'],
+                    $firstSalleForCentre ? $line['pe'] : 0,
+                    $firstSalleForCentre ? $line['ge_count'] : 0,
+                    $firstSalleForCentre ? $line['ge_distribution'] : '',
+                    $line['axe_dispatching'],
+                    $line['point_largage'],
+                ], null, "A{$detailRow}");
+                $detailRow++;
+                }
+
+            $this->styleSheetWithHeader($detailSheet);
+        }
+
+        $pdfLikeSheet = $spreadsheet->createSheet();
+        $pdfLikeSheet->setTitle('LIVRE_FORMAT_PDF');
+        $pdfLikeRow = 1;
+        if ($bookData->isEmpty()) {
+            $pdfLikeSheet->setCellValue('A1', 'Aucune donnee pour les filtres selectionnes.');
+        } else {
+            foreach ($bookData as $centre) {
+                if (($filters['type_examen'] ?? self::TYPE_ALL) === self::TYPE_BEPC && ($centre['type_examen'] ?? '') !== self::TYPE_BEPC) {
+                    continue;
+                }
+
+                $pdfLikeSheet->setCellValue("A{$pdfLikeRow}", 'CENTRE: '.$centre['centre_ecrit'].' ('.$centre['type_examen'].')');
+                $pdfLikeSheet->mergeCells("A{$pdfLikeRow}:H{$pdfLikeRow}");
+                $pdfLikeSheet->getStyle("A{$pdfLikeRow}")->getFont()->setBold(true);
+                $pdfLikeRow++;
+
+                $pdfLikeSheet->fromArray([
+                    ['DREN', $centre['dren'], 'ANNEE', $centre['annee'], 'CISCO', $centre['cisco'], 'CENTRE CORRECTION', $centre['centre_correction']],
+                    ['Axe dispatching', (string) ($centre['axe_dispatching'] ?? '-'), 'Point largage', (string) ($centre['point_largage'] ?? '-'), 'PE', (int) $centre['pe'], 'GE', (int) $centre['ge_count']],
+                    ['Repartition GE', implode('+', array_map(fn (int $n) => (string) $n, $centre['ge_distribution'] ?? [])), '', '', '', '', '', ''],
+                ], null, "A{$pdfLikeRow}");
+                $pdfLikeSheet->mergeCells("B{$pdfLikeRow}:H{$pdfLikeRow}");
+                $pdfLikeSheet->mergeCells("B".($pdfLikeRow + 1).":D".($pdfLikeRow + 1));
+                $pdfLikeSheet->mergeCells("F".($pdfLikeRow + 1).":G".($pdfLikeRow + 1));
+                $pdfLikeSheet->mergeCells("B".($pdfLikeRow + 2).":H".($pdfLikeRow + 2));
+                $pdfLikeRow += 4;
+
+                foreach (($centre['tables'] ?? []) as $table) {
+                    $headers = ['Langue / Option'];
+                    foreach (($table['salles'] ?? []) as $salle) {
+                        $headers[] = 'Salle '.(int) $salle;
+                    }
+                    $headers[] = 'Total langue';
+                    $pdfLikeSheet->fromArray([$headers], null, "A{$pdfLikeRow}");
+                    $headerLastCol = Coordinate::stringFromColumnIndex(count($headers));
+                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFont()->setBold(true);
+                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+                    $pdfLikeRow++;
+
+                    foreach (($table['rows'] ?? []) as $langueRow) {
+                        $line = [$langueRow['label']];
+                        $lineTotal = 0;
+                        foreach (($table['salles'] ?? []) as $salle) {
+                            $value = (int) ($langueRow['values'][$salle] ?? 0);
+                            $line[] = $value;
+                            $lineTotal += $value;
+                        }
+                        $line[] = $lineTotal;
+                        $pdfLikeSheet->fromArray([$line], null, "A{$pdfLikeRow}");
+                        $pdfLikeRow++;
+                    }
+
+                    $totalRow = ['TOTAL SALLE'];
+                    $grandTotal = 0;
+                    foreach (($table['salles'] ?? []) as $salle) {
+                        $salleTotal = (int) (($table['totaux_salles'][$salle] ?? 0));
+                        $totalRow[] = $salleTotal;
+                        $grandTotal += $salleTotal;
+                    }
+                    $totalRow[] = $grandTotal;
+                    $pdfLikeSheet->fromArray([$totalRow], null, "A{$pdfLikeRow}");
+                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFont()->setBold(true);
+                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
+                    $pdfLikeSheet->getStyle("A".($pdfLikeRow - (count($table['rows'] ?? []) + 1)).":{$headerLastCol}{$pdfLikeRow}")
+                        ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                    $pdfLikeRow += 2;
+                }
+
+                $pdfLikeRow++;
+            }
+
+            $pdfLikeLastCol = $pdfLikeSheet->getHighestColumn();
+            $pdfLikeLastColIndex = Coordinate::columnIndexFromString($pdfLikeLastCol);
+            for ($i = 1; $i <= $pdfLikeLastColIndex; $i++) {
+                $pdfLikeSheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
+            }
+        }
+
+        $spreadsheet->setActiveSheetIndex(0);
+        $writer = new Xlsx($spreadsheet);
+        $fileName = 'livre_repartition_'.($filters['annee'] !== '' ? $filters['annee'].'_' : '').strtolower($filters['type_examen']).'.xlsx';
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    public function cepeLivraison(Request $request)
+    {
+        $payload = $this->buildCepeLivraisonPayload($request);
+
+        return view('repartition.livraison-cepe', [
+            'filters' => $payload['filters'],
+            'annees' => $payload['annees'],
+            'drens' => $payload['drens'],
+            'pagesBySubject' => $payload['pagesBySubject'],
+            'params' => $payload['params'],
+            'pagesTotalParCandidat' => $payload['pagesTotalParCandidat'],
+            'rows' => $payload['rows'],
+            'global' => $payload['global'],
+        ]);
+    }
+
+    public function cepeLivraisonExcel(Request $request)
+    {
+        $payload = $this->buildCepeLivraisonPayload($request);
+        $rows = collect($payload['rows']);
+        $global = $payload['global'];
+        $pagesBySubject = $payload['pagesBySubject'];
+        $params = $payload['params'];
+        $filters = $payload['filters'];
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('LIVRAISON_CEPE');
+
+        $sheet->fromArray([
+            ['LIVRAISON CEPE PAR CISCO'],
+            ['Annee', $filters['annee'] !== '' ? $filters['annee'] : 'Toutes', 'DREN', $filters['dren'] !== '' ? $filters['dren'] : 'Toutes'],
+            ['GE/soubique', $params['ge_par_soubique'], 'Enveloppes/barre cire', $params['enveloppes_par_barre_cire'], 'Pages/RAM', $params['pages_par_ram']],
+            ['Marqueur fixe/CISCO', $params['marqueur_fixe_par_cisco'], 'Marqueur/soubique', $params['marqueur_par_soubique']],
+            ['Francais', $pagesBySubject['francais'], 'Connaissances usuelles (CU)', $pagesBySubject['connaissances_usuelles'], 'Geographie', $pagesBySubject['geographie']],
+            ['Malagasy', $pagesBySubject['malagasy'], 'Operation', $pagesBySubject['operation'], 'Probleme', $pagesBySubject['probleme']],
+            ['TFFMOM', $pagesBySubject['tffmom'], 'Total pages/candidat', $payload['pagesTotalParCandidat']],
+            ['DREN', 'CISCO', 'Candidats', 'Salles', 'PE', 'GE', 'Soubique', 'Ficelle', 'Cire', 'Pages total', 'Papier RAM', 'Marqueur'],
+        ], null, 'A1');
+
+        $sheet->mergeCells('A1:L1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+
+        $rowIndex = 9;
+        foreach ($rows as $row) {
+            $sheet->fromArray([[
+                $row['dren'],
+                $row['cisco'],
+                (int) $row['candidats'],
+                (int) $row['salles'],
+                (int) $row['pe'],
+                (int) $row['ge'],
+                (int) $row['soubique'],
+                (int) $row['ficelle'],
+                (int) $row['cire'],
+                (int) $row['pages_total'],
+                (int) $row['papier_ram'],
+                (int) $row['marqueur'],
+            ]], null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+
+        $sheet->fromArray([[
+            'TOTAL',
+            '',
+            (int) $global['total_candidats'],
+            (int) $global['total_salles'],
+            (int) $global['total_pe'],
+            (int) $global['total_ge'],
+            (int) $global['total_soubique'],
+            (int) $global['total_ficelle'],
+            (int) $global['total_cire'],
+            '',
+            (int) $global['total_ram'],
+            (int) $global['total_marqueur'],
+        ]], null, "A{$rowIndex}");
+
+        $sheet->getStyle("A8:L8")->getFont()->setBold(true);
+        $sheet->getStyle("A8:L8")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle("A8:L{$rowIndex}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle("A{$rowIndex}:L{$rowIndex}")->getFont()->setBold(true);
+        for ($i = 1; $i <= 12; $i++) {
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = 'livraison_cepe_'.($filters['annee'] !== '' ? $filters['annee'].'_' : '').'cisco.xlsx';
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
     public function vacations(Request $request)
     {
         [$rows, $filters, $annees, $drens] = $this->getFilteredRows($request);
@@ -910,6 +1253,67 @@ class RepartitionReportController extends Controller
         return [$rows, $filters, $annees, $drens];
     }
 
+    private function getCepeRowsForLivraison(Request $request): array
+    {
+        $annees = DB::table('repartition_salles')
+            ->select('annee')
+            ->distinct()
+            ->orderByDesc('annee')
+            ->pluck('annee')
+            ->toArray();
+        $drens = DB::table('drens')
+            ->select('nom')
+            ->orderBy('nom')
+            ->pluck('nom')
+            ->toArray();
+
+        $filters = [
+            'annee' => (string) $request->query('annee', ''),
+            'dren' => (string) $request->query('dren', ''),
+            'type_examen' => self::TYPE_CEPE,
+        ];
+
+        $query = DB::table('repartition_salles as rs')
+            ->join('centre_ecrits as ce', 'ce.id', '=', 'rs.centre_ecrit_id')
+            ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
+            ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
+            ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+            ->select([
+                'rs.annee',
+                'rs.langue',
+                'rs.numero_salle',
+                'rs.effectif',
+                'rs.axe_dispatching',
+                'rs.point_largage',
+                'ce.id as centre_ecrit_id',
+                'ce.nom as centre_ecrit',
+                'cc.nom as centre_correction',
+                'cs.nom as cisco',
+                'd.nom as dren',
+            ])
+            ->where('rs.langue', self::CEPE_KEY)
+            ->orderBy('d.nom')
+            ->orderBy('cs.nom')
+            ->orderBy('cc.nom')
+            ->orderBy('ce.nom')
+            ->orderBy('rs.numero_salle');
+
+        if ($filters['annee'] !== '') {
+            $query->where('rs.annee', $filters['annee']);
+        }
+        if ($filters['dren'] !== '') {
+            $query->where('d.nom', $filters['dren']);
+        }
+
+        $rows = $query->get()->map(function ($row) {
+            $row->type_examen = self::TYPE_CEPE;
+
+            return $row;
+        });
+
+        return [$rows, $filters, $annees, $drens];
+    }
+
     private function buildBookData(Collection $rows): array
     {
         $langueOrder = array_flip(RepartitionSalle::LANGUES);
@@ -1020,6 +1424,7 @@ class RepartitionReportController extends Controller
                         'centre_ecrit' => $centre['centre_ecrit'],
                         'candidats' => (int) $centre['total_candidats'],
                         'salles' => (int) $centre['total_salles'],
+                        'pe' => (int) $centre['total_salles'],
                         'ge_total' => (int) $centre['ge_count'],
                         'ge_repartition' => implode('+', array_map(fn (int $n) => (string) $n, $centre['ge_distribution'] ?? [])),
                     ];
@@ -1137,5 +1542,100 @@ class RepartitionReportController extends Controller
             ->map(fn ($row) => $row->centre_ecrit_id.'|'.$row->annee.'|'.$row->type_examen.'|'.$row->numero_salle)
             ->unique()
             ->count();
+    }
+
+    private function styleSheetWithHeader(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet): void
+    {
+        $lastCol = $sheet->getHighestColumn();
+        $lastColIndex = Coordinate::columnIndexFromString($lastCol);
+
+        $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);
+        $sheet->getStyle("A1:{$lastCol}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle("A1:{$lastCol}{$sheet->getHighestRow()}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+
+        for ($i = 1; $i <= $lastColIndex; $i++) {
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
+        }
+    }
+
+    private function buildCepeLivraisonPayload(Request $request): array
+    {
+        [$rows, $filters, $annees, $drens] = $this->getCepeRowsForLivraison($request);
+        $bookData = collect($this->buildBookData($rows));
+
+        $pagesBySubject = [
+            'francais' => max(0, (int) $request->integer('pages_francais', 1)),
+            'connaissances_usuelles' => max(0, (int) $request->integer('pages_connaissances_usuelles', 1)),
+            'geographie' => max(0, (int) $request->integer('pages_geographie', 1)),
+            'malagasy' => max(0, (int) $request->integer('pages_malagasy', 1)),
+            'operation' => max(0, (int) $request->integer('pages_operation', 1)),
+            'probleme' => max(0, (int) $request->integer('pages_probleme', 1)),
+            'tffmom' => max(0, (int) $request->integer('pages_tffmom', 1)),
+        ];
+
+        $params = [
+            'ge_par_soubique' => max(1, (int) $request->integer('ge_par_soubique', 5)),
+            'enveloppes_par_barre_cire' => max(1, (int) $request->integer('enveloppes_par_barre_cire', 5)),
+            'pages_par_ram' => max(1, (int) $request->integer('pages_par_ram', 500)),
+            'marqueur_fixe_par_cisco' => max(0, (int) $request->integer('marqueur_fixe_par_cisco', 0)),
+            'marqueur_par_soubique' => max(0, (float) $request->query('marqueur_par_soubique', 0)),
+        ];
+
+        $pagesTotalParCandidat = array_sum($pagesBySubject);
+
+        $livraisonRows = $bookData
+            ->groupBy(fn (array $centre) => $centre['dren'].'|'.$centre['cisco'])
+            ->map(function (Collection $centres, string $key) use ($params, $pagesTotalParCandidat) {
+                [$dren, $cisco] = explode('|', $key, 2);
+                $candidats = (int) $centres->sum('total_candidats');
+                $salles = (int) $centres->sum('total_salles');
+                $pe = $salles;
+                $ge = (int) $centres->sum('ge_count');
+                $soubique = (int) ceil($ge / $params['ge_par_soubique']);
+                $ficelle = $soubique;
+                $enveloppesACirer = $pe + $ge + $soubique;
+                $cire = (int) ceil($enveloppesACirer / $params['enveloppes_par_barre_cire']);
+                $pagesTotal = $pagesTotalParCandidat * $candidats;
+                $ram = (int) ceil($pagesTotal / $params['pages_par_ram']);
+                $marqueur = $params['marqueur_fixe_par_cisco'] + (int) ceil($soubique * $params['marqueur_par_soubique']);
+
+                return [
+                    'dren' => $dren,
+                    'cisco' => $cisco,
+                    'candidats' => $candidats,
+                    'salles' => $salles,
+                    'cire' => $cire,
+                    'soubique' => $soubique,
+                    'pe' => $pe,
+                    'ge' => $ge,
+                    'papier_ram' => $ram,
+                    'marqueur' => $marqueur,
+                    'ficelle' => $ficelle,
+                    'pages_total' => $pagesTotal,
+                ];
+            })
+            ->sortBy(['dren', 'cisco'])
+            ->values();
+
+        return [
+            'filters' => $filters,
+            'annees' => $annees,
+            'drens' => $drens,
+            'pagesBySubject' => $pagesBySubject,
+            'params' => $params,
+            'pagesTotalParCandidat' => $pagesTotalParCandidat,
+            'rows' => $livraisonRows,
+            'global' => [
+                'total_candidats' => (int) $livraisonRows->sum('candidats'),
+                'total_salles' => (int) $livraisonRows->sum('salles'),
+                'total_cire' => (int) $livraisonRows->sum('cire'),
+                'total_soubique' => (int) $livraisonRows->sum('soubique'),
+                'total_pe' => (int) $livraisonRows->sum('pe'),
+                'total_ge' => (int) $livraisonRows->sum('ge'),
+                'total_ram' => (int) $livraisonRows->sum('papier_ram'),
+                'total_marqueur' => (int) $livraisonRows->sum('marqueur'),
+                'total_ficelle' => (int) $livraisonRows->sum('ficelle'),
+            ],
+        ];
     }
 }
