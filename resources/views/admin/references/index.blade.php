@@ -76,15 +76,13 @@
                             @csrf
                             <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm" name="cisco_id" required>
                                 <option value="">CISCO</option>
-                                @foreach($ciscos as $cisco)
+                                @foreach($formCiscos as $cisco)
                                     <option value="{{ $cisco->id }}">{{ $cisco->dren->nom ?? '-' }} / {{ $cisco->nom }}</option>
                                 @endforeach
                             </select>
                             <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm" name="nom" placeholder="Nom centre correction" required>
-                            <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm" name="type_examen" required>
-                                <option value="BEPC">BEPC</option>
-                                <option value="CEPE">CEPE</option>
-                            </select>
+                            <input type="hidden" name="type_examen" value="{{ $centreTypeForForms }}">
+                            <div class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700">{{ $centreTypeForForms }}</div>
                             <div class="flex items-end">
                                 <button class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Ajouter Centre correction</button>
                             </div>
@@ -97,30 +95,70 @@
                             @csrf
                             <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm" name="centre_correction_id" required>
                                 <option value="">Centre correction</option>
-                                @foreach($centresCorrection as $cc)
+                                @foreach($formCentresCorrection as $cc)
                                     <option value="{{ $cc->id }}">{{ $cc->cisco->dren->nom ?? '-' }} / {{ $cc->cisco->nom ?? '-' }} / {{ $cc->nom }} ({{ $cc->type_examen }})</option>
                                 @endforeach
                             </select>
                             <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm" name="nom" placeholder="Nom centre écrit" required>
-                            <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm" name="type_examen" required>
-                                <option value="BEPC">BEPC</option>
-                                <option value="CEPE">CEPE</option>
-                            </select>
+                            <input type="hidden" name="type_examen" value="{{ $centreTypeForForms }}">
+                            <div class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700">{{ $centreTypeForForms }}</div>
                             <div class="flex items-end">
                                 <button class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Ajouter Centre écrit</button>
                             </div>
                         </form>
                     </div>
 
-                    <div class="rounded-xl border border-slate-200/80 bg-white p-5 shadow-md">
+                    <div id="zone-filtres-referentiels" class="rounded-xl border border-slate-200/80 bg-white p-5 shadow-md scroll-mt-24">
                         <h2 class="mb-3 text-lg font-semibold text-slate-800">Modifier référentiels existants</h2>
+
+                        <form method="GET" action="{{ route('admin.references.index') }}#zone-filtres-referentiels" id="heritageFilterForm" class="mb-5 grid grid-cols-1 gap-3 rounded-xl border border-slate-200/80 bg-slate-50 p-4 md:grid-cols-5">
+                            <div>
+                                <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter_type_examen">Filtre Examen</label>
+                                <select id="filter_type_examen" name="filter_type_examen" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    <option value="ALL" {{ $selectedTypeExamen === 'ALL' ? 'selected' : '' }}>Tous</option>
+                                    <option value="BEPC" {{ $selectedTypeExamen === 'BEPC' ? 'selected' : '' }}>BEPC</option>
+                                    <option value="CEPE" {{ $selectedTypeExamen === 'CEPE' ? 'selected' : '' }}>CEPE</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter_dren_id">Filtre DREN</label>
+                                <select id="filter_dren_id" name="filter_dren_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    <option value="">Toutes</option>
+                                    @foreach($drens as $dren)
+                                        <option value="{{ $dren->id }}" {{ (int) $selectedDrenId === (int) $dren->id ? 'selected' : '' }}>{{ $dren->nom }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter_cisco_id">Filtre CISCO</label>
+                                <select id="filter_cisco_id" name="filter_cisco_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    <option value="">Tous</option>
+                                    @foreach($filterCiscos as $cisco)
+                                        <option value="{{ $cisco->id }}" {{ (int) $selectedCiscoId === (int) $cisco->id ? 'selected' : '' }}>{{ $cisco->dren->nom ?? '-' }} / {{ $cisco->nom }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter_centre_correction_id">Filtre Centre correction</label>
+                                <select id="filter_centre_correction_id" name="filter_centre_correction_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    <option value="">Tous</option>
+                                    @foreach($filterCentresCorrection as $cc)
+                                        <option value="{{ $cc->id }}" {{ (int) $selectedCentreCorrectionId === (int) $cc->id ? 'selected' : '' }}>{{ $cc->cisco->dren->nom ?? '-' }} / {{ $cc->cisco->nom ?? '-' }} / {{ $cc->nom }} ({{ $cc->type_examen }})</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="flex items-end gap-2 md:col-span-2">
+                                <button class="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700" type="submit">Filtrer</button>
+                                <a class="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50" href="{{ route('admin.references.index') }}#zone-filtres-referentiels">Réinitialiser</a>
+                            </div>
+                        </form>
 
                         <div class="mb-5 overflow-x-auto">
                             <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">DREN</h3>
                             <table class="min-w-full border-collapse text-sm">
                                 <thead><tr class="bg-slate-100"><th class="border border-slate-200 px-3 py-2 text-left">Nom</th><th class="border border-slate-200 px-3 py-2 text-left">Action</th></tr></thead>
                                 <tbody>
-                                @foreach($drens as $dren)
+                                @forelse($drensPage as $dren)
                                     <tr>
                                         <td class="border border-slate-200 px-3 py-2">
                                             <form method="POST" action="{{ route('admin.references.drens.update', $dren) }}" class="flex flex-wrap gap-2">
@@ -140,9 +178,14 @@
                                                 </div>
                                         </td>
                                     </tr>
-                                @endforeach
+                                @empty
+                                    <tr><td class="border border-slate-200 px-3 py-3 text-slate-500" colspan="2">Aucune DREN trouvée.</td></tr>
+                                @endforelse
                                 </tbody>
                             </table>
+                            @if($drensPage->hasPages())
+                                <div class="mt-3">{{ $drensPage->links() }}</div>
+                            @endif
                         </div>
 
                         <div class="mb-5 overflow-x-auto">
@@ -150,7 +193,7 @@
                             <table class="min-w-full border-collapse text-sm">
                                 <thead><tr class="bg-slate-100"><th class="border border-slate-200 px-3 py-2 text-left">DREN</th><th class="border border-slate-200 px-3 py-2 text-left">Nom</th><th class="border border-slate-200 px-3 py-2 text-left">Action</th></tr></thead>
                                 <tbody>
-                                @foreach($ciscos as $cisco)
+                                @forelse($ciscosPage as $cisco)
                                     <tr>
                                         <td class="border border-slate-200 px-3 py-2">
                                             <form method="POST" action="{{ route('admin.references.ciscos.update', $cisco) }}" class="flex flex-wrap gap-2">
@@ -175,9 +218,14 @@
                                                 </div>
                                         </td>
                                     </tr>
-                                @endforeach
+                                @empty
+                                    <tr><td class="border border-slate-200 px-3 py-3 text-slate-500" colspan="3">Aucun CISCO trouvé.</td></tr>
+                                @endforelse
                                 </tbody>
                             </table>
+                            @if($ciscosPage->hasPages())
+                                <div class="mt-3">{{ $ciscosPage->links() }}</div>
+                            @endif
                         </div>
 
                         <div class="mb-5 overflow-x-auto">
@@ -185,14 +233,14 @@
                             <table class="min-w-full border-collapse text-sm">
                                 <thead><tr class="bg-slate-100"><th class="border border-slate-200 px-3 py-2 text-left">CISCO</th><th class="border border-slate-200 px-3 py-2 text-left">Nom</th><th class="border border-slate-200 px-3 py-2 text-left">Type</th><th class="border border-slate-200 px-3 py-2 text-left">Action</th></tr></thead>
                                 <tbody>
-                                @foreach($centresCorrection as $cc)
+                                @forelse($centresCorrectionPage as $cc)
                                     <tr>
                                         <td class="border border-slate-200 px-3 py-2">
                                             <form method="POST" action="{{ route('admin.references.centres-correction.update', $cc) }}">
                                                 @csrf
                                                 @method('PUT')
                                                 <select class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="cisco_id" required>
-                                                    @foreach($ciscos as $cisco)
+                                                    @foreach($allCiscos as $cisco)
                                                         <option value="{{ $cisco->id }}" {{ (int)$cc->cisco_id === (int)$cisco->id ? 'selected' : '' }}>{{ $cisco->dren->nom ?? '-' }} / {{ $cisco->nom }}</option>
                                                     @endforeach
                                                 </select>
@@ -216,9 +264,14 @@
                                                 </div>
                                         </td>
                                     </tr>
-                                @endforeach
+                                @empty
+                                    <tr><td class="border border-slate-200 px-3 py-3 text-slate-500" colspan="4">Aucun centre de correction trouvé.</td></tr>
+                                @endforelse
                                 </tbody>
                             </table>
+                            @if($centresCorrectionPage->hasPages())
+                                <div class="mt-3">{{ $centresCorrectionPage->links() }}</div>
+                            @endif
                         </div>
 
                         <div class="overflow-x-auto">
@@ -226,14 +279,14 @@
                             <table class="min-w-full border-collapse text-sm">
                                 <thead><tr class="bg-slate-100"><th class="border border-slate-200 px-3 py-2 text-left">Centre correction</th><th class="border border-slate-200 px-3 py-2 text-left">Nom</th><th class="border border-slate-200 px-3 py-2 text-left">Type</th><th class="border border-slate-200 px-3 py-2 text-left">Action</th></tr></thead>
                                 <tbody>
-                                @foreach($centresEcrit as $ce)
+                                @forelse($centresEcritPage as $ce)
                                     <tr>
                                         <td class="border border-slate-200 px-3 py-2">
                                             <form method="POST" action="{{ route('admin.references.centres-ecrit.update', $ce) }}">
                                                 @csrf
                                                 @method('PUT')
                                                 <select class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="centre_correction_id" required>
-                                                    @foreach($centresCorrection as $cc)
+                                                    @foreach($allCentresCorrection as $cc)
                                                         <option value="{{ $cc->id }}" {{ (int)$ce->centre_correction_id === (int)$cc->id ? 'selected' : '' }}>{{ $cc->cisco->dren->nom ?? '-' }} / {{ $cc->cisco->nom ?? '-' }} / {{ $cc->nom }} ({{ $cc->type_examen }})</option>
                                                     @endforeach
                                                 </select>
@@ -257,9 +310,14 @@
                                                 </div>
                                         </td>
                                     </tr>
-                                @endforeach
+                                @empty
+                                    <tr><td class="border border-slate-200 px-3 py-3 text-slate-500" colspan="4">Aucun centre d'écrit trouvé.</td></tr>
+                                @endforelse
                                 </tbody>
                             </table>
+                            @if($centresEcritPage->hasPages())
+                                <div class="mt-3">{{ $centresEcritPage->links() }}</div>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -267,5 +325,22 @@
         </main>
     </div>
 </div>
+<script>
+    (function () {
+        const form = document.getElementById('heritageFilterForm');
+        const examen = document.getElementById('filter_type_examen');
+        const dren = document.getElementById('filter_dren_id');
+        const cisco = document.getElementById('filter_cisco_id');
+        const centre = document.getElementById('filter_centre_correction_id');
+        if (!form || !examen || !dren || !cisco || !centre) {
+            return;
+        }
+
+        examen.addEventListener('change', () => form.submit());
+        dren.addEventListener('change', () => form.submit());
+        cisco.addEventListener('change', () => form.submit());
+        centre.addEventListener('change', () => form.submit());
+    })();
+</script>
 </body>
 </html>

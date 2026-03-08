@@ -1,326 +1,294 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" class="h-full bg-slate-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Service de l'Organisation des Examens - Saisie</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
     @if (file_exists(public_path('build/manifest.json')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @else
         <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
+        <script src="https://cdn.tailwindcss.com"></script>
     @endif
-</head>
-<body class="bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900">
-<div class="mx-auto max-w-[1700px] p-4 md:p-6 lg:p-8">
-    <div class="flex flex-col gap-5 md:flex-row md:items-start">
-        @include('partials.sidebar')
 
-        <main class="min-w-0 flex-1">
-            <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 shadow-lg backdrop-blur-sm transition-all duration-200 hover:shadow-xl">
-                <div class="border-b border-slate-200/80 bg-gradient-to-r from-white to-slate-50/50 px-6 py-5 md:px-8 md:py-6">
-                    <div class="flex flex-wrap items-center justify-between gap-4">
-                        <div class="space-y-1">
-                            <h1 class="text-3xl font-bold tracking-tight text-slate-900">Saisie Répartition <span class="rounded-lg bg-blue-100 px-3 py-1 text-blue-700">{{ old('type_examen', $typeExamen) }}</span></h1>
-                            <p class="text-sm font-medium text-slate-500">Saisie par salle avec choix BEPC / CEPE</p>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glass-panel { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(226, 232, 240, 0.6); }
+        .input-focus-ring:focus { border-color: #6366f1; ring: 4px; ring-color: rgba(99, 102, 241, 0.1); outline: none; }
+        .sticky-col { position: sticky; left: 0; z-index: 10; background-color: white; border-right: 2px solid #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    </style>
+</head>
+
+<body class="h-full antialiased text-slate-900 bg-[radial-gradient(at_top_right,_var(--tw-gradient-stops))] from-indigo-50 via-slate-50 to-slate-100">
+
+<div class="mx-auto max-w-[1700px] p-4 md:p-6 lg:p-8">
+    <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
+        <div class="lg:sticky lg:top-8">
+            @include('partials.sidebar')
+        </div>
+
+        <main class="min-w-0 flex-1 space-y-6">
+            <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50">
+                <div class="border-b border-slate-100 bg-white px-6 py-8 md:px-10">
+                    <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                        <div class="space-y-2">
+                            <div class="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-600">
+                                <span class="relative flex h-2 w-2">
+                                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75"></span>
+                                    <span class="relative inline-flex h-2 w-2 rounded-full bg-indigo-500"></span>
+                                </span>
+                                Module de Saisie
+                            </div>
+                            <h1 class="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
+                                Répartition <span class="text-indigo-600">{{ old('type_examen', $typeExamen) }}</span>
+                            </h1>
+                            <p class="text-slate-500 font-medium italic">Configuration hiérarchique et saisie par salle d'examen.</p>
                         </div>
-                        <div class="flex flex-wrap gap-2">
-                            <a class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow" href="{{ route('repartition.dashboard') }}">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                                </svg>
+                        
+                        <div class="flex flex-wrap gap-3">
+                            <a class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300" href="{{ route('repartition.dashboard') }}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
                                 Dashboard
                             </a>
-                            @if(auth()->user()?->isAdmin())
-                                <a class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow" href="{{ route('repartition.vacations') }}">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    Vacations
-                                </a>
-                            @endif
-                            <a class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow" href="{{ route('repartition.livre.preview') }}">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                </svg>
-                                Livre (aperçu)
+                            <a class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800" href="{{ route('repartition.livre.preview') }}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                                Aperçu Livre
                             </a>
                         </div>
                     </div>
                 </div>
 
-                <div class="p-6 md:p-8">
+                <div class="p-6 md:p-10">
                     @if(session('status'))
-                        <div class="mb-6 animate-slideDown rounded-lg border border-emerald-200/80 bg-gradient-to-r from-emerald-50 to-white px-4 py-3 text-sm font-medium text-emerald-700 shadow-sm">
-                            <div class="flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                {{ session('status') }}
-                            </div>
+                        <div class="mb-8 flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-emerald-800 border border-emerald-100">
+                            <i class="fas fa-check-circle text-lg"></i>
+                            <span class="font-bold">{{ session('status') }}</span>
                         </div>
                     @endif
 
                     @if($errors->any())
-                        <div class="mb-6 animate-slideDown rounded-lg border border-rose-200/80 bg-gradient-to-r from-rose-50 to-white px-4 py-3 text-sm font-medium text-rose-700 shadow-sm">
-                            <div class="flex items-start gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="mt-0.5 h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <div>
-                                    @foreach($errors->all() as $error)
-                                        <div>{{ $error }}</div>
-                                    @endforeach
-                                </div>
+                        <div class="mb-8 rounded-2xl bg-rose-50 p-5 text-rose-800 border border-rose-100">
+                            <div class="flex items-center gap-3 mb-2 font-bold uppercase tracking-widest text-xs">
+                                <i class="fas fa-exclamation-triangle"></i> Erreurs détectées
                             </div>
+                            <ul class="list-inside list-disc text-sm font-medium space-y-1">
+                                @foreach($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
                         </div>
                     @endif
 
-                    <form method="GET" action="{{ route('bepc.repartition.create') }}" class="mb-6 grid grid-cols-1 gap-4 rounded-xl border border-slate-200/80 bg-slate-50/50 p-5 shadow-inner md:grid-cols-3">
-                        <div class="space-y-1.5">
-                            <label for="type_examen" class="block text-sm font-semibold text-slate-700">Type d'examen</label>
-                            <select id="type_examen" name="type_examen" required class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                                <option value="BEPC" {{ old('type_examen', $typeExamen) === 'BEPC' ? 'selected' : '' }}>BEPC</option>
-                                <option value="CEPE" {{ old('type_examen', $typeExamen) === 'CEPE' ? 'selected' : '' }}>CEPE</option>
-                            </select>
+                    <div class="mb-10 rounded-2xl border border-slate-200 bg-slate-50/50 p-6">
+                        <div class="mb-4 flex items-center justify-between">
+                            <h2 class="text-xs font-black uppercase tracking-widest text-slate-400">Paramètres du canevas</h2>
                         </div>
-                        <div class="space-y-1.5">
-                            <label for="nombre_salles" class="block text-sm font-semibold text-slate-700">Nombre de salles</label>
-                            <input id="nombre_salles" type="number" name="nombre_salles" min="1" max="50" value="{{ old('nombre_salles', $nombreSalles) }}" required class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                        </div>
-                        <div class="flex items-end">
-                            <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow" type="submit">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                Générer le canevas
-                            </button>
-                        </div>
-                    </form>
+                        <form method="GET" action="{{ route('bepc.repartition.create') }}" class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                            <input type="hidden" name="generated" value="1">
+                            <div class="space-y-2">
+                                <label class="text-sm font-bold text-slate-700 ml-1">Examen cible</label>
+                                <select name="type_examen" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-all focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none">
+                                    <option value="BEPC" {{ old('type_examen', $typeExamen) === 'BEPC' ? 'selected' : '' }}>BEPC</option>
+                                    <option value="CEPE" {{ old('type_examen', $typeExamen) === 'CEPE' ? 'selected' : '' }}>CEPE</option>
+                                </select>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-bold text-slate-700 ml-1">Capacité (Salles)</label>
+                                <input type="number" name="nombre_salles" min="1" max="50" value="{{ old('nombre_salles', $nombreSalles) }}" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold shadow-sm transition-all focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none">
+                            </div>
+                            <div class="flex items-end">
+                                <button class="w-full rounded-xl bg-white border border-slate-200 py-3 text-sm font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-100 hover:border-slate-300 active:scale-95" type="submit">
+                                    Générer le canevas
+                                </button>
+                            </div>
+                        </form>
+                    </div>
 
                     <form method="POST" action="{{ route('bepc.repartition.store') }}">
                         @csrf
                         <input type="hidden" name="nombre_salles" value="{{ $nombreSalles }}">
                         <input type="hidden" name="type_examen" value="{{ old('type_examen', $typeExamen) }}">
 
-                        <div class="mb-5 grid grid-cols-1 gap-4 md:grid-cols-4">
-                            <div class="space-y-1.5">
-                                <label for="dren_id" class="block text-sm font-semibold text-slate-700">DREN</label>
-                                <select id="dren_id" name="dren_id" required class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                                    <option value="">Sélectionner</option>
-                                    @foreach($drens as $dren)
-                                        <option value="{{ $dren->id }}" {{ (string) old('dren_id') === (string) $dren->id ? 'selected' : '' }}>{{ $dren->nom }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="space-y-1.5">
-                                <label for="cisco_id" class="block text-sm font-semibold text-slate-700">CISCO</label>
-                                <select id="cisco_id" name="cisco_id" required class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                                    <option value="">Sélectionner</option>
-                                </select>
-                            </div>
-                            <div class="space-y-1.5">
-                                <label for="centre_correction_id" class="block text-sm font-semibold text-slate-700">Centre de correction</label>
-                                <select id="centre_correction_id" name="centre_correction_id" required class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                                    <option value="">Sélectionner</option>
-                                </select>
-                            </div>
-                            <div class="space-y-1.5">
-                                <label for="centre_ecrit_id" class="block text-sm font-semibold text-slate-700">Centre d'écrit</label>
-                                <select id="centre_ecrit_id" name="centre_ecrit_id" required class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                                    <option value="">Sélectionner</option>
-                                </select>
-                            </div>
-                            <div class="space-y-1.5">
-                                <label class="block text-sm font-semibold text-slate-700">Nom du saisisseur connecté</label>
-                                <div class="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm">
-                                    {{ auth()->user()->name }}
+                        <div class="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                            <h2 class="mb-6 text-sm font-black uppercase tracking-widest text-slate-400 pb-4 border-b border-slate-100">
+                                <i class="fas fa-sitemap mr-2"></i> Localisation & Contexte
+                            </h2>
+                            <div class="grid grid-cols-1 gap-6 md:grid-cols-4">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-bold text-slate-700">DREN</label>
+                                    <select id="dren_id" name="dren_id" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:bg-white transition-all outline-none focus:ring-4 focus:ring-indigo-500/10">
+                                        <option value="">Sélectionner</option>
+                                        @foreach($drens as $dren)
+                                            <option value="{{ $dren->id }}" {{ (string) old('dren_id') === (string) $dren->id ? 'selected' : '' }}>{{ $dren->nom }}</option>
+                                        @endforeach
+                                    </select>
                                 </div>
-                            </div>
-                            <div class="space-y-1.5">
-                                <label for="axe_dispatching" class="block text-sm font-semibold text-slate-700">Axe de dispatching</label>
-                                <input
-                                    id="axe_dispatching"
-                                    type="text"
-                                    name="axe_dispatching"
-                                    value="{{ old('axe_dispatching') }}"
-                                    list="axeSuggestions"
-                                    required
-                                    class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                >
-                                <datalist id="axeSuggestions">
-                                    @foreach($axesSuggestions as $axe)
-                                        <option value="{{ $axe }}"></option>
-                                    @endforeach
-                                </datalist>
-                            </div>
-                            <div class="space-y-1.5">
-                                <label for="point_largage" class="block text-sm font-semibold text-slate-700">Point de largage (lieu)</label>
-                                <input
-                                    id="point_largage"
-                                    type="text"
-                                    name="point_largage"
-                                    value="{{ old('point_largage') }}"
-                                    list="pointSuggestions"
-                                    required
-                                    class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                >
-                                <datalist id="pointSuggestions"></datalist>
-                            </div>
-                            <div class="space-y-1.5">
-                                <label for="annee" class="block text-sm font-semibold text-slate-700">Année scolaire</label>
-                                <input id="annee" type="text" name="annee" placeholder="2025-2026" value="{{ old('annee') }}" required class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                            </div>
-                            <div class="space-y-1.5">
-                                <label for="salles_inutilisables" class="block text-sm font-semibold text-slate-700">Salles inutilisables (optionnel)</label>
-                                <input id="salles_inutilisables" type="text" name="salles_inutilisables" placeholder="Ex: 4, 9, 12" value="{{ old('salles_inutilisables') }}" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                                <p class="text-xs text-slate-500">La numérotation reste identique (ex: 1 à 6), mais les salles indiquées seront ignorées à la saisie et à l'enregistrement.</p>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-bold text-slate-700">CISCO</label>
+                                    <select id="cisco_id" name="cisco_id" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:bg-white transition-all outline-none">
+                                        <option value="">Sélectionner</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-bold text-slate-700">Centre de Correction</label>
+                                    <select id="centre_correction_id" name="centre_correction_id" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:bg-white transition-all outline-none">
+                                        <option value="">Sélectionner</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-bold text-slate-700">Centre d'écrit</label>
+                                    <select id="centre_ecrit_id" name="centre_ecrit_id" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:bg-white transition-all outline-none">
+                                        <option value="">Sélectionner</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="space-y-2">
+                                    <label class="text-sm font-bold text-slate-700">Axe de Dispatching</label>
+                                    <input id="axe_dispatching" type="text" name="axe_dispatching" value="{{ old('axe_dispatching') }}" list="axeSuggestions" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-indigo-500/10">
+                                    <datalist id="axeSuggestions">
+                                        @foreach($axesSuggestions as $axe) <option value="{{ $axe }}"></option> @endforeach
+                                    </datalist>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-bold text-slate-700">Point de largage</label>
+                                    <input id="point_largage" type="text" name="point_largage" value="{{ old('point_largage') }}" list="pointSuggestions" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none">
+                                    <datalist id="pointSuggestions"></datalist>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-bold text-slate-700">Année scolaire</label>
+                                    <input id="annee" type="text" name="annee" placeholder="2025-2026" value="{{ old('annee') }}" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-bold text-slate-700 italic text-slate-400">Saisisseur : {{ auth()->user()->name }}</label>
+                                    <input id="salles_inutilisables" type="text" name="salles_inutilisables" placeholder="Salles à ignorer (ex: 4, 9)" value="{{ old('salles_inutilisables') }}" class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-bold text-slate-700">Candidats à besoins spécifiques</label>
+                                    <textarea name="candidats_specifiques" placeholder="Salle, Type Handicap" class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none"></textarea>
+                                </div>
                             </div>
                         </div>
 
                         @if(old('type_examen', $typeExamen) === 'BEPC')
-                            <div class="mb-5 rounded-xl border border-slate-200/80 bg-slate-50/60 p-4">
-                                <div class="mb-3 flex items-center justify-between gap-3">
-                                    <h3 class="text-sm font-semibold text-slate-800">Exception candidats étrangers (BEPC)</h3>
-                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                                        <input id="has_foreign_candidates" type="checkbox" name="has_foreign_candidates" value="1" {{ old('has_foreign_candidates') ? 'checked' : '' }}>
-                                        Activer cette exception
+                            <div class="mb-10 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/30 p-6">
+                                <div class="mb-6 flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-white">
+                                            <i class="fas fa-globe-africa text-sm"></i>
+                                        </div>
+                                        <h3 class="text-sm font-black uppercase tracking-widest text-amber-800">Candidats Étrangers</h3>
+                                    </div>
+                                    <label class="relative inline-flex cursor-pointer items-center">
+                                        <input id="has_foreign_candidates" type="checkbox" name="has_foreign_candidates" value="1" {{ old('has_foreign_candidates') ? 'checked' : '' }} class="peer sr-only">
+                                        <div class="h-6 w-11 rounded-full bg-slate-200 peer-checked:bg-amber-500 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full"></div>
+                                        <span class="ml-3 text-xs font-bold text-amber-900">Activer l'exception</span>
                                     </label>
                                 </div>
 
-                                <div id="foreign-config" class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                                    <div class="space-y-1.5">
-                                        <label for="foreign_option_a_lv" class="block text-sm font-semibold text-slate-700">Option A - Langue vivante</label>
-                                        <select id="foreign_option_a_lv" name="foreign_option_a_lv" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                                            <option value="ALL" {{ old('foreign_option_a_lv', 'ALL') === 'ALL' ? 'selected' : '' }}>ALL (Allemand)</option>
-                                            <option value="Esp" {{ old('foreign_option_a_lv') === 'Esp' ? 'selected' : '' }}>Esp</option>
+                                <div id="foreign-config" class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                                    <div class="space-y-2">
+                                        <label class="text-xs font-bold text-amber-800 uppercase">LV Etrangère</label>
+                                        <select name="foreign_option_a_lv" class="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm font-bold shadow-sm outline-none">
+                                            <option value="Allemand" {{ old('foreign_option_a_lv', 'Allemand') === 'Allemand' ? 'selected' : '' }}>Allemand</option>
+                                            <option value="Esp" {{ old('foreign_option_a_lv') === 'Esp' ? 'selected' : '' }}>Esp (Espagnol)</option>
+                                            <option value="Anglais" {{ old('foreign_option_a_lv') === 'Anglais' ? 'selected' : '' }}>Anglais</option>
                                         </select>
                                     </div>
-                                    <div class="space-y-1.5">
-                                        <label for="foreign_option_a_replace_malagasy" class="block text-sm font-semibold text-slate-700">Option A - Remplacement Malagasy</label>
-                                        <input id="foreign_option_a_replace_malagasy" type="text" name="foreign_option_a_replace_malagasy" value="{{ old('foreign_option_a_replace_malagasy') }}" placeholder="Ex: Francais" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                                    <div class="space-y-2">
+                                        <label class="text-xs font-bold text-amber-800 uppercase">Rempl. Malagasy A</label>
+                                        <input type="text" name="foreign_option_a_replace_malagasy" value="{{ old('foreign_option_a_replace_malagasy') }}" placeholder="Ex: Français" class="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm font-bold outline-none">
                                     </div>
-                                    <div class="space-y-1.5">
-                                        <label for="foreign_option_b_replace_malagasy" class="block text-sm font-semibold text-slate-700">Option B - Remplacement Malagasy</label>
-                                        <input id="foreign_option_b_replace_malagasy" type="text" name="foreign_option_b_replace_malagasy" value="{{ old('foreign_option_b_replace_malagasy') }}" placeholder="Ex: Francais" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                                    <div class="space-y-2">
+                                        <label class="text-xs font-bold text-amber-800 uppercase">Rempl. Malagasy B</label>
+                                        <input type="text" name="foreign_option_b_replace_malagasy" value="{{ old('foreign_option_b_replace_malagasy') }}" placeholder="Ex: Français" class="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm font-bold outline-none">
                                     </div>
                                 </div>
                             </div>
                         @endif
 
-                        <div class="mb-5 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-md">
-                            <div class="overflow-x-auto">
-                                <table class="min-w-full border-collapse text-sm">
+                        <div class="mb-10 rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+                            <div class="bg-indigo-600 px-8 py-5 flex items-center justify-between">
+                                <h3 class="font-black uppercase tracking-widest text-white text-xs">Canevas des Effectifs</h3>
+                                <span class="text-[10px] font-bold text-indigo-100 uppercase">Utilisez TAB pour naviguer rapidement</span>
+                            </div>
+                            <div class="overflow-x-auto custom-scrollbar">
+                                <table class="w-full border-collapse">
                                     <thead>
-                                    <tr class="bg-gradient-to-r from-slate-100 to-slate-50">
-                                        <th class="sticky left-0 border border-slate-200 bg-slate-100 px-4 py-3 text-left font-semibold text-slate-700">{{ old('type_examen', $typeExamen) === 'BEPC' ? 'Langue' : 'Total' }}</th>
-                                        @for($salle = 1; $salle <= $nombreSalles; $salle++)
-                                            <th data-room-head="{{ $salle }}" class="whitespace-nowrap border border-slate-200 px-4 py-3 font-semibold text-slate-600">Salle {{ $salle }}</th>
-                                        @endfor
-                                    </tr>
+                                        <tr class="bg-slate-50">
+                                            <th class="sticky-col px-6 py-5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Catégorie / Langue</th>
+                                            @for($salle = 1; $salle <= $nombreSalles; $salle++)
+                                                <th class="px-4 py-5 text-center text-[10px] font-black uppercase tracking-widest text-slate-400 border-l border-slate-100 min-w-[100px]">Salle {{ $salle }}</th>
+                                            @endfor
+                                        </tr>
                                     </thead>
-                                    <tbody>
-                                    @if(old('type_examen', $typeExamen) === 'BEPC')
-                                        @foreach($langues as $index => $langue)
-                                            <tr class="transition-colors duration-150 hover:bg-slate-50/80 {{ $index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30' }}">
-                                                <td class="sticky left-0 border border-slate-200 bg-inherit px-4 py-3 font-semibold text-slate-700">{{ $langue }}</td>
+                                    <tbody class="divide-y divide-slate-100">
+                                        @if(old('type_examen', $typeExamen) === 'BEPC')
+                                            @foreach($langues as $index => $langue)
+                                                <tr class="hover:bg-indigo-50/30 transition-colors">
+                                                    <td class="sticky-col px-6 py-4 font-black text-slate-700 text-sm whitespace-nowrap">{{ $langue }}</td>
+                                                    @for($salle = 1; $salle <= $nombreSalles; $salle++)
+                                                        <td class="px-3 py-3 border-l border-slate-50">
+                                                            <input type="number" min="0" name="effectifs[{{ $langue }}][{{ $salle }}]" value="{{ old("effectifs.$langue.$salle", 0) }}" required data-salle="{{ $salle }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-sm font-bold shadow-sm input-focus-ring">
+                                                        </td>
+                                                    @endfor
+                                                </tr>
+                                            @endforeach
+                                        @else
+                                            <tr class="hover:bg-indigo-50/30 transition-colors">
+                                                <td class="sticky-col px-6 py-8 font-black text-indigo-600 text-sm whitespace-nowrap uppercase tracking-wider">Total CEPE</td>
                                                 @for($salle = 1; $salle <= $nombreSalles; $salle++)
-                                                    <td class="border border-slate-200 px-3 py-2.5">
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            name="effectifs[{{ $langue }}][{{ $salle }}]"
-                                                            value="{{ old("effectifs.$langue.$salle", 0) }}"
-                                                            required
-                                                            data-salle="{{ $salle }}"
-                                                            data-category="{{ $langue }}"
-                                                            class="effectif-input w-20 rounded-lg border border-slate-200 px-3 py-2 text-center text-sm shadow-sm transition-all duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                                        >
+                                                    <td class="px-3 py-3 border-l border-slate-50">
+                                                        <input type="number" min="0" name="effectifs_total[{{ $salle }}]" value="{{ old("effectifs_total.$salle", 0) }}" required data-salle="{{ $salle }}" class="w-full rounded-xl border border-indigo-100 bg-white px-3 py-4 text-center text-lg font-black text-indigo-600 shadow-sm input-focus-ring">
                                                     </td>
                                                 @endfor
                                             </tr>
-                                        @endforeach
-                                    @else
-                                        <tr class="bg-white transition-colors duration-150 hover:bg-slate-50/80">
-                                            <td class="sticky left-0 border border-slate-200 bg-inherit px-4 py-3 font-semibold text-slate-700">Total CEPE</td>
-                                            @for($salle = 1; $salle <= $nombreSalles; $salle++)
-                                                <td class="border border-slate-200 px-3 py-2.5">
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        name="effectifs_total[{{ $salle }}]"
-                                                        value="{{ old("effectifs_total.$salle", 0) }}"
-                                                        required
-                                                        data-salle="{{ $salle }}"
-                                                        data-category="Total CEPE"
-                                                        class="effectif-input w-20 rounded-lg border border-slate-200 px-3 py-2 text-center text-sm shadow-sm transition-all duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                                    >
-                                                </td>
-                                            @endfor
-                                        </tr>
-                                    @endif
+                                        @endif
                                     </tbody>
                                 </table>
                             </div>
                         </div>
 
                         @if(old('type_examen', $typeExamen) === 'BEPC')
-                            <div id="foreign-effectifs" class="mb-5 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-md">
-                                <div class="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">Effectifs candidats étrangers (si exception activée)</div>
-                                <div class="overflow-x-auto">
-                                    <table class="min-w-full border-collapse text-sm">
-                                        <thead>
-                                        <tr class="bg-gradient-to-r from-slate-100 to-slate-50">
-                                            <th class="sticky left-0 border border-slate-200 bg-slate-100 px-4 py-3 text-left font-semibold text-slate-700">Option</th>
-                                            @for($salle = 1; $salle <= $nombreSalles; $salle++)
-                                                <th data-room-head="{{ $salle }}" class="whitespace-nowrap border border-slate-200 px-4 py-3 font-semibold text-slate-600">Salle {{ $salle }}</th>
-                                            @endfor
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        <tr class="bg-white">
-                                            <td class="sticky left-0 border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-700">Etranger Option A</td>
-                                            @for($salle = 1; $salle <= $nombreSalles; $salle++)
-                                                <td class="border border-slate-200 px-3 py-2.5">
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        name="foreign_effectifs[option_a][{{ $salle }}]"
-                                                        value="{{ old("foreign_effectifs.option_a.$salle", 0) }}"
-                                                        data-salle="{{ $salle }}"
-                                                        data-category="Etranger Option A"
-                                                        class="effectif-input foreign-input w-20 rounded-lg border border-slate-200 px-3 py-2 text-center text-sm shadow-sm transition-all duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                                    >
-                                                </td>
-                                            @endfor
-                                        </tr>
-                                        <tr class="bg-slate-50/30">
-                                            <td class="sticky left-0 border border-slate-200 bg-inherit px-4 py-3 font-semibold text-slate-700">Etranger Option B</td>
-                                            @for($salle = 1; $salle <= $nombreSalles; $salle++)
-                                                <td class="border border-slate-200 px-3 py-2.5">
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        name="foreign_effectifs[option_b][{{ $salle }}]"
-                                                        value="{{ old("foreign_effectifs.option_b.$salle", 0) }}"
-                                                        data-salle="{{ $salle }}"
-                                                        data-category="Etranger Option B"
-                                                        class="effectif-input foreign-input w-20 rounded-lg border border-slate-200 px-3 py-2 text-center text-sm shadow-sm transition-all duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                                                    >
-                                                </td>
-                                            @endfor
-                                        </tr>
+                            <div id="foreign-effectifs" class="mb-10 overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-lg opacity-50 transition-all duration-300">
+                                <div class="bg-amber-500 px-8 py-4 text-white text-xs font-black uppercase tracking-widest">Effectifs Étrangers par Salle</div>
+                                <div class="overflow-x-auto custom-scrollbar">
+                                    <table class="w-full border-collapse">
+                                        <tbody class="divide-y divide-amber-50">
+                                            <tr class="hover:bg-amber-50">
+                                                <td class="sticky-col px-6 py-4 font-bold text-amber-700 text-xs uppercase bg-amber-50 border-r-amber-100">Option A</td>
+                                                @for($salle = 1; $salle <= $nombreSalles; $salle++)
+                                                    <td class="px-3 py-3 border-l border-amber-50">
+                                                        <input type="number" min="0" name="foreign_effectifs[option_a][{{ $salle }}]" value="{{ old("foreign_effectifs.option_a.$salle", 0) }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:ring-4 focus:ring-amber-500/20">
+                                                    </td>
+                                                @endfor
+                                            </tr>
+                                            <tr class="hover:bg-amber-50">
+                                                <td class="sticky-col px-6 py-4 font-bold text-amber-700 text-xs uppercase bg-amber-50 border-r-amber-100">Option B</td>
+                                                @for($salle = 1; $salle <= $nombreSalles; $salle++)
+                                                    <td class="px-3 py-3 border-l border-amber-50">
+                                                        <input type="number" min="0" name="foreign_effectifs[option_b][{{ $salle }}]" value="{{ old("foreign_effectifs.option_b.$salle", 0) }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:ring-4 focus:ring-amber-500/20">
+                                                    </td>
+                                                @endfor
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
                         @endif
 
-                        <div class="flex justify-end">
-                            <button class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:from-blue-700 hover:to-blue-800 hover:shadow-lg focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" type="submit">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                                </svg>
-                                Enregistrer la saisie
+                        <div class="flex justify-end pt-6 border-t border-slate-200">
+                            <button id="save-button" class="group relative inline-flex items-center gap-3 overflow-hidden rounded-2xl bg-slate-300 px-10 py-5 text-sm font-black uppercase tracking-widest text-slate-500 shadow-xl transition-all disabled:cursor-not-allowed" type="submit" disabled>
+                                <span class="relative z-10 flex items-center gap-2">
+                                    <i class="fas fa-save group-hover:animate-bounce"></i>
+                                    Enregistrer la saisie
+                                </span>
+                                <div class="absolute inset-0 z-0 bg-gradient-to-r from-indigo-600 to-indigo-700 opacity-0 transition-opacity group-enabled:opacity-100"></div>
                             </button>
                         </div>
                     </form>
@@ -330,20 +298,30 @@
     </div>
 </div>
 
+<div id="selectionToast" class="fixed bottom-6 right-6 z-50 hidden rounded-2xl border border-indigo-200 bg-white/90 p-4 text-xs font-bold text-slate-700 shadow-2xl backdrop-blur-md"></div>
+
+<div id="filterAlert" class="fixed right-4 top-24 z-50 w-80 translate-x-full rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-2xl transition-transform duration-500">
+    <div class="flex gap-4">
+        <i class="fas fa-map-marked-alt text-2xl text-amber-500"></i>
+        <div>
+            <h4 class="text-sm font-black text-amber-900 uppercase">Localisation Requise</h4>
+            <p class="text-xs font-bold text-amber-700 mt-1">Veuillez compléter la hiérarchie DREN > CISCO > Correction > Écrit.</p>
+        </div>
+    </div>
+</div>
+
 <style>
+    /* Triggered state */
+    .show-alert { transform: translateX(0) !important; }
+    
+    /* Modern details styling */
+    details summary::-webkit-details-marker { display:none; }
+    
     @keyframes slideDown {
-        from {
-            opacity: 0;
-            transform: translateY(-10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
-    .animate-slideDown {
-        animation: slideDown 0.3s ease-out;
-    }
+    .animate-slideDown { animation: slideDown 0.4s ease-out forwards; }
 </style>
 
 <script>
@@ -359,21 +337,19 @@
         const ceSelect = document.getElementById('centre_ecrit_id');
         const axeInput = document.getElementById('axe_dispatching');
         const pointSuggestions = document.getElementById('pointSuggestions');
-        const unusableRoomsInput = document.getElementById('salles_inutilisables');
-        const roomHeaders = Array.from(document.querySelectorAll('[data-room-head]'));
-        const effectifInputs = Array.from(document.querySelectorAll('.effectif-input'));
+        const saveButton = document.getElementById('save-button');
+        const filterAlert = document.getElementById('filterAlert');
         const foreignModeCheckbox = document.getElementById('has_foreign_candidates');
         const foreignConfig = document.getElementById('foreign-config');
         const foreignEffectifsBlock = document.getElementById('foreign-effectifs');
-        const foreignConfigInputs = Array.from(document.querySelectorAll('#foreign-config select, #foreign-config input'));
-        const foreignEffectifInputs = Array.from(document.querySelectorAll('.foreign-input'));
-        const form = document.querySelector('form[action="{{ route('bepc.repartition.store') }}"]');
-        const optionAReplaceInput = document.getElementById('foreign_option_a_replace_malagasy');
-        const optionBReplaceInput = document.getElementById('foreign_option_b_replace_malagasy');
 
         const oldCisco = "{{ old('cisco_id') }}";
         const oldCc = "{{ old('centre_correction_id') }}";
         const oldCe = "{{ old('centre_ecrit_id') }}";
+
+        if (!drenSelect || !ciscoSelect || !ccSelect || !ceSelect) {
+            return;
+        }
 
         function fillSelect(selectEl, items, placeholder, selectedValue) {
             selectEl.innerHTML = '';
@@ -414,8 +390,8 @@
         }
 
         function refreshCentreEcrit(selectedCe = '') {
-            const ccId = ccSelect.value;
             const ciscoId = ciscoSelect.value;
+            const ccId = ccSelect.value;
             const filtered = centresEcrit.filter((item) =>
                 String(item.cisco_id) === String(ciscoId) &&
                 (String(ccId) === '' || String(item.centre_correction_id) === String(ccId))
@@ -427,9 +403,10 @@
         }
 
         function refreshPointSuggestions() {
+            if (!axeInput || !pointSuggestions) return;
             const axe = String(axeInput.value || '').trim().toLowerCase();
-            const entries = Object.entries(pointSuggestionsByAxe);
-            const match = entries.find(([label]) => String(label).trim().toLowerCase() === axe);
+            const match = Object.entries(pointSuggestionsByAxe)
+                .find(([label]) => String(label).trim().toLowerCase() === axe);
             const values = match ? match[1] : [];
 
             pointSuggestions.innerHTML = '';
@@ -440,136 +417,45 @@
             });
         }
 
-        function parseUnavailableRooms() {
-            if (!unusableRoomsInput) {
-                return new Set();
+        function updateSaveState() {
+            const complete = drenSelect.value && ciscoSelect.value && ccSelect.value && ceSelect.value;
+            if (saveButton) {
+                saveButton.disabled = !complete;
+                if (complete) {
+                    saveButton.classList.remove('bg-slate-300', 'text-slate-500');
+                    saveButton.classList.add('bg-slate-900', 'text-white', 'hover:bg-slate-800');
+                } else {
+                    saveButton.classList.add('bg-slate-300', 'text-slate-500');
+                    saveButton.classList.remove('bg-slate-900', 'text-white', 'hover:bg-slate-800');
+                }
             }
-
-            const raw = String(unusableRoomsInput.value || '');
-            const values = raw.split(',')
-                .map((v) => Number.parseInt(v.trim(), 10))
-                .filter((v) => Number.isInteger(v) && v > 0);
-
-            return new Set(values);
+            if (filterAlert) {
+                filterAlert.classList.toggle('show-alert', !complete);
+            }
         }
 
-        function applyRoomAvailability() {
-            const unavailable = parseUnavailableRooms();
-
-            roomHeaders.forEach((header) => {
-                const room = Number.parseInt(header.dataset.roomHead || '0', 10);
-                const disabled = unavailable.has(room);
-                header.style.textDecoration = disabled ? 'line-through' : '';
-                header.style.opacity = disabled ? '0.55' : '1';
-            });
-
-            effectifInputs.forEach((input) => {
-                const room = Number.parseInt(input.dataset.salle || '0', 10);
-                const disabled = unavailable.has(room);
-                const foreignInput = input.classList.contains('foreign-input');
-                const shouldDisableByForeign = foreignInput && foreignModeCheckbox && !foreignModeCheckbox.checked;
-                input.disabled = disabled || shouldDisableByForeign;
-                input.required = !foreignInput && !disabled;
-                input.closest('td').style.opacity = (disabled || shouldDisableByForeign) ? '0.45' : '1';
-            });
-        }
-
-        function applyForeignModeState() {
-            if (!foreignModeCheckbox) {
-                return;
-            }
-
+        function updateForeignState() {
+            if (!foreignModeCheckbox) return;
             const enabled = foreignModeCheckbox.checked;
-            foreignConfigInputs.forEach((input) => {
-                input.disabled = !enabled;
-                input.required = enabled;
-            });
-
             if (foreignConfig) {
-                foreignConfig.style.opacity = enabled ? '1' : '0.5';
+                foreignConfig.querySelectorAll('input,select').forEach((el) => el.disabled = !enabled);
+                foreignConfig.style.opacity = enabled ? '1' : '0.45';
             }
             if (foreignEffectifsBlock) {
-                foreignEffectifsBlock.style.opacity = enabled ? '1' : '0.5';
-            }
-
-            applyRoomAvailability();
-        }
-
-        function enforceForeignPerRoomExclusivity(changedInput) {
-            if (!changedInput || !changedInput.name) {
-                return;
-            }
-
-            const room = changedInput.dataset.salle;
-            if (!room) {
-                return;
-            }
-
-            const isOptionA = changedInput.name.includes('foreign_effectifs[option_a]');
-            const oppositeName = isOptionA
-                ? `foreign_effectifs[option_b][${room}]`
-                : `foreign_effectifs[option_a][${room}]`;
-            const oppositeInput = document.querySelector(`input[name="${oppositeName}"]`);
-
-            if (!oppositeInput) {
-                return;
-            }
-
-            const currentValue = Number.parseInt(changedInput.value || '0', 10) || 0;
-            if (currentValue > 0) {
-                oppositeInput.value = '0';
-                oppositeInput.disabled = true;
-            } else {
-                oppositeInput.disabled = false;
-                applyRoomAvailability();
+                foreignEffectifsBlock.querySelectorAll('input').forEach((el) => el.disabled = !enabled);
+                foreignEffectifsBlock.style.opacity = enabled ? '1' : '0.45';
             }
         }
 
-        function syncForeignReplacementRequirements() {
-            const optionAValues = Array.from(document.querySelectorAll('input[name^="foreign_effectifs[option_a]"]'));
-            const optionBValues = Array.from(document.querySelectorAll('input[name^="foreign_effectifs[option_b]"]'));
-            const hasOptionA = optionAValues.some((input) => (Number.parseInt(input.value || '0', 10) || 0) > 0);
-            const hasOptionB = optionBValues.some((input) => (Number.parseInt(input.value || '0', 10) || 0) > 0);
-
-            if (optionAReplaceInput) {
-                optionAReplaceInput.required = !!(foreignModeCheckbox && foreignModeCheckbox.checked && hasOptionA);
-            }
-            if (optionBReplaceInput) {
-                optionBReplaceInput.required = !!(foreignModeCheckbox && foreignModeCheckbox.checked && hasOptionB);
-            }
-        }
-
-        drenSelect.addEventListener('change', () => refreshCisco(''));
-        ciscoSelect.addEventListener('change', () => refreshCentreCorrection(''));
-        ccSelect.addEventListener('change', () => refreshCentreEcrit(''));
-        axeInput.addEventListener('input', refreshPointSuggestions);
-        if (unusableRoomsInput) {
-            unusableRoomsInput.addEventListener('input', applyRoomAvailability);
+        drenSelect.addEventListener('change', () => { refreshCisco(''); updateSaveState(); });
+        ciscoSelect.addEventListener('change', () => { refreshCentreCorrection(''); updateSaveState(); });
+        ccSelect.addEventListener('change', () => { refreshCentreEcrit(''); updateSaveState(); });
+        ceSelect.addEventListener('change', updateSaveState);
+        if (axeInput) {
+            axeInput.addEventListener('input', refreshPointSuggestions);
         }
         if (foreignModeCheckbox) {
-            foreignModeCheckbox.addEventListener('change', applyForeignModeState);
-        }
-        foreignEffectifInputs.forEach((input) => {
-            input.addEventListener('input', () => {
-                enforceForeignPerRoomExclusivity(input);
-                syncForeignReplacementRequirements();
-            });
-        });
-        if (form) {
-            form.addEventListener('submit', (event) => {
-                const conflicts = [];
-                for (let salle = 1; salle <= {{ $nombreSalles }}; salle++) {
-                    const a = Number.parseInt((document.querySelector(`input[name="foreign_effectifs[option_a][${salle}]"]`)?.value || '0'), 10) || 0;
-                    const b = Number.parseInt((document.querySelector(`input[name="foreign_effectifs[option_b][${salle}]"]`)?.value || '0'), 10) || 0;
-                    if (a > 0 && b > 0) {
-                        conflicts.push(salle);
-                    }
-                }
-                if (conflicts.length > 0) {
-                    event.preventDefault();
-                    alert(`Conflit étrangers Option A/B sur salle(s): ${conflicts.join(', ')}`);
-                }
-            });
+            foreignModeCheckbox.addEventListener('change', updateForeignState);
         }
 
         refreshCisco(oldCisco);
@@ -585,9 +471,8 @@
             ceSelect.value = oldCe;
         }
         refreshPointSuggestions();
-        applyForeignModeState();
-        applyRoomAvailability();
-        syncForeignReplacementRequirements();
+        updateForeignState();
+        updateSaveState();
     })();
 </script>
 </body>

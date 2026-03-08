@@ -47,7 +47,7 @@
                         La salle est verrouillée en modification: seul l'effectif est éditable. La suppression se fait par centre (toutes les salles/lignes du centre).
                     </div>
 
-                    <form method="GET" class="mb-6 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-4">
+                    <form method="GET" class="mb-6 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-6">
                         <div>
                             <label class="mb-1 block text-sm font-semibold text-slate-700" for="annee">Année</label>
                             <select id="annee" name="annee" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
@@ -65,7 +65,34 @@
                                 <option value="CEPE" {{ $filters['type_examen'] === 'CEPE' ? 'selected' : '' }}>CEPE</option>
                             </select>
                         </div>
-                        <div class="md:col-span-2 flex items-end">
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700" for="dren_id">DREN</label>
+                            <select id="dren_id" name="dren_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <option value="">Toutes</option>
+                                @foreach($drens as $dren)
+                                    <option value="{{ $dren->id }}" {{ (int) ($filters['dren_id'] ?? 0) === (int) $dren->id ? 'selected' : '' }}>{{ $dren->nom }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700" for="cisco_id">CISCO</label>
+                            <select id="cisco_id" name="cisco_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <option value="">Tous</option>
+                                @foreach($ciscos as $cisco)
+                                    <option value="{{ $cisco->id }}" {{ (int) ($filters['cisco_id'] ?? 0) === (int) $cisco->id ? 'selected' : '' }}>{{ $cisco->dren->nom ?? '-' }} / {{ $cisco->nom }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-semibold text-slate-700" for="centre_correction_id">Centre correction</label>
+                            <select id="centre_correction_id" name="centre_correction_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <option value="">Tous</option>
+                                @foreach($centresCorrection as $cc)
+                                    <option value="{{ $cc->id }}" {{ (int) ($filters['centre_correction_id'] ?? 0) === (int) $cc->id ? 'selected' : '' }}>{{ $cc->cisco->dren->nom ?? '-' }} / {{ $cc->cisco->nom ?? '-' }} / {{ $cc->nom }} ({{ $cc->type_examen }})</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex items-end">
                             <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white" type="submit">Filtrer</button>
                         </div>
                     </form>
@@ -76,6 +103,9 @@
                                 <thead>
                                 <tr class="bg-slate-100/80">
                                     <th class="border border-slate-200 px-3 py-2 text-left font-semibold">ID</th>
+                                    <th class="border border-slate-200 px-3 py-2 text-left font-semibold">DREN</th>
+                                    <th class="border border-slate-200 px-3 py-2 text-left font-semibold">CISCO</th>
+                                    <th class="border border-slate-200 px-3 py-2 text-left font-semibold">Centre correction</th>
                                     <th class="border border-slate-200 px-3 py-2 text-left font-semibold">Centre écrit</th>
                                     <th class="border border-slate-200 px-3 py-2 text-left font-semibold">Année</th>
                                     <th class="border border-slate-200 px-3 py-2 text-left font-semibold">Langue / Option</th>
@@ -91,6 +121,9 @@
                                 @foreach($stats as $stat)
                                     <tr class="transition-colors duration-150 hover:bg-slate-50/80">
                                         <td class="border border-slate-200 px-3 py-2">{{ $stat->id }}</td>
+                                        <td class="border border-slate-200 px-3 py-2">{{ $stat->centreEcrit->centreCorrection->cisco->dren->nom ?? '-' }}</td>
+                                        <td class="border border-slate-200 px-3 py-2">{{ $stat->centreEcrit->centreCorrection->cisco->nom ?? '-' }}</td>
+                                        <td class="border border-slate-200 px-3 py-2">{{ $stat->centreEcrit->centreCorrection->nom ?? '-' }}</td>
                                         <td class="border border-slate-200 px-3 py-2">{{ $stat->centreEcrit->nom ?? '-' }}</td>
                                         <td class="border border-slate-200 px-3 py-2 bg-slate-50">
                                             <form method="POST" action="{{ route('admin.statistics.update', $stat) }}">

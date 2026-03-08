@@ -5,8 +5,10 @@ use App\Http\Controllers\Admin\ReferenceManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\BepcRepartitionController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DecisionCentreController;
 use App\Http\Controllers\ReferenceImportController;
 use App\Http\Controllers\RepartitionReportController;
+use App\Http\Controllers\Vacation2026Controller;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -34,6 +36,10 @@ Route::middleware('auth')->group(function () {
         ->name('repartition.dashboard');
     Route::get('/repartition/livre/preview', [RepartitionReportController::class, 'livrePreview'])
         ->name('repartition.livre.preview');
+    Route::get('/repartition/livre/controle', [RepartitionReportController::class, 'livreControle'])
+        ->name('repartition.livre.controle');
+    Route::get('/repartition/livre/controle/export/word', [RepartitionReportController::class, 'livreControleWord'])
+        ->name('repartition.livre.controle.word');
     Route::get('/repartition/livre/pdf', [RepartitionReportController::class, 'livrePdf'])
         ->name('repartition.livre.pdf');
     Route::get('/repartition/livre/export/xlsx', [RepartitionReportController::class, 'livreExcel'])
@@ -51,6 +57,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/imports', [ReferenceImportController::class, 'index'])
         ->name('imports.index');
+    Route::post('/imports/references', [ReferenceImportController::class, 'importReferences'])
+        ->name('imports.references');
     Route::post('/imports/drens', [ReferenceImportController::class, 'importDrens'])
         ->name('imports.drens');
     Route::post('/imports/ciscos', [ReferenceImportController::class, 'importCiscos'])
@@ -64,6 +72,24 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/repartition/vacations', [RepartitionReportController::class, 'vacations'])
         ->name('repartition.vacations');
+    Route::get('/vacation-2026', [Vacation2026Controller::class, 'index'])
+        ->name('vacation2026.index');
+    Route::post('/vacation-2026/import', [Vacation2026Controller::class, 'import'])
+        ->name('vacation2026.import');
+    Route::post('/vacation-2026/settings', [Vacation2026Controller::class, 'updateSetting'])
+        ->name('vacation2026.settings.update');
+    Route::post('/vacation-2026/assignments', [Vacation2026Controller::class, 'assign'])
+        ->name('vacation2026.assignments.store');
+    Route::delete('/vacation-2026/assignments/{assignment}', [Vacation2026Controller::class, 'removeAssignment'])
+        ->name('vacation2026.assignments.destroy');
+    Route::put('/vacation-2026/activities/{activity}', [Vacation2026Controller::class, 'updateActivity'])
+        ->name('vacation2026.activities.update');
+    Route::get('/vacation-2026/exports/{document}/word', [Vacation2026Controller::class, 'exportWord'])
+        ->name('vacation2026.exports.word');
+    Route::get('/vacation-2026/exports/{document}/xlsx', [Vacation2026Controller::class, 'exportExcel'])
+        ->name('vacation2026.exports.xlsx');
+    Route::get('/vacation-2026/exports/{document}/pdf', [Vacation2026Controller::class, 'exportPdf'])
+        ->name('vacation2026.exports.pdf');
 
     Route::get('/admin/users', [UserManagementController::class, 'index'])
         ->name('admin.users.index');
@@ -108,3 +134,5 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::delete('/admin/references/centres-ecrit/{centreEcrit}', [ReferenceManagementController::class, 'destroyCentreEcrit'])
         ->name('admin.references.centres-ecrit.destroy');
 });
+
+Route::get('/decision-centre', [DecisionCentreController::class, 'index'])->name('decision.centre');

@@ -28,9 +28,13 @@ class RepartitionReportController extends Controller
 
     private const CENTRES_PER_PAGE = 2;
 
+    private const GE_PE_BEPC = 3;
+
+    private const GE_PE_CEPE = 6;
+
     public function dashboard(Request $request)
     {
-        [$rows, $filters, $annees, $drens] = $this->getFilteredRows($request);
+        [$rows, $filters, $annees, $drens, $ciscos, $ciscosByDren] = $this->getFilteredRows($request);
         $centresSaisieStats = $this->getCentresSaisieStats($filters);
 
         $totalsByLangue = $rows
@@ -99,22 +103,45 @@ class RepartitionReportController extends Controller
             ];
         });
 
-        $langueOptionChart = $totalsByLangue
+        $bepcComparisonTotals = $rows
+            ->filter(fn ($row) => (string) $row->langue !== self::CEPE_KEY)
+            ->groupBy(fn ($row) => strtoupper(trim((string) $row->langue)))
+            ->map(fn (Collection $group) => $group->sum('effectif'));
+
+        $languesComparisonChart = $bepcComparisonTotals
+            ->filter(fn (int $value, string $label) => ! str_contains($label, 'OPTION'))
+            ->sortDesc()
             ->map(fn (int $value, string $label) => [
                 'label' => $label,
                 'value' => $value,
             ])
             ->values();
 
+        $optionBTotal = (int) $bepcComparisonTotals
+            ->filter(fn (int $value, string $label) => str_contains($label, 'OPTION B'))
+            ->sum();
+        $optionATotal = (int) $bepcComparisonTotals
+            ->filter(fn (int $value, string $label) => ! str_contains($label, 'OPTION B'))
+            ->sum();
+
+        $optionsComparisonChart = collect([
+            ['label' => 'OPTION A', 'value' => $optionATotal],
+            ['label' => 'OPTION B', 'value' => $optionBTotal],
+        ]);
+
         return view('repartition.dashboard', [
             'rows' => $rows,
             'filters' => $filters,
             'annees' => $annees,
             'drens' => $drens,
+            'ciscos' => $ciscos,
+            'ciscosByDren' => $ciscosByDren,
             'totalsByLangue' => $totalsByLangue,
-            'langueOptionChart' => $langueOptionChart,
+            'languesComparisonChart' => $languesComparisonChart,
+            'optionsComparisonChart' => $optionsComparisonChart,
+            'showLangueComparison' => $filters['type_examen'] !== self::TYPE_CEPE,
             'recapByDren' => $recapByDrenPaginated,
-            'chartData' => $chartData,
+            'drenChartData' => $chartData,
             'centresSaisieStats' => $centresSaisieStats,
             'globalStats' => [
                 'total_candidats' => $rows->sum('effectif'),
@@ -153,6 +180,23 @@ class RepartitionReportController extends Controller
                     ->sortDesc(),
             ],
             'pdfMode' => false,
+        ]);
+    }
+
+    public function livreControle(Request $request)
+    {
+        return view('repartition.livre-controle', $this->buildLivreControlePayload($request));
+    }
+
+    public function livreControleWord(Request $request)
+    {
+        $payload = $this->buildLivreControlePayload($request);
+        $filename = 'fiche_controle_tracabilite_'.($payload['filters']['annee'] !== '' ? $payload['filters']['annee'].'_' : '').strtolower($payload['filters']['type_examen']).'.doc';
+        $content = view('repartition.livre-controle-word', $payload)->render();
+
+        return response($content, 200, [
+            'Content-Type' => 'application/msword; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
     }
 
@@ -447,6 +491,7 @@ class RepartitionReportController extends Controller
             'annees' => $payload['annees'],
             'drens' => $payload['drens'],
             'pagesBySubject' => $payload['pagesBySubject'],
+            'otherSubjectsCount' => $payload['otherSubjectsCount'],
             'params' => $payload['params'],
             'pagesTotalParCandidat' => $payload['pagesTotalParCandidat'],
             'rows' => $payload['rows'],
@@ -475,10 +520,10 @@ class RepartitionReportController extends Controller
             ['Francais', $pagesBySubject['francais'], 'Connaissances usuelles (CU)', $pagesBySubject['connaissances_usuelles'], 'Geographie', $pagesBySubject['geographie']],
             ['Malagasy', $pagesBySubject['malagasy'], 'Operation', $pagesBySubject['operation'], 'Probleme', $pagesBySubject['probleme']],
             ['TFFMOM', $pagesBySubject['tffmom'], 'Total pages/candidat', $payload['pagesTotalParCandidat']],
-            ['DREN', 'CISCO', 'Candidats', 'Salles', 'PE', 'GE', 'Soubique', 'Ficelle', 'Cire', 'Pages total', 'Papier RAM', 'Marqueur'],
+            ['DREN', 'CISCO', 'Candidats', 'Salles', 'PE', 'GE total', 'GE Probleme (3PE)', 'GE Autres matieres (6PE)', 'Soubique', 'Ficelle', 'Cire', 'Pages total', 'Papier RAM', 'Marqueur'],
         ], null, 'A1');
 
-        $sheet->mergeCells('A1:L1');
+        $sheet->mergeCells('A1:N1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
 
         $rowIndex = 9;
@@ -490,6 +535,8 @@ class RepartitionReportController extends Controller
                 (int) $row['salles'],
                 (int) $row['pe'],
                 (int) $row['ge'],
+                (int) $row['ge_probleme'],
+                (int) $row['ge_autres'],
                 (int) $row['soubique'],
                 (int) $row['ficelle'],
                 (int) $row['cire'],
@@ -507,6 +554,8 @@ class RepartitionReportController extends Controller
             (int) $global['total_salles'],
             (int) $global['total_pe'],
             (int) $global['total_ge'],
+            (int) $global['total_ge_probleme'],
+            (int) $global['total_ge_autres'],
             (int) $global['total_soubique'],
             (int) $global['total_ficelle'],
             (int) $global['total_cire'],
@@ -515,11 +564,11 @@ class RepartitionReportController extends Controller
             (int) $global['total_marqueur'],
         ]], null, "A{$rowIndex}");
 
-        $sheet->getStyle("A8:L8")->getFont()->setBold(true);
-        $sheet->getStyle("A8:L8")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
-        $sheet->getStyle("A8:L{$rowIndex}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $sheet->getStyle("A{$rowIndex}:L{$rowIndex}")->getFont()->setBold(true);
-        for ($i = 1; $i <= 12; $i++) {
+        $sheet->getStyle("A8:N8")->getFont()->setBold(true);
+        $sheet->getStyle("A8:N8")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle("A8:N{$rowIndex}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle("A{$rowIndex}:N{$rowIndex}")->getFont()->setBold(true);
+        for ($i = 1; $i <= 14; $i++) {
             $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
         }
 
@@ -716,21 +765,11 @@ class RepartitionReportController extends Controller
         $csvRows = [$headers];
         $grandTotal = array_fill_keys($numericKeys, 0);
 
-        foreach ($centreRows->groupBy('dren') as $dren => $drenRows) {
-            $drenTotal = [];
-            foreach ($numericKeys as $key) {
-                $drenTotal[$key] = (int) $drenRows->sum($key);
-            }
-
-            foreach ($drenRows as $line) {
-                $csvRows[] = $this->lineToStatsCsvRow($line, $filters['type_examen']);
-            }
-
-            $csvRows[] = $this->buildStatsTotalRow("TOTAL DREN {$dren}", $drenTotal, $filters['type_examen']);
-            $csvRows[] = [''];
+        foreach ($centreRows as $line) {
+            $csvRows[] = $this->lineToStatsCsvRow($line, $filters['type_examen']);
 
             foreach ($numericKeys as $key) {
-                $grandTotal[$key] += $drenTotal[$key];
+                $grandTotal[$key] += $line[$key];
             }
         }
 
@@ -956,7 +995,21 @@ class RepartitionReportController extends Controller
             ->map(function (Collection $group) {
                 $first = $group->first();
                 $sum = fn (string $langue): int => (int) $group->where('langue', $langue)->sum('effectif');
-                $sumStartsWith = fn (string $prefix): int => (int) $group->filter(fn ($row) => str_starts_with((string) $row->langue, $prefix))->sum('effectif');
+                $startsWithForeign = function (string $langue, string $prefix): bool {
+                    $normalized = mb_strtolower(trim($langue));
+                    $prefixNormalized = mb_strtolower($prefix);
+
+                    if (str_starts_with($normalized, $prefixNormalized)) {
+                        return true;
+                    }
+
+                    $accentPrefix = str_replace('etranger', 'étranger', $prefixNormalized);
+
+                    return str_starts_with($normalized, $accentPrefix);
+                };
+                $sumStartsWith = fn (string $prefix): int => (int) $group
+                    ->filter(fn ($row) => $startsWithForeign((string) $row->langue, $prefix))
+                    ->sum('effectif');
 
                 $anglais = $sum('Anglais');
                 $esp = $sum('Esp');
@@ -1141,45 +1194,71 @@ class RepartitionReportController extends Controller
 
     private function getCentresSaisieStats(array $filters): array
     {
-        $centresQuery = DB::table('centre_ecrits as ce')
-            ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
-            ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
-            ->join('drens as d', 'd.id', '=', 'cs.dren_id');
+        $buildStatsByType = function (string $type) use ($filters): array {
+            $centresQuery = DB::table('centre_ecrits as ce')
+                ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
+                ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
+                ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+                ->where('ce.type_examen', $type);
 
-        if ($filters['dren'] !== '') {
-            $centresQuery->where('d.nom', $filters['dren']);
-        }
-        if ($filters['type_examen'] === self::TYPE_BEPC || $filters['type_examen'] === self::TYPE_CEPE) {
-            $centresQuery->where('ce.type_examen', $filters['type_examen']);
-        }
+            if ($filters['dren'] !== '') {
+                $centresQuery->where('d.nom', $filters['dren']);
+            }
 
-        $totalCentres = (int) $centresQuery->distinct('ce.id')->count('ce.id');
+            $total = (int) $centresQuery->distinct('ce.id')->count('ce.id');
 
-        $saisisQuery = DB::table('repartition_salles as rs')
-            ->join('centre_ecrits as ce', 'ce.id', '=', 'rs.centre_ecrit_id')
-            ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
-            ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
-            ->join('drens as d', 'd.id', '=', 'cs.dren_id');
+            $saisisQuery = DB::table('repartition_salles as rs')
+                ->join('centre_ecrits as ce', 'ce.id', '=', 'rs.centre_ecrit_id')
+                ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
+                ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
+                ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+                ->where('ce.type_examen', $type);
 
-        if ($filters['annee'] !== '') {
-            $saisisQuery->where('rs.annee', $filters['annee']);
-        }
-        if ($filters['dren'] !== '') {
-            $saisisQuery->where('d.nom', $filters['dren']);
-        }
-        if ($filters['type_examen'] === self::TYPE_BEPC) {
-            $saisisQuery->where('rs.langue', '!=', self::CEPE_KEY);
-        } elseif ($filters['type_examen'] === self::TYPE_CEPE) {
-            $saisisQuery->where('rs.langue', self::CEPE_KEY);
-        }
+            if ($filters['annee'] !== '') {
+                $saisisQuery->where('rs.annee', $filters['annee']);
+            }
+            if ($filters['dren'] !== '') {
+                $saisisQuery->where('d.nom', $filters['dren']);
+            }
 
-        $centresSaisis = (int) $saisisQuery->distinct('ce.id')->count('ce.id');
-        $centresNonSaisis = max(0, $totalCentres - $centresSaisis);
+            if ($type === self::TYPE_CEPE) {
+                $saisisQuery->where('rs.langue', self::CEPE_KEY);
+            } else {
+                $saisisQuery->where('rs.langue', '!=', self::CEPE_KEY);
+            }
+
+            $saisis = (int) $saisisQuery->distinct('ce.id')->count('ce.id');
+
+            return [
+                'total' => $total,
+                'saisis' => $saisis,
+                'non_saisis' => max(0, $total - $saisis),
+            ];
+        };
+
+        $bepc = $buildStatsByType(self::TYPE_BEPC);
+        $cepe = $buildStatsByType(self::TYPE_CEPE);
+
+        if (($filters['type_examen'] ?? self::TYPE_ALL) === self::TYPE_BEPC) {
+            $summary = $bepc;
+        } elseif (($filters['type_examen'] ?? self::TYPE_ALL) === self::TYPE_CEPE) {
+            $summary = $cepe;
+        } else {
+            $summary = [
+                'total' => $bepc['total'] + $cepe['total'],
+                'saisis' => $bepc['saisis'] + $cepe['saisis'],
+                'non_saisis' => $bepc['non_saisis'] + $cepe['non_saisis'],
+            ];
+        }
 
         return [
-            'total' => $totalCentres,
-            'saisis' => $centresSaisis,
-            'non_saisis' => $centresNonSaisis,
+            'total' => $summary['total'],
+            'saisis' => $summary['saisis'],
+            'non_saisis' => $summary['non_saisis'],
+            'by_type' => [
+                self::TYPE_BEPC => $bepc,
+                self::TYPE_CEPE => $cepe,
+            ],
         ];
     }
 
@@ -1201,11 +1280,34 @@ class RepartitionReportController extends Controller
             'annee' => (string) $request->query('annee', ''),
             'type_examen' => strtoupper((string) $request->query('type_examen', self::TYPE_ALL)),
             'dren' => (string) $request->query('dren', ''),
+            'cisco' => (string) $request->query('cisco', ''),
         ];
 
         if (! in_array($filters['type_examen'], [self::TYPE_ALL, self::TYPE_BEPC, self::TYPE_CEPE], true)) {
             $filters['type_examen'] = self::TYPE_ALL;
         }
+
+        $ciscosQuery = DB::table('ciscos as cs')
+            ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+            ->select('cs.nom')
+            ->orderBy('cs.nom');
+
+        if ($filters['dren'] !== '') {
+            $ciscosQuery->where('d.nom', $filters['dren']);
+        }
+
+        $ciscos = $ciscosQuery
+            ->pluck('cs.nom')
+            ->toArray();
+
+        $ciscosByDren = DB::table('ciscos as cs')
+            ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+            ->orderBy('d.nom')
+            ->orderBy('cs.nom')
+            ->get(['d.nom as dren', 'cs.nom as cisco'])
+            ->groupBy('dren')
+            ->map(fn (Collection $items) => $items->pluck('cisco')->values()->all())
+            ->toArray();
 
         $query = DB::table('repartition_salles as rs')
             ->join('centre_ecrits as ce', 'ce.id', '=', 'rs.centre_ecrit_id')
@@ -1237,6 +1339,9 @@ class RepartitionReportController extends Controller
         if ($filters['dren'] !== '') {
             $query->where('d.nom', $filters['dren']);
         }
+        if ($filters['cisco'] !== '') {
+            $query->where('cs.nom', $filters['cisco']);
+        }
 
         if ($filters['type_examen'] === self::TYPE_BEPC) {
             $query->where('rs.langue', '!=', self::CEPE_KEY);
@@ -1250,7 +1355,9 @@ class RepartitionReportController extends Controller
             return $row;
         });
 
-        return [$rows, $filters, $annees, $drens];
+        $rows = $this->filterOutEmptySalles($rows);
+
+        return [$rows, $filters, $annees, $drens, $ciscos, $ciscosByDren];
     }
 
     private function getCepeRowsForLivraison(Request $request): array
@@ -1310,6 +1417,8 @@ class RepartitionReportController extends Controller
 
             return $row;
         });
+
+        $rows = $this->filterOutEmptySalles($rows);
 
         return [$rows, $filters, $annees, $drens];
     }
@@ -1371,7 +1480,7 @@ class RepartitionReportController extends Controller
                 })->values();
 
                 $pe = $this->countDistinctSalles($centreRows);
-                $geDistribution = $this->getGeDistribution($pe);
+                $geDistribution = $this->getGeDistribution($pe, (string) $first->type_examen);
 
                 return [
                     'dren' => $first->dren,
@@ -1513,14 +1622,26 @@ class RepartitionReportController extends Controller
         return $paginator;
     }
 
-    private function getGeDistribution(int $pe): array
+    private function getGeDistribution(int $pe, string $typeExamen = self::TYPE_BEPC): array
     {
         if ($pe <= 0) {
             return [];
         }
 
-        $distribution = array_fill(0, intdiv($pe, 3), 3);
-        $reste = $pe % 3;
+        $pePerGe = $typeExamen === self::TYPE_CEPE ? self::GE_PE_CEPE : self::GE_PE_BEPC;
+
+        if ($typeExamen === self::TYPE_CEPE) {
+            $distribution = array_fill(0, intdiv($pe, $pePerGe), $pePerGe);
+            $reste = $pe % $pePerGe;
+            if ($reste > 0) {
+                $distribution[] = $reste;
+            }
+
+            return $distribution;
+        }
+
+        $distribution = array_fill(0, intdiv($pe, $pePerGe), $pePerGe);
+        $reste = $pe % $pePerGe;
 
         if ($reste === 2) {
             $distribution[] = 2;
@@ -1534,6 +1655,23 @@ class RepartitionReportController extends Controller
         }
 
         return $distribution;
+    }
+
+    private function filterOutEmptySalles(Collection $rows): Collection
+    {
+        if ($rows->isEmpty()) {
+            return $rows;
+        }
+
+        $nonEmptyKeys = $rows
+            ->groupBy(fn ($row) => $row->centre_ecrit_id.'|'.$row->annee.'|'.$row->type_examen.'|'.$row->numero_salle)
+            ->filter(fn (Collection $group) => (int) $group->sum('effectif') > 0)
+            ->keys()
+            ->flip();
+
+        return $rows
+            ->filter(fn ($row) => $nonEmptyKeys->has($row->centre_ecrit_id.'|'.$row->annee.'|'.$row->type_examen.'|'.$row->numero_salle))
+            ->values();
     }
 
     private function countDistinctSalles(Collection $rows): int
@@ -1556,6 +1694,77 @@ class RepartitionReportController extends Controller
         for ($i = 1; $i <= $lastColIndex; $i++) {
             $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
         }
+    }
+
+    private function buildControleTraceRows(Collection $bookData): array
+    {
+        $peRows = [];
+        $geRows = [];
+
+        foreach ($bookData as $centreIndex => $centre) {
+            $distribution = array_values($centre['ge_distribution'] ?? []);
+            $currentPe = 1;
+
+            foreach ($distribution as $geOffset => $peCount) {
+                $geNo = $geOffset + 1;
+                $peStart = $currentPe;
+                $peEnd = $currentPe + ((int) $peCount) - 1;
+                $rangeLabel = $peStart === $peEnd ? "PE{$peStart}" : "PE{$peStart}-PE{$peEnd}";
+
+                $geRows[] = [
+                    'centre_idx' => $centreIndex,
+                    'dren' => (string) ($centre['dren'] ?? ''),
+                    'cisco' => (string) ($centre['cisco'] ?? ''),
+                    'centre_correction' => (string) ($centre['centre_correction'] ?? ''),
+                    'centre_ecrit' => (string) ($centre['centre_ecrit'] ?? ''),
+                    'type_examen' => (string) ($centre['type_examen'] ?? ''),
+                    'annee' => (string) ($centre['annee'] ?? ''),
+                    'ge_no' => $geNo,
+                    'pe_count' => (int) $peCount,
+                    'pe_range' => $rangeLabel,
+                ];
+
+                for ($i = 0; $i < (int) $peCount; $i++) {
+                    $peRows[] = [
+                        'centre_idx' => $centreIndex,
+                        'dren' => (string) ($centre['dren'] ?? ''),
+                        'cisco' => (string) ($centre['cisco'] ?? ''),
+                        'centre_correction' => (string) ($centre['centre_correction'] ?? ''),
+                        'centre_ecrit' => (string) ($centre['centre_ecrit'] ?? ''),
+                        'type_examen' => (string) ($centre['type_examen'] ?? ''),
+                        'annee' => (string) ($centre['annee'] ?? ''),
+                        'pe_no' => $currentPe,
+                        'ge_no' => $geNo,
+                    ];
+                    $currentPe++;
+                }
+            }
+        }
+
+        return [
+            collect($peRows)->sortBy(['dren', 'cisco', 'centre_correction', 'centre_ecrit', 'type_examen', 'pe_no'])->values(),
+            collect($geRows)->sortBy(['dren', 'cisco', 'centre_correction', 'centre_ecrit', 'type_examen', 'ge_no'])->values(),
+        ];
+    }
+
+    private function buildLivreControlePayload(Request $request): array
+    {
+        [$rows, $filters, $annees, $drens] = $this->getFilteredRows($request);
+        $bookData = collect($this->buildBookData($rows));
+        [$peRows, $geRows] = $this->buildControleTraceRows($bookData);
+
+        return [
+            'filters' => $filters,
+            'annees' => $annees,
+            'drens' => $drens,
+            'peRows' => $peRows,
+            'geRows' => $geRows,
+            'stats' => [
+                'total_centres' => $bookData->count(),
+                'total_pe' => (int) $bookData->sum('pe'),
+                'total_ge' => (int) $bookData->sum('ge_count'),
+            ],
+        ];
     }
 
     private function buildCepeLivraisonPayload(Request $request): array
@@ -1582,15 +1791,26 @@ class RepartitionReportController extends Controller
         ];
 
         $pagesTotalParCandidat = array_sum($pagesBySubject);
+        $otherSubjectsCount = collect($pagesBySubject)
+            ->except('probleme')
+            ->filter(fn (int $pages) => $pages > 0)
+            ->count();
 
         $livraisonRows = $bookData
             ->groupBy(fn (array $centre) => $centre['dren'].'|'.$centre['cisco'])
-            ->map(function (Collection $centres, string $key) use ($params, $pagesTotalParCandidat) {
+            ->map(function (Collection $centres, string $key) use ($params, $pagesTotalParCandidat, $otherSubjectsCount) {
                 [$dren, $cisco] = explode('|', $key, 2);
                 $candidats = (int) $centres->sum('total_candidats');
                 $salles = (int) $centres->sum('total_salles');
                 $pe = $salles;
-                $ge = (int) $centres->sum('ge_count');
+                $geProbleme = (int) $centres->sum(function (array $centre) {
+                    return count($this->getGeDistribution((int) ($centre['pe'] ?? 0), self::TYPE_BEPC));
+                });
+                $geAutresParMatiere = (int) $centres->sum(function (array $centre) {
+                    return count($this->getGeDistribution((int) ($centre['pe'] ?? 0), self::TYPE_CEPE));
+                });
+                $geAutres = $geAutresParMatiere * $otherSubjectsCount;
+                $ge = $geProbleme + $geAutres;
                 $soubique = (int) ceil($ge / $params['ge_par_soubique']);
                 $ficelle = $soubique;
                 $enveloppesACirer = $pe + $ge + $soubique;
@@ -1608,6 +1828,9 @@ class RepartitionReportController extends Controller
                     'soubique' => $soubique,
                     'pe' => $pe,
                     'ge' => $ge,
+                    'ge_probleme' => $geProbleme,
+                    'ge_autres' => $geAutres,
+                    'ge_autres_par_matiere' => $geAutresParMatiere,
                     'papier_ram' => $ram,
                     'marqueur' => $marqueur,
                     'ficelle' => $ficelle,
@@ -1622,6 +1845,7 @@ class RepartitionReportController extends Controller
             'annees' => $annees,
             'drens' => $drens,
             'pagesBySubject' => $pagesBySubject,
+            'otherSubjectsCount' => $otherSubjectsCount,
             'params' => $params,
             'pagesTotalParCandidat' => $pagesTotalParCandidat,
             'rows' => $livraisonRows,
@@ -1632,6 +1856,8 @@ class RepartitionReportController extends Controller
                 'total_soubique' => (int) $livraisonRows->sum('soubique'),
                 'total_pe' => (int) $livraisonRows->sum('pe'),
                 'total_ge' => (int) $livraisonRows->sum('ge'),
+                'total_ge_probleme' => (int) $livraisonRows->sum('ge_probleme'),
+                'total_ge_autres' => (int) $livraisonRows->sum('ge_autres'),
                 'total_ram' => (int) $livraisonRows->sum('papier_ram'),
                 'total_marqueur' => (int) $livraisonRows->sum('marqueur'),
                 'total_ficelle' => (int) $livraisonRows->sum('ficelle'),

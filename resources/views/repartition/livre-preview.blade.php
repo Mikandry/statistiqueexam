@@ -72,6 +72,7 @@
                 <div class="no-print flex flex-wrap gap-2">
                     <a class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" href="{{ route('bepc.repartition.create') }}">Saisie</a>
                     <a class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" href="{{ route('repartition.dashboard', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Dashboard</a>
+                    <a class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100" href="{{ route('repartition.livre.controle', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Fiche contrôle</a>
                     @if(auth()->user()?->isAdmin())
                         <a class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" href="{{ route('repartition.vacations', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Vacations</a>
                     @endif
@@ -116,7 +117,7 @@
                     </div>
                 </form>
                 <div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
-                    PE = nombre de salles. GE: paquets de 3 PE avec ajustement 2+2 si reste 1 (ex: 7 salles = 3GE,2GE,2GE).
+                    PE = nombre de salles. GE BEPC: paquets de 3 PE avec ajustement 2+2 si reste 1 (ex: 7 salles = 3GE,2GE,2GE). GE CEPE: paquets de 6 PE.
                 </div>
             </div>
         @endif

@@ -20,11 +20,127 @@ class ReferenceManagementController extends Controller
 
     public function index(): View
     {
+        $perPage = 20;
+        $selectedDrenId = (int) request()->integer('filter_dren_id', 0);
+        $selectedCiscoId = (int) request()->integer('filter_cisco_id', 0);
+        $selectedCentreCorrectionId = (int) request()->integer('filter_centre_correction_id', 0);
+        $selectedTypeExamen = strtoupper((string) request()->query('filter_type_examen', self::TYPE_BEPC));
+        if (! in_array($selectedTypeExamen, ['ALL', self::TYPE_BEPC, self::TYPE_CEPE], true)) {
+            $selectedTypeExamen = self::TYPE_BEPC;
+        }
+        $centreTypeForForms = $selectedTypeExamen === 'ALL' ? self::TYPE_BEPC : $selectedTypeExamen;
+
+        $drens = Dren::query()->orderBy('nom')->get();
+        $allCiscos = Cisco::query()->with('dren')->orderBy('nom')->get();
+        $allCentresCorrection = CentreCorrection::query()->with('cisco.dren')->orderBy('nom')->get();
+
+        $selectedCisco = $allCiscos->firstWhere('id', $selectedCiscoId);
+        if ($selectedCiscoId > 0 && ! $selectedCisco) {
+            $selectedCiscoId = 0;
+        }
+        if ($selectedDrenId > 0 && $selectedCisco && (int) $selectedCisco->dren_id !== $selectedDrenId) {
+            $selectedCiscoId = 0;
+            $selectedCisco = null;
+        }
+
+        $filterCiscos = $allCiscos
+            ->filter(fn (Cisco $cisco) => $selectedDrenId <= 0 || (int) $cisco->dren_id === $selectedDrenId)
+            ->values();
+
+        $selectedCentreCorrection = $allCentresCorrection->firstWhere('id', $selectedCentreCorrectionId);
+        if ($selectedCentreCorrectionId > 0 && ! $selectedCentreCorrection) {
+            $selectedCentreCorrectionId = 0;
+            $selectedCentreCorrection = null;
+        }
+        if ($selectedCiscoId > 0 && $selectedCentreCorrection && (int) $selectedCentreCorrection->cisco_id !== $selectedCiscoId) {
+            $selectedCentreCorrectionId = 0;
+            $selectedCentreCorrection = null;
+        }
+        if ($selectedDrenId > 0 && $selectedCentreCorrection && (int) ($selectedCentreCorrection->cisco->dren_id ?? 0) !== $selectedDrenId) {
+            $selectedCentreCorrectionId = 0;
+            $selectedCentreCorrection = null;
+        }
+
+        $filterCentresCorrection = $allCentresCorrection
+            ->filter(function (CentreCorrection $cc) use ($selectedDrenId, $selectedCiscoId) {
+                $matchesDren = $selectedDrenId <= 0 || (int) ($cc->cisco->dren_id ?? 0) === $selectedDrenId;
+                $matchesCisco = $selectedCiscoId <= 0 || (int) $cc->cisco_id === $selectedCiscoId;
+
+                return $matchesDren && $matchesCisco;
+            })
+            ->values();
+        if ($selectedTypeExamen !== 'ALL') {
+            $filterCentresCorrection = $filterCentresCorrection
+                ->filter(fn (CentreCorrection $cc) => $cc->type_examen === $selectedTypeExamen)
+                ->values();
+        }
+
+        $ciscosQuery = Cisco::query()->with('dren')->orderBy('nom');
+        if ($selectedDrenId > 0) {
+            $ciscosQuery->where('dren_id', $selectedDrenId);
+        }
+        if ($selectedCiscoId > 0) {
+            $ciscosQuery->whereKey($selectedCiscoId);
+        }
+
+        $centresCorrectionQuery = CentreCorrection::query()->with('cisco.dren')->orderBy('nom');
+        if ($selectedDrenId > 0) {
+            $centresCorrectionQuery->whereHas('cisco', fn ($query) => $query->where('dren_id', $selectedDrenId));
+        }
+        if ($selectedCiscoId > 0) {
+            $centresCorrectionQuery->where('cisco_id', $selectedCiscoId);
+        }
+        if ($selectedCentreCorrectionId > 0) {
+            $centresCorrectionQuery->whereKey($selectedCentreCorrectionId);
+        }
+        if ($selectedTypeExamen !== 'ALL') {
+            $centresCorrectionQuery->where('type_examen', $selectedTypeExamen);
+        }
+
+        $centresEcritQuery = CentreEcrit::query()->with('centreCorrection.cisco.dren')->orderBy('nom');
+        if ($selectedDrenId > 0) {
+            $centresEcritQuery->whereHas('centreCorrection.cisco', fn ($query) => $query->where('dren_id', $selectedDrenId));
+        }
+        if ($selectedCiscoId > 0) {
+            $centresEcritQuery->whereHas('centreCorrection', fn ($query) => $query->where('cisco_id', $selectedCiscoId));
+        }
+        if ($selectedCentreCorrectionId > 0) {
+            $centresEcritQuery->where('centre_correction_id', $selectedCentreCorrectionId);
+        }
+        if ($selectedTypeExamen !== 'ALL') {
+            $centresEcritQuery->where('type_examen', $selectedTypeExamen);
+        }
+
+        $formCiscos = $allCiscos
+            ->filter(fn (Cisco $cisco) => $selectedDrenId <= 0 || (int) $cisco->dren_id === $selectedDrenId)
+            ->values();
+        $formCentresCorrection = $allCentresCorrection
+            ->filter(function (CentreCorrection $cc) use ($selectedDrenId, $selectedCiscoId, $centreTypeForForms) {
+                $matchesDren = $selectedDrenId <= 0 || (int) ($cc->cisco->dren_id ?? 0) === $selectedDrenId;
+                $matchesCisco = $selectedCiscoId <= 0 || (int) $cc->cisco_id === $selectedCiscoId;
+                $matchesType = $cc->type_examen === $centreTypeForForms;
+
+                return $matchesDren && $matchesCisco && $matchesType;
+            })
+            ->values();
+
         return view('admin.references.index', [
-            'drens' => Dren::query()->orderBy('nom')->get(),
-            'ciscos' => Cisco::query()->with('dren')->orderBy('nom')->get(),
-            'centresCorrection' => CentreCorrection::query()->with('cisco.dren')->orderBy('nom')->get(),
-            'centresEcrit' => CentreEcrit::query()->with('centreCorrection.cisco.dren')->orderBy('nom')->get(),
+            'drens' => $drens,
+            'allCiscos' => $allCiscos,
+            'allCentresCorrection' => $allCentresCorrection,
+            'formCiscos' => $formCiscos,
+            'formCentresCorrection' => $formCentresCorrection,
+            'filterCiscos' => $filterCiscos,
+            'filterCentresCorrection' => $filterCentresCorrection,
+            'drensPage' => Dren::query()->orderBy('nom')->paginate($perPage, ['*'], 'page_drens')->withQueryString(),
+            'ciscosPage' => $ciscosQuery->paginate($perPage, ['*'], 'page_ciscos')->withQueryString(),
+            'centresCorrectionPage' => $centresCorrectionQuery->paginate($perPage, ['*'], 'page_centres_correction')->withQueryString(),
+            'centresEcritPage' => $centresEcritQuery->paginate($perPage, ['*'], 'page_centres_ecrit')->withQueryString(),
+            'selectedDrenId' => $selectedDrenId,
+            'selectedCiscoId' => $selectedCiscoId,
+            'selectedCentreCorrectionId' => $selectedCentreCorrectionId,
+            'selectedTypeExamen' => $selectedTypeExamen,
+            'centreTypeForForms' => $centreTypeForForms,
         ]);
     }
 

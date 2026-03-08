@@ -8,7 +8,7 @@
             </div>
             <div>
                 <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Menu Principal</div>
-                <div class="text-sm font-medium text-slate-700">Organisation Examens</div>
+                <div class="text-sm font-medium text-slate-700">Service de l'Organisation des Examens</div>
             </div>
         </div>
     </div>
@@ -44,6 +44,15 @@
                 <span class="flex-1">Vacations</span>
                 <span class="text-xs text-slate-400">Planning</span>
             </a>
+            <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-fuchsia-200 hover:bg-fuchsia-50/50 hover:text-fuchsia-700 hover:shadow-md" href="{{ route('vacation2026.index') }}">
+                <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-fuchsia-100 group-hover:text-fuchsia-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </span>
+                <span class="flex-1">Traitement vacation 2026</span>
+                <span class="text-xs text-slate-400">Central</span>
+            </a>
         @endif
         
         <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-amber-200 hover:bg-amber-50/50 hover:text-amber-700 hover:shadow-md" href="{{ route('repartition.livre.preview') }}">
@@ -76,6 +85,15 @@
             <span class="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700">CSV</span>
         </a>
 
+        <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-700 hover:shadow-md" href="{{ route('decision.centre') }}">
+            <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-indigo-100 group-hover:text-indigo-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h11M9 21V3m0 0L5 7m4-4l4 4" />
+                </svg>
+            </span>
+            <span class="flex-1">Decision de Centre</span>
+        </a>
+
         @if(auth()->user()?->isAdmin())
             <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-blue-200 hover:bg-blue-50/50 hover:text-blue-700 hover:shadow-md" href="{{ route('admin.statistics.index') }}">
                 <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-blue-100 group-hover:text-blue-600">#</span>
@@ -103,6 +121,13 @@
     </div>
     
     <div class="border-t border-slate-200/80 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
+        <div class="mb-3 rounded-lg border border-blue-200/80 bg-gradient-to-r from-blue-50 to-indigo-50 px-3 py-2">
+            <div class="text-xs font-semibold text-blue-700">Service de l'Organisation des Examens</div>
+            <div class="mt-1 text-xs text-slate-600">Continuez, chaque saisie rapproche de l'objectif final.</div>
+            <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-blue-100">
+                <span class="sidebar-boost block h-full w-1/2 rounded-full bg-blue-500"></span>
+            </div>
+        </div>
         <div class="flex items-center gap-2 text-xs text-slate-500">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -111,3 +136,13 @@
         </div>
     </div>
 </aside>
+<style>
+    @keyframes sidebarBoost {
+        0% { transform: translateX(-80%); }
+        50% { transform: translateX(80%); }
+        100% { transform: translateX(-80%); }
+    }
+    .sidebar-boost {
+        animation: sidebarBoost 3s ease-in-out infinite;
+    }
+</style>

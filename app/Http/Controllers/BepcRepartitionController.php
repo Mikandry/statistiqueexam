@@ -100,7 +100,7 @@ class BepcRepartitionController extends Controller
             'nombre_salles' => ['required', 'integer', 'min:1', 'max:50'],
             'salles_inutilisables' => ['nullable', 'string', 'max:255'],
             'has_foreign_candidates' => ['nullable', 'boolean'],
-            'foreign_option_a_lv' => ['nullable', 'in:ALL,Esp'],
+            'foreign_option_a_lv' => ['nullable', 'in:Allemand,Esp,Anglais'],
             'foreign_option_a_replace_malagasy' => ['nullable', 'string', 'max:255'],
             'foreign_option_b_replace_malagasy' => ['nullable', 'string', 'max:255'],
         ]);
@@ -146,6 +146,26 @@ class BepcRepartitionController extends Controller
                     $totalCandidatsSaisis += (int) $value;
                 }
             }
+
+            $emptyRooms = [];
+            foreach ($sallesDisponibles as $salle) {
+                $roomTotal = 0;
+                foreach ($langues as $langue) {
+                    $roomTotal += (int) ($effectifs[$langue][$salle] ?? 0);
+                }
+
+                if ($roomTotal <= 0) {
+                    $emptyRooms[] = $salle;
+                }
+            }
+
+            if ($emptyRooms !== []) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'effectifs' => 'Salle(s) avec total 0: '.implode(', ', $emptyRooms).'. Veuillez saisir les effectifs ou ajuster le canevas/salles inutilisables.',
+                    ]);
+            }
         } else {
             $effectifsTotal = $request->input('effectifs_total');
             if (! is_array($effectifsTotal)) {
@@ -167,6 +187,19 @@ class BepcRepartitionController extends Controller
 
                 $totalCandidatsSaisis += (int) $value;
             }
+
+            $emptyRooms = collect($sallesDisponibles)
+                ->filter(fn (int $salle) => (int) ($effectifsTotal[$salle] ?? 0) <= 0)
+                ->values()
+                ->all();
+
+            if ($emptyRooms !== []) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'effectifs_total' => 'Salle(s) CEPE avec total 0: '.implode(', ', $emptyRooms).'. Veuillez saisir les effectifs ou ajuster le canevas/salles inutilisables.',
+                    ]);
+            }
         }
 
         $hasForeignCandidates = $typeExamen === self::TYPE_BEPC && (bool) $request->boolean('has_foreign_candidates');
@@ -178,10 +211,10 @@ class BepcRepartitionController extends Controller
             $totalOptionA = 0;
             $totalOptionB = 0;
 
-            if (! in_array($optionALv, ['ALL', 'Esp'], true)) {
+            if (! in_array($optionALv, ['Allemand', 'Esp', 'Anglais'], true)) {
                 return back()
                     ->withInput()
-                    ->withErrors(['foreign_option_a_lv' => 'Choisissez ALL ou Esp pour les étrangers Option A.']);
+                    ->withErrors(['foreign_option_a_lv' => 'Choisissez Allemand, Esp ou Anglais pour les étrangers Option A.']);
             }
 
             foreach ($sallesDisponibles as $salle) {
@@ -215,6 +248,11 @@ class BepcRepartitionController extends Controller
                     ->withInput()
                     ->withErrors(['foreign_option_a_replace_malagasy' => 'Renseignez la langue de remplacement Malagasy pour les étrangers Option A.']);
             }
+            if ($totalOptionA > 0 && strcasecmp($optionAReplace, $optionALv) === 0) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['foreign_option_a_replace_malagasy' => 'La langue de remplacement Malagasy (Option A) doit être différente de la langue vivante choisie.']);
+            }
 
             if ($totalOptionB > 0 && $optionBReplace === '') {
                 return back()
@@ -223,7 +261,7 @@ class BepcRepartitionController extends Controller
             }
 
             $foreignSettings = [
-                'option_a_lv' => $optionALv === 'ALL' ? 'Allemand' : 'Esp',
+                'option_a_lv' => $optionALv,
                 'option_a_replace' => $optionAReplace,
                 'option_b_replace' => $optionBReplace,
             ];

@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\CentreCorrection;
+use App\Models\Cisco;
+use App\Models\Dren;
 use App\Models\RepartitionSalle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +18,9 @@ class StatisticController extends Controller
         $filters = [
             'annee' => (string) $request->query('annee', ''),
             'type_examen' => strtoupper((string) $request->query('type_examen', 'ALL')),
+            'dren_id' => (int) $request->integer('dren_id', 0),
+            'cisco_id' => (int) $request->integer('cisco_id', 0),
+            'centre_correction_id' => (int) $request->integer('centre_correction_id', 0),
         ];
 
         if (! in_array($filters['type_examen'], ['ALL', 'BEPC', 'CEPE'], true)) {
@@ -22,7 +28,7 @@ class StatisticController extends Controller
         }
 
         $statsQuery = RepartitionSalle::query()
-            ->with('centreEcrit')
+            ->with('centreEcrit.centreCorrection.cisco.dren')
             ->orderByDesc('annee')
             ->orderBy('centre_ecrit_id')
             ->orderBy('langue')
@@ -36,6 +42,15 @@ class StatisticController extends Controller
         } elseif ($filters['type_examen'] === 'CEPE') {
             $statsQuery->where('langue', 'TOTAL');
         }
+        if ($filters['dren_id'] > 0) {
+            $statsQuery->whereHas('centreEcrit.centreCorrection.cisco', fn ($query) => $query->where('dren_id', $filters['dren_id']));
+        }
+        if ($filters['cisco_id'] > 0) {
+            $statsQuery->whereHas('centreEcrit.centreCorrection', fn ($query) => $query->where('cisco_id', $filters['cisco_id']));
+        }
+        if ($filters['centre_correction_id'] > 0) {
+            $statsQuery->whereHas('centreEcrit', fn ($query) => $query->where('centre_correction_id', $filters['centre_correction_id']));
+        }
 
         $stats = $statsQuery->paginate(30)->withQueryString();
         $annees = RepartitionSalle::query()
@@ -43,11 +58,26 @@ class StatisticController extends Controller
             ->distinct()
             ->orderByDesc('annee')
             ->pluck('annee');
+        $drens = Dren::query()->orderBy('nom')->get(['id', 'nom']);
+        $ciscos = Cisco::query()
+            ->with('dren')
+            ->when($filters['dren_id'] > 0, fn ($query) => $query->where('dren_id', $filters['dren_id']))
+            ->orderBy('nom')
+            ->get(['id', 'dren_id', 'nom']);
+        $centresCorrection = CentreCorrection::query()
+            ->with('cisco.dren')
+            ->when($filters['dren_id'] > 0, fn ($query) => $query->whereHas('cisco', fn ($q) => $q->where('dren_id', $filters['dren_id'])))
+            ->when($filters['cisco_id'] > 0, fn ($query) => $query->where('cisco_id', $filters['cisco_id']))
+            ->orderBy('nom')
+            ->get(['id', 'cisco_id', 'nom', 'type_examen']);
 
         return view('admin.statistics.index', [
             'stats' => $stats,
             'filters' => $filters,
             'annees' => $annees,
+            'drens' => $drens,
+            'ciscos' => $ciscos,
+            'centresCorrection' => $centresCorrection,
         ]);
     }
 
