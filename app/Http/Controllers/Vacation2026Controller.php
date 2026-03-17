@@ -6,6 +6,7 @@ use App\Models\Vacation2026Activity;
 use App\Models\Vacation2026Agent;
 use App\Models\Vacation2026Assignment;
 use App\Models\Vacation2026Setting;
+use App\Models\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -25,6 +26,10 @@ class Vacation2026Controller extends Controller
     public function index(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
+        $tab = (string) $request->query('tab', 'main');
+        $filterExamen = trim((string) $request->query('filter_examen', ''));
+        $filterActivity = $request->query('filter_activity');
+        $balanceLocalite = trim((string) $request->query('balance_localite', ''));
 
         $activities = Vacation2026Activity::query()
             ->withCount('assignments')
@@ -34,7 +39,7 @@ class Vacation2026Controller extends Controller
             ->get();
 
         $agents = Vacation2026Agent::query()
-            ->with(['assignment.activity'])
+            ->with(['assignments.activity'])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($sub) use ($search) {
                     $sub->where('nom', 'like', "%{$search}%")
@@ -48,11 +53,10 @@ class Vacation2026Controller extends Controller
             ->withQueryString();
 
         $availableAgents = Vacation2026Agent::query()
-            ->doesntHave('assignment')
             ->orderBy('nom')
             ->get(['id', 'nom', 'im', 'localite_service']);
 
-        $assignments = Vacation2026Assignment::query()
+        $assignmentsBase = Vacation2026Assignment::query()
             ->with(['agent', 'activity'])
             ->join('vacation_2026_activities', 'vacation_2026_activities.id', '=', 'vacation_2026_assignments.activity_id')
             ->join('vacation_2026_agents', 'vacation_2026_agents.id', '=', 'vacation_2026_assignments.agent_id')
@@ -60,8 +64,16 @@ class Vacation2026Controller extends Controller
             ->orderBy('vacation_2026_activities.ordre')
             ->orderBy('vacation_2026_activities.libelle')
             ->orderBy('vacation_2026_agents.nom')
-            ->select('vacation_2026_assignments.*')
+            ->select('vacation_2026_assignments.*');
+        $assignments = (clone $assignmentsBase)
+            ->when($filterActivity !== null && $filterActivity !== '', function ($query) use ($filterActivity) {
+                $query->where('vacation_2026_assignments.activity_id', (int) $filterActivity);
+            })
+            ->when($filterExamen !== '', function ($query) use ($filterExamen) {
+                $query->where('vacation_2026_activities.examen', $filterExamen);
+            })
             ->get();
+        $assignmentsAll = (clone $assignmentsBase)->get();
         $assignmentRatesByActivity = Vacation2026Assignment::query()
             ->selectRaw('activity_id, MAX(taux) as taux')
             ->whereNotNull('taux')
@@ -69,7 +81,7 @@ class Vacation2026Controller extends Controller
             ->pluck('taux', 'activity_id');
 
         $setting = Vacation2026Setting::query()->first();
-        $participantBalance = $assignments->map(function (Vacation2026Assignment $assignment) {
+        $participantBalance = $assignmentsAll->map(function (Vacation2026Assignment $assignment) {
             $jours = (int) ($assignment->activity?->nb_jours ?? 0);
             $activityRate = $this->supportsActivityRate() && $assignment->activity?->taux_activite !== null
                 ? (float) $assignment->activity->taux_activite
@@ -80,11 +92,13 @@ class Vacation2026Controller extends Controller
 
             return [
                 'assignment_id' => $assignment->id,
+                'agent_id' => (int) ($assignment->agent?->id ?? 0),
                 'activity_id' => (int) ($assignment->activity?->id ?? 0),
                 'examen' => (string) ($assignment->activity?->examen ?? ''),
                 'activite' => (string) ($assignment->activity?->libelle ?? ''),
                 'nom' => (string) ($assignment->agent?->nom ?? ''),
                 'im' => (string) ($assignment->agent?->im ?? ''),
+                'localite' => (string) ($assignment->agent?->localite_service ?? ''),
                 'jours' => $jours,
                 'taux' => $taux,
                 'montant' => $montant,
@@ -122,7 +136,75 @@ class Vacation2026Controller extends Controller
             return $row;
         });
 
+        $participantTotals = $participantBalance
+            ->groupBy('agent_id')
+            ->map(function (Collection $rows) use ($averageByActivity) {
+                $first = $rows->first();
+                $totalMontant = (float) $rows->sum('montant');
+                $totalJours = (int) $rows->sum('jours');
+                $expectedMontant = (float) $rows->sum(function (array $row) use ($averageByActivity) {
+                    return (float) ($averageByActivity->get($row['activity_id']) ?? 0);
+                });
+                $equilibre = $totalMontant - $expectedMontant;
+                $equilibreLabel = $equilibre > 0
+                    ? 'trop percu'
+                    : ($equilibre < 0 ? 'need more activities' : 'equilibre');
+                $activities = $rows
+                    ->map(fn (array $row) => trim($row['examen'].' - '.$row['activite']))
+                    ->unique()
+                    ->values()
+                    ->implode(', ');
+
+                return [
+                    'agent_id' => (int) $first['agent_id'],
+                    'nom' => (string) $first['nom'],
+                    'im' => (string) $first['im'],
+                    'localite' => (string) $first['localite'],
+                    'activities' => $activities,
+                    'assignments' => $rows->count(),
+                    'jours' => $totalJours,
+                    'montant' => $totalMontant,
+                    'equilibre' => $equilibre,
+                    'equilibre_label' => $equilibreLabel,
+                ];
+            })
+            ->when($balanceLocalite !== '', function (Collection $rows) use ($balanceLocalite) {
+                $needle = mb_strtolower($balanceLocalite);
+
+                return $rows->filter(function (array $row) use ($needle) {
+                    return str_contains(mb_strtolower($row['localite']), $needle);
+                });
+            })
+            ->values();
+
+        $serviceBalance = $participantBalance
+            ->groupBy(fn (array $row) => $row['localite'] !== '' ? $row['localite'] : 'Non renseigné')
+            ->map(function (Collection $rows, string $service) {
+                $uniqueParticipants = $rows->pluck('agent_id')->unique()->count();
+                $totalMontant = (float) $rows->sum('montant');
+
+                return [
+                    'service' => $service,
+                    'participants' => $uniqueParticipants,
+                    'assignments' => $rows->count(),
+                    'montant' => $totalMontant,
+                ];
+            })
+            ->when($balanceLocalite !== '', function (Collection $rows) use ($balanceLocalite) {
+                $needle = mb_strtolower($balanceLocalite);
+
+                return $rows->filter(function (array $row) use ($needle) {
+                    return str_contains(mb_strtolower($row['service']), $needle);
+                });
+            })
+            ->sortByDesc('montant')
+            ->values();
+
         return view('repartition.vacation-2026', [
+            'tab' => $tab,
+            'filterExamen' => $filterExamen,
+            'filterActivity' => $filterActivity,
+            'balanceLocalite' => $balanceLocalite,
             'activities' => $activities,
             'agents' => $agents,
             'availableAgents' => $availableAgents,
@@ -130,11 +212,13 @@ class Vacation2026Controller extends Controller
             'assignmentRatesByActivity' => $assignmentRatesByActivity,
             'activityBalance' => $activityBalance,
             'participantBalance' => $participantBalance,
+            'participantTotals' => $participantTotals,
+            'serviceBalance' => $serviceBalance,
             'setting' => $setting,
             'stats' => [
                 'agents_total' => Vacation2026Agent::count(),
-                'agents_affectes' => Vacation2026Assignment::count(),
-                'agents_disponibles' => Vacation2026Agent::doesntHave('assignment')->count(),
+                'agents_affectes' => Vacation2026Agent::has('assignments')->count(),
+                'agents_disponibles' => Vacation2026Agent::doesntHave('assignments')->count(),
             ],
         ]);
     }
@@ -163,7 +247,6 @@ class Vacation2026Controller extends Controller
         $created = 0;
         $updated = 0;
         $assigned = 0;
-        $reassigned = 0;
         $errors = 0;
         $rejects = [];
         $currentActivityCount = (int) $activity->assignments_count;
@@ -229,27 +312,14 @@ class Vacation2026Controller extends Controller
                 $created++;
             }
 
-            $existingAssignment = Vacation2026Assignment::query()->where('agent_id', $agent->id)->first();
+            $existingAssignment = Vacation2026Assignment::query()
+                ->where('agent_id', $agent->id)
+                ->where('activity_id', $activity->id)
+                ->first();
             if ($existingAssignment) {
-                if ((int) $existingAssignment->activity_id === (int) $activity->id) {
-                    if ($activityRate !== null) {
-                        $existingAssignment->update(['taux' => $activityRate]);
-                    }
-                    continue;
+                if ($activityRate !== null) {
+                    $existingAssignment->update(['taux' => $activityRate]);
                 }
-
-                if ($currentActivityCount >= (int) $activity->max_agents) {
-                    $errors++;
-                    $rejects[] = "Ligne {$lineNumber}: {$nom} non déplacé vers {$activity->libelle} (quota {$activity->max_agents} atteint).";
-                    continue;
-                }
-
-                $existingAssignment->update([
-                    'activity_id' => $activity->id,
-                    'taux' => $activityRate ?? $existingAssignment->taux,
-                ]);
-                $currentActivityCount++;
-                $reassigned++;
                 continue;
             }
 
@@ -268,9 +338,17 @@ class Vacation2026Controller extends Controller
             $assigned++;
         }
 
-        return back()
-            ->with('status', "Import activité {$activity->examen} - {$activity->libelle}: {$created} ajouté(s), {$updated} mis à jour, {$assigned} affecté(s), {$reassigned} déplacé(s), {$errors} rejeté(s).")
+        $response = back()
+            ->with('status', "Import activité {$activity->examen} - {$activity->libelle}: {$created} ajouté(s), {$updated} mis à jour, {$assigned} affecté(s), {$errors} rejeté(s).")
             ->with('import_rejects', array_slice($rejects, 0, 120));
+        AuditLog::record($request, 'import_vacation_agents', [
+            'activity_id' => $activity->id,
+            'created' => $created,
+            'updated' => $updated,
+            'assigned' => $assigned,
+            'errors' => $errors,
+        ]);
+        return $response;
     }
 
     public function updateSetting(Request $request): RedirectResponse
@@ -278,6 +356,11 @@ class Vacation2026Controller extends Controller
         $payload = $request->validate([
             'entete' => ['nullable', 'string'],
             'considerant' => ['nullable', 'string'],
+            'note_titre' => ['nullable', 'string', 'max:255'],
+            'decision_titre' => ['nullable', 'string', 'max:255'],
+            'presence_titre' => ['nullable', 'string', 'max:255'],
+            'decompte_titre' => ['nullable', 'string', 'max:255'],
+            'decision_reference' => ['nullable', 'string', 'max:255'],
             'signature' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -300,8 +383,12 @@ class Vacation2026Controller extends Controller
         ]);
 
         $agent = Vacation2026Agent::query()->findOrFail((int) $payload['agent_id']);
-        if ($agent->assignment()->exists()) {
-            return back()->withErrors(['assign' => 'Cet agent est déjà affecté à une activité.']);
+        $alreadyAssigned = Vacation2026Assignment::query()
+            ->where('agent_id', $agent->id)
+            ->where('activity_id', (int) $payload['activity_id'])
+            ->exists();
+        if ($alreadyAssigned) {
+            return back()->withErrors(['assign' => 'Cet agent est déjà affecté à cette activité.']);
         }
 
         $activity = Vacation2026Activity::query()->withCount('assignments')->findOrFail((int) $payload['activity_id']);
@@ -354,6 +441,32 @@ class Vacation2026Controller extends Controller
         return back()->with('status', $status);
     }
 
+    public function storeActivity(Request $request): RedirectResponse
+    {
+        $payload = $request->validate([
+            'examen' => ['required', 'string', 'max:255'],
+            'libelle' => ['required', 'string', 'max:255'],
+            'max_agents' => ['required', 'integer', 'min:1'],
+            'nb_jours' => ['required', 'integer', 'min:1'],
+            'taux_activite' => ['nullable', 'numeric', 'min:0'],
+            'ordre' => ['nullable', 'integer', 'min:0'],
+        ]);
+        if (! $this->supportsActivityRate()) {
+            unset($payload['taux_activite']);
+        }
+
+        Vacation2026Activity::query()->create([
+            'examen' => $payload['examen'],
+            'libelle' => $payload['libelle'],
+            'max_agents' => (int) $payload['max_agents'],
+            'nb_jours' => (int) $payload['nb_jours'],
+            'taux_activite' => $payload['taux_activite'] ?? null,
+            'ordre' => (int) ($payload['ordre'] ?? 0),
+        ]);
+
+        return back()->with('status', 'Nouvelle activité ajoutée.');
+    }
+
     public function removeAssignment(Vacation2026Assignment $assignment): RedirectResponse
     {
         $agentName = $assignment->agent?->nom ?? 'Agent';
@@ -379,10 +492,21 @@ class Vacation2026Controller extends Controller
         $setting = Vacation2026Setting::query()->first();
         $filename = "vacation_2026_{$document}.doc";
 
+        $decisionReference = $setting?->decision_reference;
+        if ($document === 'decision' && $decisionReference === null) {
+            $decisionReference = 'ELABORATION 150';
+        }
+        $headers = $this->documentHeaders($document);
+        if ($document === 'decision' && $decisionReference !== null && $decisionReference !== '') {
+            $headers[] = 'REFERENCE';
+        }
+
         $content = view('repartition.vacation-2026-document', [
             'document' => $document,
             'rows' => $rows,
-            'headers' => $this->documentHeaders($document),
+            'headers' => $headers,
+            'documentTitle' => $this->resolveDocumentTitle($document, $setting),
+            'decisionReference' => $decisionReference,
             'setting' => $setting,
             'selectedActivity' => $activity,
         ])->render();
@@ -396,11 +520,16 @@ class Vacation2026Controller extends Controller
     public function exportExcel(Request $request, string $document)
     {
         $document = $this->normalizeDocumentType($document);
-        if (! in_array($document, ['decompte', 'presence'], true)) {
+        if (! in_array($document, ['decompte', 'presence', 'recap'], true)) {
             abort(404);
         }
 
-        $rows = $this->buildDocumentRows();
+        $activityId = $request->query('activity_id');
+        $activity = null;
+        if ($activityId !== null && $activityId !== '') {
+            $activity = Vacation2026Activity::query()->find((int) $activityId);
+        }
+        $rows = $this->buildDocumentRows($activity?->id);
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle(strtoupper($document));
@@ -410,11 +539,20 @@ class Vacation2026Controller extends Controller
             if ($irsaPercent < 0) {
                 $irsaPercent = 0;
             }
+            $rowsPerPage = (int) $request->query('rows_per_page', 25);
+            if ($rowsPerPage < 5) {
+                $rowsPerPage = 5;
+            }
+            $withPageReports = (bool) $request->query('page_reports', false);
 
             $headers = ['EXAMEN', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE', 'NB JOURS', 'TAUX', 'MONTANT BRUT', 'IRSA %', 'MONTANT IRSA', 'MONTANT NET'];
             $sheet->fromArray($headers, null, 'A1');
 
             $line = 2;
+            $pageCount = 0;
+            $pageMontantBrut = 0.0;
+            $pageMontantIrsa = 0.0;
+            $pageMontantNet = 0.0;
             foreach ($rows as $item) {
                 $brut = (float) ($item['montant'] ?? 0);
                 $irsaAmount = $brut * ($irsaPercent / 100);
@@ -433,12 +571,47 @@ class Vacation2026Controller extends Controller
                     number_format($net, 2, '.', ''),
                 ], null, "A{$line}");
                 $line++;
+                $pageCount++;
+                $pageMontantBrut += $brut;
+                $pageMontantIrsa += $irsaAmount;
+                $pageMontantNet += $net;
+
+                if ($withPageReports && $pageCount >= $rowsPerPage) {
+                    $sheet->setCellValue("G{$line}", 'TOTAL PAGE');
+                    $sheet->setCellValue("H{$line}", number_format($pageMontantBrut, 2, '.', ''));
+                    $sheet->setCellValue("J{$line}", number_format($pageMontantIrsa, 2, '.', ''));
+                    $sheet->setCellValue("K{$line}", number_format($pageMontantNet, 2, '.', ''));
+                    $sheet->getStyle("G{$line}:K{$line}")->getFont()->setBold(true);
+                    $line++;
+
+                    $sheet->setBreak("A{$line}", \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::BREAK_ROW);
+                    $sheet->setCellValue("G{$line}", 'REPORT PAGE PRECEDENTE');
+                    $sheet->setCellValue("H{$line}", number_format($pageMontantBrut, 2, '.', ''));
+                    $sheet->setCellValue("J{$line}", number_format($pageMontantIrsa, 2, '.', ''));
+                    $sheet->setCellValue("K{$line}", number_format($pageMontantNet, 2, '.', ''));
+                    $sheet->getStyle("G{$line}:K{$line}")->getFont()->setBold(true);
+                    $line++;
+
+                    $pageCount = 0;
+                    $pageMontantBrut = 0.0;
+                    $pageMontantIrsa = 0.0;
+                    $pageMontantNet = 0.0;
+                }
+            }
+
+            if ($withPageReports && $line > 2 && $pageCount > 0) {
+                $sheet->setCellValue("G{$line}", 'TOTAL PAGE');
+                $sheet->setCellValue("H{$line}", number_format($pageMontantBrut, 2, '.', ''));
+                $sheet->setCellValue("J{$line}", number_format($pageMontantIrsa, 2, '.', ''));
+                $sheet->setCellValue("K{$line}", number_format($pageMontantNet, 2, '.', ''));
+                $sheet->getStyle("G{$line}:K{$line}")->getFont()->setBold(true);
+                $line++;
             }
 
             if ($line === 2) {
                 $sheet->setCellValue('A2', 'Aucune donnée affectée.');
             }
-        } else {
+        } elseif ($document === 'presence') {
             $maxDays = (int) max(1, $rows->max('jours') ?? 1);
             $dayHeaders = [];
             for ($d = 1; $d <= $maxDays; $d++) {
@@ -470,6 +643,48 @@ class Vacation2026Controller extends Controller
             }
 
             $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
+        } else {
+            $headers = ['EXAMEN', 'ACTIVITE', 'PARTICIPANTS', 'NB JOURS', 'TAUX MOYEN', 'MONTANT MOYEN', 'MONTANT TOTAL'];
+            $sheet->fromArray($headers, null, 'A1');
+
+            $line = 2;
+            $activityBalance = $rows
+                ->groupBy(fn (array $row) => $row['examen'].'|'.$row['activite'])
+                ->map(function (Collection $items) {
+                    $first = $items->first();
+                    $count = $items->count();
+                    $total = (float) $items->sum('montant');
+                    $avgMontant = $count > 0 ? $total / $count : 0.0;
+                    $avgTaux = $count > 0 ? (float) $items->avg('taux') : 0.0;
+
+                    return [
+                        'examen' => $first['examen'],
+                        'activite' => $first['activite'],
+                        'participants' => $count,
+                        'jours' => (int) $first['jours'],
+                        'avg_taux' => $avgTaux,
+                        'avg_montant' => $avgMontant,
+                        'total' => $total,
+                    ];
+                })
+                ->values();
+
+            foreach ($activityBalance as $item) {
+                $sheet->fromArray([
+                    $item['examen'],
+                    $item['activite'],
+                    $item['participants'],
+                    $item['jours'],
+                    number_format((float) $item['avg_taux'], 2, '.', ''),
+                    number_format((float) $item['avg_montant'], 2, '.', ''),
+                    number_format((float) $item['total'], 2, '.', ''),
+                ], null, "A{$line}");
+                $line++;
+            }
+
+            if ($line === 2) {
+                $sheet->setCellValue('A2', 'Aucune donnée affectée.');
+            }
         }
 
         $lastColumn = $sheet->getHighestColumn();
@@ -496,6 +711,9 @@ class Vacation2026Controller extends Controller
     public function exportPdf(Request $request, string $document)
     {
         $document = $this->normalizeDocumentType($document);
+        if (! in_array($document, ['note-service', 'decision', 'decompte', 'presence'], true)) {
+            abort(404);
+        }
         $activityId = $request->query('activity_id');
         $activity = null;
         if ($activityId !== null && $activityId !== '') {
@@ -504,10 +722,21 @@ class Vacation2026Controller extends Controller
         $rows = $this->buildDocumentRows($activity?->id);
         $setting = Vacation2026Setting::query()->first();
 
+        $decisionReference = $setting?->decision_reference;
+        if ($document === 'decision' && $decisionReference === null) {
+            $decisionReference = 'ELABORATION 150';
+        }
+        $headers = $this->documentHeaders($document);
+        if ($document === 'decision' && $decisionReference !== null && $decisionReference !== '') {
+            $headers[] = 'REFERENCE';
+        }
+
         return response()->view('repartition.vacation-2026-document', [
             'document' => $document,
             'rows' => $rows,
-            'headers' => $this->documentHeaders($document),
+            'headers' => $headers,
+            'documentTitle' => $this->resolveDocumentTitle($document, $setting),
+            'decisionReference' => $decisionReference,
             'setting' => $setting,
             'selectedActivity' => $activity,
         ]);
@@ -613,7 +842,7 @@ class Vacation2026Controller extends Controller
     private function normalizeDocumentType(string $document): string
     {
         return match ($document) {
-            'note-service', 'decompte', 'decision', 'presence' => $document,
+            'note-service', 'decompte', 'decision', 'presence', 'recap' => $document,
             default => 'note-service',
         };
     }
@@ -623,7 +852,7 @@ class Vacation2026Controller extends Controller
         return match ($document) {
             'decompte' => ['EXAMEN', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE', 'NB JOURS', 'TAUX', 'MONTANT'],
             'presence' => ['EXAMEN', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE', 'CIN', 'SIGNATURE'],
-            'decision' => ['EXAMEN', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE', 'REFERENCE'],
+            'decision' => ['N°', 'NOM ET PRENOMS', 'IM', 'LOCALITE DE SERVICE'],
             default => ['EXAMEN', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE'],
         };
     }
@@ -675,6 +904,17 @@ class Vacation2026Controller extends Controller
         }
 
         return $this->hasActivityRateColumn;
+    }
+
+    private function resolveDocumentTitle(string $document, ?Vacation2026Setting $setting): string
+    {
+        return match ($document) {
+            'note-service' => $setting?->note_titre ?: 'NOTE DE SERVICE',
+            'decision' => $setting?->decision_titre ?: 'DECISION',
+            'presence' => $setting?->presence_titre ?: 'FICHE DE PRESENCE',
+            'decompte' => $setting?->decompte_titre ?: 'ETAT DE DECOMPTE',
+            default => strtoupper($document),
+        };
     }
 
     private function normalizeText(string $value): string

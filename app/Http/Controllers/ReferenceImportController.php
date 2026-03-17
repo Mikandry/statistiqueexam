@@ -6,6 +6,7 @@ use App\Models\CentreCorrection;
 use App\Models\CentreEcrit;
 use App\Models\Cisco;
 use App\Models\Dren;
+use App\Models\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -139,7 +140,7 @@ class ReferenceImportController extends Controller
             }
         }
 
-        return back()
+        $response = back()
             ->with(
                 'status',
                 "Import général terminé: DREN {$created['drens']} créé(s), {$updated['drens']} existant(s) | ".
@@ -148,6 +149,12 @@ class ReferenceImportController extends Controller
                 "Écrit {$created['centres_ecrit']} créé(s), {$updated['centres_ecrit']} existant(s) | {$errors} rejeté(s)."
             )
             ->with('import_rejects', $rejects);
+        AuditLog::record($request, 'import_references', [
+            'created' => $created,
+            'updated' => $updated,
+            'errors' => $errors,
+        ]);
+        return $response;
     }
 
     public function importDrens(Request $request): RedirectResponse
@@ -176,9 +183,15 @@ class ReferenceImportController extends Controller
             }
         }
 
-        return back()
+        $response = back()
             ->with('status', "Import DREN terminé: {$created} créé(s), {$updated} existant(s), {$errors} rejeté(s).")
             ->with('import_rejects', $rejects);
+        AuditLog::record($request, 'import_drens', [
+            'created' => $created,
+            'updated' => $updated,
+            'errors' => $errors,
+        ]);
+        return $response;
     }
 
     public function importCiscos(Request $request): RedirectResponse
@@ -227,9 +240,15 @@ class ReferenceImportController extends Controller
             }
         }
 
-        return back()
+        $response = back()
             ->with('status', "Import CISCO terminé: {$created} créé(s), {$updated} existant(s), {$errors} rejeté(s).")
             ->with('import_rejects', $rejects);
+        AuditLog::record($request, 'import_ciscos', [
+            'created' => $created,
+            'updated' => $updated,
+            'errors' => $errors,
+        ]);
+        return $response;
     }
 
     public function importCentresCorrection(Request $request): RedirectResponse
@@ -303,9 +322,15 @@ class ReferenceImportController extends Controller
             }
         }
 
-        return back()
+        $response = back()
             ->with('status', "Import centres de correction terminé: {$created} créé(s), {$updated} existant(s), {$errors} rejeté(s).")
             ->with('import_rejects', $rejects);
+        AuditLog::record($request, 'import_centres_correction', [
+            'created' => $created,
+            'updated' => $updated,
+            'errors' => $errors,
+        ]);
+        return $response;
     }
 
     public function importCentresEcrit(Request $request): RedirectResponse
@@ -390,9 +415,15 @@ class ReferenceImportController extends Controller
             }
         }
 
-        return back()
+        $response = back()
             ->with('status', "Import centres d'écrit terminé: {$created} créé(s), {$updated} existant(s), {$errors} rejeté(s).")
             ->with('import_rejects', $rejects);
+        AuditLog::record($request, 'import_centres_ecrit', [
+            'created' => $created,
+            'updated' => $updated,
+            'errors' => $errors,
+        ]);
+        return $response;
     }
 
     private function parseCsvRows(Request $request, string $fieldName): array

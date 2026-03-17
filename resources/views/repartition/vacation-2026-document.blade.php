@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ strtoupper($document) }} - Vacation 2026</title>
+<link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
     <style>
         body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
         h1, h2 { margin: 0; }
@@ -24,10 +25,7 @@
 <body>
     <div class="header">{{ $setting?->entete }}</div>
     <div class="title">
-        @if($document === 'note-service') NOTE DE SERVICE @endif
-        @if($document === 'decompte') ETAT DE DECOMPTE @endif
-        @if($document === 'decision') DECISION @endif
-        @if($document === 'presence') FICHE DE PRESENCE @endif
+        {{ $documentTitle ?? strtoupper($document) }}
         - VACATION 2026
     </div>
     <div class="subtitle">{{ $setting?->considerant }}</div>
@@ -46,31 +44,56 @@
             </tr>
         </thead>
         <tbody>
-            @forelse($rows as $row)
-                <tr>
-                    <td>{{ $row['examen'] }}</td>
-                    <td>{{ $row['activite'] }}</td>
-                    <td>{{ $row['nom'] }}</td>
-                    <td>{{ $row['im'] }}</td>
-                    <td>{{ $row['localite'] }}</td>
-                    @if($document === 'decompte')
-                        <td class="right">{{ $row['jours'] }}</td>
-                        <td class="right">{{ $row['taux'] !== null ? number_format((float) $row['taux'], 2, ',', ' ') : '' }}</td>
-                        <td class="right">{{ $row['montant'] !== null ? number_format((float) $row['montant'], 2, ',', ' ') : '' }}</td>
-                    @endif
-                    @if($document === 'presence')
-                        <td>{{ $row['cin'] }}</td>
-                        <td></td>
-                    @endif
-                    @if($document === 'decision')
-                        <td>ELABORATION 150</td>
-                    @endif
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="{{ count($headers) }}" style="text-align: center;">Aucune donnée affectée.</td>
-                </tr>
-            @endforelse
+            @php($showDecisionReference = $document === 'decision' && !empty($decisionReference))
+            @if($document === 'decision')
+                @php($groups = $rows->groupBy(fn ($row) => $row['examen'].'|'.$row['activite']))
+                @forelse($groups as $groupKey => $groupRows)
+                    @php([$groupExamen, $groupActivite] = array_pad(explode('|', $groupKey, 2), 2, ''))
+                    <tr>
+                        <td colspan="{{ count($headers) }}" style="font-weight: 700; background: #f1f5f9;">
+                            {{ trim($groupExamen.' - '.$groupActivite) }}
+                        </td>
+                    </tr>
+                    @foreach($groupRows as $index => $row)
+                        <tr>
+                            <td>{{ $index + 1 }}</td>
+                            <td>{{ $row['nom'] }}</td>
+                            <td>{{ $row['im'] }}</td>
+                            <td>{{ $row['localite'] }}</td>
+                            @if($showDecisionReference)
+                                <td>{{ $decisionReference }}</td>
+                            @endif
+                        </tr>
+                    @endforeach
+                @empty
+                    <tr>
+                        <td colspan="{{ count($headers) }}" style="text-align: center;">Aucune donnée affectée.</td>
+                    </tr>
+                @endforelse
+            @else
+                @forelse($rows as $row)
+                    <tr>
+                        <td>{{ $row['examen'] }}</td>
+                        <td>{{ $row['activite'] }}</td>
+                        <td>{{ $row['nom'] }}</td>
+                        <td>{{ $row['im'] }}</td>
+                        <td>{{ $row['localite'] }}</td>
+                        @if($document === 'decompte')
+                            <td class="right">{{ $row['jours'] }}</td>
+                            <td class="right">{{ $row['taux'] !== null ? number_format((float) $row['taux'], 2, ',', ' ') : '' }}</td>
+                            <td class="right">{{ $row['montant'] !== null ? number_format((float) $row['montant'], 2, ',', ' ') : '' }}</td>
+                        @endif
+                        @if($document === 'presence')
+                            <td>{{ $row['cin'] }}</td>
+                            <td></td>
+                        @endif
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="{{ count($headers) }}" style="text-align: center;">Aucune donnée affectée.</td>
+                    </tr>
+                @endforelse
+            @endif
         </tbody>
     </table>
 

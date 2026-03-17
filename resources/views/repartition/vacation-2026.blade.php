@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Traitement de vacation pour 2026</title>
+<link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
     @if (file_exists(public_path('build/manifest.json')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @else
@@ -18,8 +19,19 @@
         <main class="min-w-0 flex-1 space-y-4">
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 p-5 md:p-6">
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-900">Traitement de vacation pour 2026</h1>
-                    <p class="mt-1 text-sm text-slate-600">Import de la base centrale, affectation CEPE/BEPC/CAP, et génération des documents (note, décompte, décision, présence).</p>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h1 class="text-2xl font-bold tracking-tight text-slate-900">Traitement de vacation pour 2026</h1>
+                            <p class="mt-1 text-sm text-slate-600">Import de la base centrale, affectation CEPE/BEPC/CAP, et génération des documents (note, décompte, décision, présence).</p>
+                        </div>
+                        <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">SOE</div>
+                            <div class="text-sm">
+                                <div class="font-semibold text-slate-900">SOE</div>
+                                <div class="text-xs text-slate-500">Service de l'Organisation des Examens</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="grid grid-cols-1 gap-3 p-5 md:grid-cols-3 md:p-6">
                     <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
@@ -37,6 +49,19 @@
                 </div>
             </div>
 
+            @php($activeTab = $tab ?? 'main')
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('vacation2026.index', ['tab' => 'main']) }}"
+                   class="rounded-full border px-4 py-2 text-sm font-medium {{ $activeTab === 'main' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700' }}">
+                    Traitement
+                </a>
+                <a href="{{ route('vacation2026.index', ['tab' => 'balance']) }}"
+                   class="rounded-full border px-4 py-2 text-sm font-medium {{ $activeTab === 'balance' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700' }}">
+                    Equilibre
+                </a>
+            </div>
+
+            @if($activeTab !== 'balance')
             @if(session('status'))
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>
             @endif
@@ -94,6 +119,30 @@
                             <label class="mb-1 block text-sm font-medium text-slate-700">Considérant</label>
                             <textarea name="considerant" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">{{ old('considerant', $setting?->considerant) }}</textarea>
                         </div>
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-slate-700">Titre note de service</label>
+                                <input type="text" name="note_titre" value="{{ old('note_titre', $setting?->note_titre) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="NOTE DE SERVICE">
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-slate-700">Titre décision</label>
+                                <input type="text" name="decision_titre" value="{{ old('decision_titre', $setting?->decision_titre) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="DECISION">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-slate-700">Titre fiche de présence</label>
+                                <input type="text" name="presence_titre" value="{{ old('presence_titre', $setting?->presence_titre) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="FICHE DE PRESENCE">
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-slate-700">Titre état de décompte</label>
+                                <input type="text" name="decompte_titre" value="{{ old('decompte_titre', $setting?->decompte_titre) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="ETAT DE DECOMPTE">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Référence décision (colonne)</label>
+                            <input type="text" name="decision_reference" value="{{ old('decision_reference', $setting?->decision_reference) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="ELABORATION 150">
+                        </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium text-slate-700">Signataire</label>
                             <input type="text" name="signature" value="{{ old('signature', $setting?->signature) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
@@ -145,6 +194,16 @@
                         </tbody>
                     </table>
                 </div>
+                <form method="POST" action="{{ route('vacation2026.activities.store') }}" class="mt-4 grid grid-cols-1 gap-2 md:grid-cols-6">
+                    @csrf
+                    <input type="text" name="examen" placeholder="Examen" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" required>
+                    <input type="text" name="libelle" placeholder="Libellé activité" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" required>
+                    <input type="number" min="1" name="max_agents" placeholder="Max agents" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" required>
+                    <input type="number" min="1" name="nb_jours" placeholder="Nb jours" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" required>
+                    <input type="number" step="0.01" min="0" name="taux_activite" placeholder="Taux activité" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    <input type="number" min="0" name="ordre" placeholder="Ordre" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 md:col-span-6">Ajouter activité</button>
+                </form>
             </section>
 
             <div class="grid grid-cols-1 gap-4">
@@ -169,15 +228,41 @@
 
                         <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                             <div class="mb-2 font-medium text-slate-700">Etat de décompte (Excel)</div>
-                            <form method="GET" action="{{ route('vacation2026.exports.xlsx', ['document' => 'decompte']) }}" class="grid grid-cols-1 gap-2 md:grid-cols-4">
+                            <form method="GET" action="{{ route('vacation2026.exports.xlsx', ['document' => 'decompte']) }}" class="grid grid-cols-1 gap-2 md:grid-cols-5">
+                                <select name="activity_id" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                                    <option value="">Toutes activités</option>
+                                    @foreach($activities as $activity)
+                                        <option value="{{ $activity->id }}">{{ $activity->examen }} - {{ $activity->libelle }}</option>
+                                    @endforeach
+                                </select>
                                 <input type="number" step="0.01" min="0" name="irsa_percent" value="{{ request('irsa_percent', 0) }}" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="IRSA %">
+                                <input type="number" min="5" name="rows_per_page" value="{{ request('rows_per_page', 25) }}" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Lignes / page">
+                                <label class="inline-flex items-center gap-2 text-xs text-slate-600">
+                                    <input type="checkbox" name="page_reports" value="1" class="rounded border-slate-300">
+                                    Report & total par page
+                                </label>
                                 <button type="submit" class="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-600">Décompte (Excel)</button>
                             </form>
                         </div>
 
                         <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                             <div class="mb-2 font-medium text-slate-700">Fiche de présence (Excel paysage)</div>
-                            <a href="{{ route('vacation2026.exports.xlsx', ['document' => 'presence']) }}" class="inline-flex rounded-lg bg-blue-700 px-3 py-2 text-xs font-medium text-white hover:bg-blue-600">Présence (Excel)</a>
+                            <form method="GET" action="{{ route('vacation2026.exports.xlsx', ['document' => 'presence']) }}" class="grid grid-cols-1 gap-2 md:grid-cols-4">
+                                <select name="activity_id" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                                    <option value="">Toutes activités</option>
+                                    @foreach($activities as $activity)
+                                        <option value="{{ $activity->id }}">{{ $activity->examen }} - {{ $activity->libelle }}</option>
+                                    @endforeach
+                                </select>
+                                <button type="submit" class="rounded-lg bg-blue-700 px-3 py-2 text-xs font-medium text-white hover:bg-blue-600">Présence (Excel)</button>
+                            </form>
+                        </div>
+
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                            <div class="mb-2 font-medium text-slate-700">Récap par activité (Excel)</div>
+                            <form method="GET" action="{{ route('vacation2026.exports.xlsx', ['document' => 'recap']) }}">
+                                <button type="submit" class="rounded-lg bg-indigo-700 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-600">Récapitulatif (Excel)</button>
+                            </form>
                         </div>
                     </div>
                     <p class="mt-3 text-xs text-slate-500">Format demandé: note/décision en Word, décompte/présence en Excel.</p>
@@ -186,6 +271,25 @@
 
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 class="text-lg font-semibold text-slate-900">5) Liste des participants par activité</h2>
+                @php($examens = $activities->pluck('examen')->unique()->values())
+                <form method="GET" class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                    <input type="hidden" name="tab" value="main">
+                    <select name="filter_examen" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                        <option value="">Tous examens</option>
+                        @foreach($examens as $examen)
+                            <option value="{{ $examen }}" {{ (string) $filterExamen === (string) $examen ? 'selected' : '' }}>{{ $examen }}</option>
+                        @endforeach
+                    </select>
+                    <select name="filter_activity" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                        <option value="">Toutes activités</option>
+                        @foreach($activities as $activity)
+                            <option value="{{ $activity->id }}" {{ (string) $filterActivity === (string) $activity->id ? 'selected' : '' }}>
+                                {{ $activity->examen }} - {{ $activity->libelle }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700">Filtrer</button>
+                </form>
                 <div class="mt-4 overflow-x-auto">
                     <table class="min-w-full border-collapse text-sm">
                         <thead>
@@ -231,9 +335,17 @@
                 </div>
             </section>
 
+            @endif
+
+            @if($activeTab === 'balance')
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 class="text-lg font-semibold text-slate-900">6) Tableau d'équilibre des montants</h2>
                 <p class="mt-1 text-sm text-slate-600">Vue de contrôle pour voir qui est dans quelle activité et comparer les montants reçus.</p>
+                <form method="GET" class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                    <input type="hidden" name="tab" value="balance">
+                    <input type="text" name="balance_localite" value="{{ $balanceLocalite }}" placeholder="Filtrer par localité de service" class="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700">Filtrer</button>
+                </form>
 
                 <div class="mt-4 overflow-x-auto">
                     <table class="min-w-full border-collapse text-sm">
@@ -304,8 +416,77 @@
                         </tbody>
                     </table>
                 </div>
-            </section>
 
+                <div class="mt-5 overflow-x-auto">
+                    <table class="min-w-full border-collapse text-sm">
+                        <thead>
+                        <tr class="bg-slate-100 text-slate-700">
+                            <th class="border border-slate-200 px-3 py-2 text-left">Participant</th>
+                            <th class="border border-slate-200 px-3 py-2 text-left">IM</th>
+                            <th class="border border-slate-200 px-3 py-2 text-left">Localité / Service</th>
+                            <th class="border border-slate-200 px-3 py-2 text-left">Activités</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Affectations</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Total jours</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Montant total reçu</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Equilibre</th>
+                            <th class="border border-slate-200 px-3 py-2 text-left">Statut</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @forelse($participantTotals as $line)
+                            <tr>
+                                <td class="border border-slate-200 px-3 py-2">{{ $line['nom'] }}</td>
+                                <td class="border border-slate-200 px-3 py-2">{{ $line['im'] }}</td>
+                                <td class="border border-slate-200 px-3 py-2">{{ $line['localite'] }}</td>
+                                <td class="border border-slate-200 px-3 py-2">{{ $line['activities'] }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['assignments'], 0, ',', ' ') }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['jours'], 0, ',', ' ') }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) $line['montant'], 2, ',', ' ') }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right {{ $line['equilibre'] < 0 ? 'text-amber-700' : ($line['equilibre'] > 0 ? 'text-emerald-700' : '') }}">
+                                    {{ $line['equilibre'] > 0 ? '+' : '' }}{{ number_format((float) $line['equilibre'], 2, ',', ' ') }}
+                                </td>
+                                <td class="border border-slate-200 px-3 py-2">{{ $line['equilibre_label'] }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="9" class="border border-slate-200 px-3 py-4 text-center text-slate-500">Aucun total par participant.</td>
+                            </tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-5 overflow-x-auto">
+                    <table class="min-w-full border-collapse text-sm">
+                        <thead>
+                        <tr class="bg-slate-100 text-slate-700">
+                            <th class="border border-slate-200 px-3 py-2 text-left">Service</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Participants</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Affectations</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Montant total</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @forelse($serviceBalance as $line)
+                            @php($isKeyService = in_array(strtoupper(trim($line['service'])), ['DEXAMC', 'SOE', 'SEE', 'BAG'], true))
+                            <tr class="{{ $isKeyService ? 'bg-amber-50' : '' }}">
+                                <td class="border border-slate-200 px-3 py-2">{{ $line['service'] }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['participants'], 0, ',', ' ') }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['assignments'], 0, ',', ' ') }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) $line['montant'], 2, ',', ' ') }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="4" class="border border-slate-200 px-3 py-4 text-center text-slate-500">Aucune balance par service.</td>
+                            </tr>
+                        @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            @endif
+
+            @if($activeTab !== 'balance')
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="flex items-center justify-between gap-3">
                     <h2 class="text-lg font-semibold text-slate-900">Base importée</h2>
@@ -332,7 +513,9 @@
                                 <td class="border border-slate-200 px-3 py-2">{{ $agent->im }}</td>
                                 <td class="border border-slate-200 px-3 py-2">{{ $agent->localite_service }}</td>
                                 <td class="border border-slate-200 px-3 py-2">{{ $agent->cin }}</td>
-                                <td class="border border-slate-200 px-3 py-2">{{ $agent->assignment?->activity?->examen }} {{ $agent->assignment?->activity?->libelle }}</td>
+                                <td class="border border-slate-200 px-3 py-2">
+                                    {{ $agent->assignments->map(fn ($assignment) => trim(($assignment->activity?->examen ?? '').' '.$assignment->activity?->libelle))->filter()->unique()->implode(', ') }}
+                                </td>
                             </tr>
                         @empty
                             <tr>
@@ -344,6 +527,7 @@
                 </div>
                 <div class="mt-4">{{ $agents->links() }}</div>
             </section>
+            @endif
         </main>
     </div>
 </div>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Service de l'Organisation des Examens - Saisie</title>
+    <link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
@@ -234,7 +235,7 @@
                                                     <td class="sticky-col px-6 py-4 font-black text-slate-700 text-sm whitespace-nowrap">{{ $langue }}</td>
                                                     @for($salle = 1; $salle <= $nombreSalles; $salle++)
                                                         <td class="px-3 py-3 border-l border-slate-50">
-                                                            <input type="number" min="0" name="effectifs[{{ $langue }}][{{ $salle }}]" value="{{ old("effectifs.$langue.$salle", 0) }}" required data-salle="{{ $salle }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-sm font-bold shadow-sm input-focus-ring">
+                                                            <input type="number" min="0" name="effectifs[{{ $langue }}][{{ $salle }}]" value="{{ old("effectifs.$langue.$salle", 0) }}" required data-salle="{{ $salle }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-sm font-bold shadow-sm input-focus-ring input-effectif">
                                                         </td>
                                                     @endfor
                                                 </tr>
@@ -244,7 +245,7 @@
                                                 <td class="sticky-col px-6 py-8 font-black text-indigo-600 text-sm whitespace-nowrap uppercase tracking-wider">Total CEPE</td>
                                                 @for($salle = 1; $salle <= $nombreSalles; $salle++)
                                                     <td class="px-3 py-3 border-l border-slate-50">
-                                                        <input type="number" min="0" name="effectifs_total[{{ $salle }}]" value="{{ old("effectifs_total.$salle", 0) }}" required data-salle="{{ $salle }}" class="w-full rounded-xl border border-indigo-100 bg-white px-3 py-4 text-center text-lg font-black text-indigo-600 shadow-sm input-focus-ring">
+                                                        <input type="number" min="0" name="effectifs_total[{{ $salle }}]" value="{{ old("effectifs_total.$salle", 0) }}" required data-salle="{{ $salle }}" class="w-full rounded-xl border border-indigo-100 bg-white px-3 py-4 text-center text-lg font-black text-indigo-600 shadow-sm input-focus-ring input-effectif">
                                                     </td>
                                                 @endfor
                                             </tr>
@@ -264,7 +265,7 @@
                                                 <td class="sticky-col px-6 py-4 font-bold text-amber-700 text-xs uppercase bg-amber-50 border-r-amber-100">Option A</td>
                                                 @for($salle = 1; $salle <= $nombreSalles; $salle++)
                                                     <td class="px-3 py-3 border-l border-amber-50">
-                                                        <input type="number" min="0" name="foreign_effectifs[option_a][{{ $salle }}]" value="{{ old("foreign_effectifs.option_a.$salle", 0) }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:ring-4 focus:ring-amber-500/20">
+                                                        <input type="number" min="0" name="foreign_effectifs[option_a][{{ $salle }}]" value="{{ old("foreign_effectifs.option_a.$salle", 0) }}" data-salle="{{ $salle }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:ring-4 focus:ring-amber-500/20 input-effectif">
                                                     </td>
                                                 @endfor
                                             </tr>
@@ -272,7 +273,7 @@
                                                 <td class="sticky-col px-6 py-4 font-bold text-amber-700 text-xs uppercase bg-amber-50 border-r-amber-100">Option B</td>
                                                 @for($salle = 1; $salle <= $nombreSalles; $salle++)
                                                     <td class="px-3 py-3 border-l border-amber-50">
-                                                        <input type="number" min="0" name="foreign_effectifs[option_b][{{ $salle }}]" value="{{ old("foreign_effectifs.option_b.$salle", 0) }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:ring-4 focus:ring-amber-500/20">
+                                                        <input type="number" min="0" name="foreign_effectifs[option_b][{{ $salle }}]" value="{{ old("foreign_effectifs.option_b.$salle", 0) }}" data-salle="{{ $salle }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:ring-4 focus:ring-amber-500/20 input-effectif">
                                                     </td>
                                                 @endfor
                                             </tr>

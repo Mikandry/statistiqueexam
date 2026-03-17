@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Livre de Répartition</title>
+<link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
     @if (file_exists(public_path('build/manifest.json')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @else
@@ -14,7 +15,7 @@
         @media print {
             @page {
                 size: A4 landscape;
-                margin: 5mm;
+                margin: 3mm;
             }
             html, body {
                 margin: 0 !important;
@@ -25,6 +26,9 @@
             .book-page:last-child { page-break-after: auto; }
             .avoid-break { break-inside: avoid; }
             .print-tight { padding: 2mm; }
+            .pdf-centre-card { padding: 6px !important; margin-bottom: 6px !important; }
+            .pdf-centre-summary { margin-bottom: 6px !important; }
+            .pdf-centre-table { margin-bottom: 6px !important; }
             .pdf-table, .pdf-table th, .pdf-table td { border-color: #0f172a !important; }
             .pdf-compact { font-size: 10px !important; line-height: 1.25 !important; }
             .pdf-center-meta { table-layout: fixed; width: 100%; }
@@ -37,6 +41,8 @@
             .pdf-center-meta .col-pe { width: 6%; }
             .pdf-center-meta .col-ge { width: 6%; }
             .pdf-center-meta .col-ge-dist { width: 30%; }
+            .pdf-centre-summary { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 8px; }
+            .pdf-centre-summary .right { text-align: right; }
             .pdf-signature {
                 display: block;
                 position: fixed;
@@ -152,7 +158,7 @@
                     </div>
                 </div>
             @else
-                <div class="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                <div class="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800">
                     Candidats: <strong>{{ number_format($globalStats['total_candidats'], 0, ',', ' ') }}</strong> |
                     Salles: <strong>{{ number_format($globalStats['total_salles'], 0, ',', ' ') }}</strong> |
                     PE: <strong>{{ number_format($globalStats['total_pe'], 0, ',', ' ') }}</strong> |
@@ -166,13 +172,28 @@
                         <div class="mb-3 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">Récap DREN {{ $recap['dren'] }}</div>
                     @endif
                     <div class="rounded-xl border border-slate-200 bg-white p-4">
-                        <h2 class="mb-3 text-lg font-bold">{{ $pdfMode ? 'Feuille récapitulative' : 'Feuille récapitulative DREN: '.$recap['dren'] }}</h2>
-                        <div class="mb-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-                            <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">Centres: <strong>{{ number_format($recap['total_centres'], 0, ',', ' ') }}</strong></div>
-                            <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">Candidats: <strong>{{ number_format($recap['total_candidats'], 0, ',', ' ') }}</strong></div>
-                            <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">Salles: <strong>{{ number_format($recap['total_salles'], 0, ',', ' ') }}</strong></div>
-                            <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">GE total: <strong>{{ number_format($recap['total_ge'], 0, ',', ' ') }}</strong></div>
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <h2 class="text-lg font-extrabold">{{ $pdfMode ? 'DREN '.$recap['dren'] : 'Feuille récapitulative DREN: '.$recap['dren'] }}</h2>
+                            <div class="text-xs font-bold text-slate-800">
+                                Candidats: {{ number_format($recap['total_candidats'], 0, ',', ' ') }} |
+                                Salle: {{ number_format($recap['total_salles'], 0, ',', ' ') }} |
+                                GE: {{ number_format($recap['total_ge'], 0, ',', ' ') }}
+                            </div>
                         </div>
+                        @if(($filters['type_examen'] ?? '') === 'BEPC')
+                            <div class="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm font-semibold">
+                                <span>C correction: <strong>{{ number_format($recap['total_correction'], 0, ',', ' ') }}</strong></span>
+                                <span class="ml-4">Centre d'ecrit: <strong>{{ number_format($recap['total_ecrit'], 0, ',', ' ') }}</strong></span>
+                                <span class="ml-4">Total GE/Matiere: <strong>{{ number_format($recap['total_ge'], 0, ',', ' ') }}</strong></span>
+                            </div>
+                        @else
+                            <div class="mb-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+                                <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">Centres: <strong>{{ number_format($recap['total_centres'], 0, ',', ' ') }}</strong></div>
+                                <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">Candidats: <strong>{{ number_format($recap['total_candidats'], 0, ',', ' ') }}</strong></div>
+                                <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">Salles: <strong>{{ number_format($recap['total_salles'], 0, ',', ' ') }}</strong></div>
+                                <div class="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">GE total: <strong>{{ number_format($recap['total_ge'], 0, ',', ' ') }}</strong></div>
+                            </div>
+                        @endif
                         <div class="overflow-x-auto">
                             <table class="pdf-table min-w-full border border-slate-900 border-collapse text-xs">
                                 <thead>
@@ -209,46 +230,113 @@
 
             @forelse(($centrePagesByDren ?? []) as $drenPages)
                 @foreach(($drenPages['pages'] ?? []) as $pageIndex => $centres)
-                    <section class="book-page mb-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-2 md:p-3">
+                    <section class="book-page mb-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-2 md:p-3">
                         @if(!$pdfMode)
                             <div class="mb-3 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">Répartition Page {{ $pageIndex + 1 }} - DREN {{ $drenPages['dren'] }}</div>
                         @endif
 
                         @foreach($centres as $centre)
-                            <article class="avoid-break mb-4 rounded-xl border border-slate-200 bg-white p-3 md:p-4 {{ $pdfMode ? 'pdf-compact' : '' }}">
-                                <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-                                    <h3 class="text-lg font-bold">{{ $centre['centre_ecrit'] }} <span class="text-sm font-medium text-slate-500">({{ $centre['type_examen'] }})</span></h3>
-                                    <div class="text-xs text-slate-500">{{ $centre['dren'] }} | {{ $centre['annee'] }}</div>
-                                </div>
+                            <article class="avoid-break mb-4 rounded-xl border border-slate-200 bg-white p-3 md:p-4 {{ $pdfMode ? 'pdf-compact pdf-centre-card' : '' }}">
+                                @if(($filters['type_examen'] ?? '') !== 'BEPC')
+                                    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                                        <h3 class="text-lg font-bold">{{ $centre['centre_ecrit'] }} <span class="text-sm font-medium text-slate-500">({{ $centre['type_examen'] }})</span></h3>
+                                        <div class="text-xs text-slate-500">{{ $centre['dren'] }} | {{ $centre['annee'] }}</div>
+                                    </div>
+                                    @if(($filters['type_examen'] ?? '') === 'CEPE')
+                                        <div class="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-800">
+                                            <div>GE problème (3PE): <strong>{{ count($centre['ge_distribution_probleme'] ?? []) }}</strong> |
+                                                Répartition: <strong>{{ implode('+', array_map(fn (int $n) => (string) $n, $centre['ge_distribution_probleme'] ?? [])) ?: '-' }}</strong>
+                                            </div>
+                                            <div>GE autres matières (6PE): <strong>{{ count($centre['ge_distribution_autres'] ?? []) }}</strong> |
+                                                Répartition: <strong>{{ implode('+', array_map(fn (int $n) => (string) $n, $centre['ge_distribution_autres'] ?? [])) ?: '-' }}</strong>
+                                            </div>
+                                        </div>
+                                    @endif
+                                @endif
+                                @if(($filters['type_examen'] ?? '') === 'BEPC')
+                                    <div class="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between pdf-centre-summary">
+                                        <div class="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
+                                            <div class="mb-1 text-[11px] font-bold uppercase text-slate-600">Total par langues</div>
+                                            @php
+                                                $langueLabels = [
+                                                    'Anglais' => 'Ang',
+                                                    'Allemand' => 'ALL',
+                                                    'Esp' => 'ESP',
+                                                    'Option B' => 'B',
+                                                ];
+                                            @endphp
+                                            @forelse(($centre['langue_totals'] ?? []) as $langue => $total)
+                                                <div class="flex flex-wrap items-center gap-3">
+                                                    <span>Total cddts {{ $langueLabels[$langue] ?? $langue }}: <strong>{{ number_format($total, 0, ',', ' ') }}</strong></span>
+                                                    <span>Total salle {{ $langueLabels[$langue] ?? $langue }}: <strong>{{ number_format((int) ($centre['langue_salles'][$langue] ?? 0), 0, ',', ' ') }}</strong></span>
+                                                </div>
+                                            @empty
+                                                <div class="text-slate-500">Aucune langue.</div>
+                                            @endforelse
+                                        </div>
+                                        <div class="shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-800 md:text-right right">
+                                            <div>Total candidats: <strong>{{ number_format($centre['total_candidats'], 0, ',', ' ') }}</strong></div>
+                                            <div>Total salle: <strong>{{ number_format($centre['total_salles'], 0, ',', ' ') }}</strong></div>
+                                            <div>Total GE/Matiere: <strong>{{ number_format($centre['ge_count'], 0, ',', ' ') }}</strong></div>
+                                        </div>
+                                    </div>
+                                @endif
 
                                 @foreach($centre['tables'] as $table)
                                     <div class="mb-2 text-xs font-medium text-slate-500">Tableau {{ $table['index'] }} / {{ count($centre['tables']) }}</div>
-                                    <div class="mb-3 overflow-x-auto">
+                                    <div class="mb-3 overflow-x-auto avoid-break pdf-centre-table">
                                         <table class="pdf-table min-w-full border border-slate-900 border-collapse text-xs">
-                                            <thead>
-                                            <tr class="bg-slate-100">
-                                                <th class="sticky left-0 border border-slate-200 bg-slate-100 px-2 py-2 text-left">Langue / Option</th>
-                                                @foreach($table['salles'] as $salle)
-                                                    <th class="border border-slate-200 px-2 py-2">S{{ $salle }}</th>
-                                                @endforeach
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                            @foreach($table['rows'] as $row)
-                                                <tr>
-                                                    <td class="sticky left-0 border border-slate-200 bg-white px-2 py-2 font-semibold">{{ $row['label'] }}</td>
+                                            @if(($filters['type_examen'] ?? '') === 'BEPC')
+                                                @php $rowspan = count($table['rows']) + 2; @endphp
+                                                <tbody>
+                                                <tr class="bg-slate-100">
+                                                    <td class="border border-slate-200 bg-slate-100 px-2 py-2 font-semibold" rowspan="{{ $rowspan }}">{{ $centre['centre_ecrit'] }}</td>
+                                                    <td class="border border-slate-200 bg-slate-100 px-2 py-2 font-semibold">Salles</td>
                                                     @foreach($table['salles'] as $salle)
-                                                        <td class="border border-slate-200 px-2 py-2 text-center">{{ number_format((int) ($row['values'][$salle] ?? 0), 0, ',', ' ') }}</td>
+                                                        <td class="border border-slate-200 px-2 py-2">S{{ $salle }}</td>
                                                     @endforeach
                                                 </tr>
-                                            @endforeach
-                                            <tr class="bg-slate-100">
-                                                <td class="sticky left-0 border border-slate-200 bg-slate-100 px-2 py-2 font-bold">TOTAL SALLE</td>
-                                                @foreach($table['salles'] as $salle)
-                                                    <td class="border border-slate-200 px-2 py-2 text-center font-bold">{{ number_format((int) ($table['totaux_salles'][$salle] ?? 0), 0, ',', ' ') }}</td>
+                                                @foreach($table['rows'] as $row)
+                                                    <tr>
+                                                        <td class="border border-slate-200 bg-white px-2 py-2 font-semibold">{{ $row['label'] }}</td>
+                                                        @foreach($table['salles'] as $salle)
+                                                            <td class="border border-slate-200 px-2 py-2 text-center">{{ number_format((int) ($row['values'][$salle] ?? 0), 0, ',', ' ') }}</td>
+                                                        @endforeach
+                                                    </tr>
                                                 @endforeach
-                                            </tr>
-                                            </tbody>
+                                                <tr class="bg-slate-100">
+                                                    <td class="border border-slate-200 bg-slate-100 px-2 py-2 font-bold">Total</td>
+                                                    @foreach($table['salles'] as $salle)
+                                                        <td class="border border-slate-200 px-2 py-2 text-center font-bold">{{ number_format((int) ($table['totaux_salles'][$salle] ?? 0), 0, ',', ' ') }}</td>
+                                                    @endforeach
+                                                </tr>
+                                                </tbody>
+                                            @else
+                                                <thead>
+                                                <tr class="bg-slate-100">
+                                                    <th class="sticky left-0 border border-slate-200 bg-slate-100 px-2 py-2 text-left">Langue / Option</th>
+                                                    @foreach($table['salles'] as $salle)
+                                                        <th class="border border-slate-200 px-2 py-2">S{{ $salle }}</th>
+                                                    @endforeach
+                                                </tr>
+                                                </thead>
+                                                <tbody>
+                                                @foreach($table['rows'] as $row)
+                                                    <tr>
+                                                        <td class="sticky left-0 border border-slate-200 bg-white px-2 py-2 font-semibold">{{ $row['label'] }}</td>
+                                                        @foreach($table['salles'] as $salle)
+                                                            <td class="border border-slate-200 px-2 py-2 text-center">{{ number_format((int) ($row['values'][$salle] ?? 0), 0, ',', ' ') }}</td>
+                                                        @endforeach
+                                                    </tr>
+                                                @endforeach
+                                                <tr class="bg-slate-100">
+                                                    <td class="sticky left-0 border border-slate-200 bg-slate-100 px-2 py-2 font-bold">TOTAL SALLE</td>
+                                                    @foreach($table['salles'] as $salle)
+                                                        <td class="border border-slate-200 px-2 py-2 text-center font-bold">{{ number_format((int) ($table['totaux_salles'][$salle] ?? 0), 0, ',', ' ') }}</td>
+                                                    @endforeach
+                                                </tr>
+                                                </tbody>
+                                            @endif
                                         </table>
                                     </div>
                                 @endforeach

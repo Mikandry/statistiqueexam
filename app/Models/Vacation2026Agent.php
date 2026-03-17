@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Vacation2026Agent extends Model
 {
@@ -19,8 +19,8 @@ class Vacation2026Agent extends Model
         'cin',
     ];
 
-    public function assignment(): HasOne
+    public function assignments(): HasMany
     {
-        return $this->hasOne(Vacation2026Assignment::class, 'agent_id');
+        return $this->hasMany(Vacation2026Assignment::class, 'agent_id');
     }
 }

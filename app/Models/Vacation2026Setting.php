@@ -14,6 +14,11 @@ class Vacation2026Setting extends Model
     protected $fillable = [
         'entete',
         'considerant',
+        'note_titre',
+        'decision_titre',
+        'presence_titre',
+        'decompte_titre',
+        'decision_reference',
         'signature',
     ];
 }

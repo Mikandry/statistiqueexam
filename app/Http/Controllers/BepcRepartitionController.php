@@ -6,6 +6,7 @@ use App\Models\CentreCorrection;
 use App\Models\CentreEcrit;
 use App\Models\Cisco;
 use App\Models\Dren;
+use App\Models\AuditLog;
 use App\Models\RepartitionSalle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -99,6 +100,7 @@ class BepcRepartitionController extends Controller
             'annee' => ['required', 'regex:/^\d{4}-\d{4}$/'],
             'nombre_salles' => ['required', 'integer', 'min:1', 'max:50'],
             'salles_inutilisables' => ['nullable', 'string', 'max:255'],
+            'candidats_specifiques' => ['nullable', 'string', 'max:2000'],
             'has_foreign_candidates' => ['nullable', 'boolean'],
             'foreign_option_a_lv' => ['nullable', 'in:Allemand,Esp,Anglais'],
             'foreign_option_a_replace_malagasy' => ['nullable', 'string', 'max:255'],
@@ -304,11 +306,20 @@ class BepcRepartitionController extends Controller
                 ->withErrors(['auth' => 'Utilisateur connecté invalide. Veuillez vous reconnecter.']);
         }
 
-        DB::transaction(function () use ($validated, $langues, $sallesDisponibles, $typeExamen, $request, $centreEcrit, $nomSaisie, $hasForeignCandidates, $foreignSettings) {
+        $candidatsSpecifiques = $this->parseSpecialCandidates(
+            (string) $request->input('candidats_specifiques', ''),
+            $sallesDisponibles
+        );
+
+        DB::transaction(function () use ($validated, $langues, $sallesDisponibles, $typeExamen, $request, $centreEcrit, $nomSaisie, $hasForeignCandidates, $foreignSettings, $candidatsSpecifiques) {
             $axeDispatching = trim((string) $validated['axe_dispatching']);
             $pointLargage = trim((string) $validated['point_largage']);
 
             RepartitionSalle::query()
+                ->where('centre_ecrit_id', $centreEcrit->id)
+                ->where('annee', $validated['annee'])
+                ->delete();
+            DB::table('repartition_salles_specifiques')
                 ->where('centre_ecrit_id', $centreEcrit->id)
                 ->where('annee', $validated['annee'])
                 ->delete();
@@ -391,7 +402,35 @@ class BepcRepartitionController extends Controller
                     );
                 }
             }
+
+            if ($candidatsSpecifiques !== []) {
+                $now = now();
+                $rows = array_map(function (array $item) use ($centreEcrit, $validated, $typeExamen, $nomSaisie, $now) {
+                    return [
+                        'centre_ecrit_id' => $centreEcrit->id,
+                        'annee' => $validated['annee'],
+                        'type_examen' => $typeExamen,
+                        'numero_salle' => $item['numero_salle'],
+                        'type_handicap' => $item['type_handicap'],
+                        'saisi_par' => $nomSaisie,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }, $candidatsSpecifiques);
+
+                DB::table('repartition_salles_specifiques')->insert($rows);
+            }
         });
+
+        AuditLog::record($request, 'saisie_repartition', [
+            'annee' => $validated['annee'],
+            'type_examen' => $typeExamen,
+            'dren_id' => (int) $dren->id,
+            'cisco_id' => (int) $cisco->id,
+            'centre_correction_id' => (int) $centreCorrection->id,
+            'centre_ecrit_id' => (int) $centreEcrit->id,
+            'salles' => $nombreSalles,
+        ]);
 
         return redirect()
             ->route('bepc.repartition.create', [
@@ -414,6 +453,39 @@ class BepcRepartitionController extends Controller
             ->filter(fn (int $room) => $room >= 1 && $room <= $maxRoom)
             ->unique()
             ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function parseSpecialCandidates(string $value, array $sallesDisponibles): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $sallesDisponibles = array_flip($sallesDisponibles);
+
+        return collect(preg_split('/\r\n|\r|\n|;/', $value))
+            ->map(fn (string $line) => trim($line))
+            ->filter(fn (string $line) => $line !== '')
+            ->map(function (string $line) {
+                $delimiter = str_contains($line, ',') ? ',' : (str_contains($line, '-') ? '-' : null);
+                if ($delimiter === null) {
+                    return null;
+                }
+                [$salleRaw, $handicapRaw] = array_pad(explode($delimiter, $line, 2), 2, '');
+                $salle = (int) trim($salleRaw);
+                $handicap = trim($handicapRaw);
+                if ($salle <= 0 || $handicap === '') {
+                    return null;
+                }
+                return [
+                    'numero_salle' => $salle,
+                    'type_handicap' => $handicap,
+                ];
+            })
+            ->filter(fn ($item) => $item !== null && isset($sallesDisponibles[$item['numero_salle']]))
+            ->unique(fn (array $item) => $item['numero_salle'].'|'.$item['type_handicap'])
             ->values()
             ->all();
     }

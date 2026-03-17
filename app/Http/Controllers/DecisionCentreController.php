@@ -16,13 +16,20 @@ class DecisionCentreController extends Controller
         $drenId = $request->get('dren');
         $ciscoId = $request->get('cisco');
 
-        // Fetch DRENs and CISCOs
+        // Fetch DRENs and CISCOs (filter CISCOs by DREN when selected)
         $drens = Dren::all();
-        $ciscos = CISCO::all();
+        $ciscosQuery = CISCO::query();
+        if ($drenId) {
+            $ciscosQuery->where('dren_id', $drenId);
+        }
+        $ciscos = $ciscosQuery->get();
+        if ($drenId && $ciscoId && ! $ciscos->pluck('id')->contains((int) $ciscoId)) {
+            $ciscoId = null;
+        }
 
         // Query correction and written centers
-        $centresCorrection = CentreCorrection::query();
-        $centresEcrit = CentreEcrit::query();
+        $centresCorrection = CentreCorrection::query()->with('cisco.dren');
+        $centresEcrit = CentreEcrit::query()->with('centreCorrection.cisco.dren');
 
         if ($typeExamen) {
             $centresCorrection->where('type_examen', $typeExamen);
@@ -30,47 +37,75 @@ class DecisionCentreController extends Controller
         }
 
         if ($drenId) {
-            $centresCorrection->where('cisco_id', $drenId);
-            $centresEcrit->where('centre_correction_id', $drenId);
+            $centresCorrection->whereHas('cisco', function ($query) use ($drenId) {
+                $query->where('dren_id', $drenId);
+            });
+            $centresEcrit->whereHas('centreCorrection.cisco', function ($query) use ($drenId) {
+                $query->where('dren_id', $drenId);
+            });
         }
 
         if ($ciscoId) {
             $centresCorrection->where('cisco_id', $ciscoId);
-            $centresEcrit->where('centre_correction_id', $ciscoId);
+            $centresEcrit->whereHas('centreCorrection', function ($query) use ($ciscoId) {
+                $query->where('cisco_id', $ciscoId);
+            });
         }
 
         $centresCorrection = $centresCorrection->get();
-        $centresEcrit = $centresEcrit->get();
+        $centresEcrit = $centresEcrit->get()->unique('id')->values();
 
-        // Build table data per DREN
+        // Build table data with imported centres
         $tableData = [];
-        foreach ($drens as $dren) {
-            $ciscoCount = $ciscos->where('dren_id', $dren->id)->count();
-            $correctionCount = $centresCorrection->where('cisco_id', $dren->id)->count();
-            $ecritCount = $centresEcrit->where('centre_correction_id', $dren->id)->count();
+        $ecritsByCorrection = $centresEcrit->groupBy('centre_correction_id');
+        foreach ($centresCorrection as $centreCorrection) {
+            $drenNom = $centreCorrection->cisco->dren->nom ?? '-';
+            $ciscoNom = $centreCorrection->cisco->nom ?? '-';
+            $ecrits = $ecritsByCorrection->get($centreCorrection->id, collect())->unique('id');
 
-            $tableData[] = [
-                'dren' => $dren->nom,
-                'cisco' => $ciscoCount,
-                'correction' => $correctionCount,
-                'ecrit' => $ecritCount,
-            ];
+            if ($ecrits->isEmpty()) {
+                $tableData[] = [
+                    'correction_id' => $centreCorrection->id,
+                    'ecrit_id' => null,
+                    'dren' => $drenNom,
+                    'cisco' => $ciscoNom,
+                    'correction' => $centreCorrection->nom,
+                    'ecrit' => '-',
+                ];
+                continue;
+            }
+
+            foreach ($ecrits as $centreEcrit) {
+                $tableData[] = [
+                    'correction_id' => $centreCorrection->id,
+                    'ecrit_id' => $centreEcrit->id,
+                    'dren' => $drenNom,
+                    'cisco' => $ciscoNom,
+                    'correction' => $centreCorrection->nom,
+                    'ecrit' => $centreEcrit->nom,
+                ];
+            }
         }
 
-        // Totals
-        $totalDren = $drens->count();
-        $totalCisco = array_sum(array_column($tableData, 'cisco'));
-        $totalCorrection = array_sum(array_column($tableData, 'correction'));
-        $totalEcrit = array_sum(array_column($tableData, 'ecrit'));
+        $tableData = collect($tableData)
+            ->unique(fn ($row) => implode('|', [$row['correction_id'], $row['ecrit_id'] ?? 'none']))
+            ->values()
+            ->all();
 
-        // Chart data for global chart
-        $chartLabels = ['DREN', 'CISCO', 'Centre Correction', 'Centre Écrit'];
-        $chartData = [$totalDren, $totalCisco, $totalCorrection, $totalEcrit];
+        // Totals based on filtered data
+        $totalDren = $centresCorrection
+            ->map(fn ($cc) => $cc->cisco->dren->id ?? null)
+            ->filter()
+            ->unique()
+            ->count();
+        $totalCisco = $centresCorrection->pluck('cisco_id')->unique()->count();
+        $totalCorrection = $centresCorrection->count();
+        $totalEcrit = $centresEcrit->count();
 
         return view('decision.centre', compact(
             'drens', 'ciscos', 'tableData',
             'totalDren', 'totalCisco', 'totalCorrection', 'totalEcrit',
-            'chartLabels', 'chartData', 'typeExamen', 'drenId', 'ciscoId'
+            'typeExamen', 'drenId', 'ciscoId'
         ));
     }
 }

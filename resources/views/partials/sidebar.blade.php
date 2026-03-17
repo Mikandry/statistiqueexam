@@ -23,6 +23,16 @@
             <span class="flex-1">Dashboard</span>
             <span class="text-xs text-slate-400">●</span>
         </a>
+
+        <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-700 hover:shadow-md" href="{{ route('repartition.stats.report') }}">
+            <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-indigo-100 group-hover:text-indigo-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-5 4h6m2 0a2 2 0 002-2V7a2 2 0 00-2-2h-3m-4 0H7a2 2 0 00-2 2v12a2 2 0 002 2h2" />
+                </svg>
+            </span>
+            <span class="flex-1">Rapport Statistique</span>
+            <span class="text-xs text-slate-400">N/N-1</span>
+        </a>
         
         <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-700 hover:shadow-md" href="{{ route('bepc.repartition.create') }}">
             <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-emerald-100 group-hover:text-emerald-600">
@@ -106,6 +116,10 @@
             <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-blue-200 hover:bg-blue-50/50 hover:text-blue-700 hover:shadow-md" href="{{ route('admin.references.index') }}">
                 <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-blue-100 group-hover:text-blue-600">+</span>
                 <span class="flex-1">Admin Référentiels</span>
+            </a>
+            <a class="group flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-blue-200 hover:bg-blue-50/50 hover:text-blue-700 hover:shadow-md" href="{{ route('admin.audit-logs.index') }}">
+                <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-blue-100 group-hover:text-blue-600">#</span>
+                <span class="flex-1">Historique IP</span>
             </a>
         @endif
     </nav>

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Fiche de Traçabilité et de Contrôle de Traçabilité</title>
+<link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
     <style>
         body { font-family: Arial, sans-serif; font-size: 11px; color: #111827; }
         h1 { font-size: 18px; margin: 0 0 8px 0; }

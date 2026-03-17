@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\StatisticController;
+use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\ReferenceManagementController;
 use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\BepcRepartitionController;
@@ -34,6 +35,14 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/repartition/dashboard', [RepartitionReportController::class, 'dashboard'])
         ->name('repartition.dashboard');
+    Route::get('/repartition/statistiques/rapport', [RepartitionReportController::class, 'statsReport'])
+        ->name('repartition.stats.report');
+    Route::get('/repartition/statistiques/rapport/pdf', [RepartitionReportController::class, 'statsReportPdf'])
+        ->name('repartition.stats.report.pdf');
+    Route::get('/repartition/statistiques/rapport/word', [RepartitionReportController::class, 'statsReportWord'])
+        ->name('repartition.stats.report.word');
+    Route::get('/repartition/statistiques/rapport/centres/xlsx', [RepartitionReportController::class, 'statsReportCentresExcel'])
+        ->name('repartition.stats.report.centres.excel');
     Route::get('/repartition/livre/preview', [RepartitionReportController::class, 'livrePreview'])
         ->name('repartition.livre.preview');
     Route::get('/repartition/livre/controle', [RepartitionReportController::class, 'livreControle'])
@@ -84,6 +93,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('vacation2026.assignments.destroy');
     Route::put('/vacation-2026/activities/{activity}', [Vacation2026Controller::class, 'updateActivity'])
         ->name('vacation2026.activities.update');
+    Route::post('/vacation-2026/activities', [Vacation2026Controller::class, 'storeActivity'])
+        ->name('vacation2026.activities.store');
     Route::get('/vacation-2026/exports/{document}/word', [Vacation2026Controller::class, 'exportWord'])
         ->name('vacation2026.exports.word');
     Route::get('/vacation-2026/exports/{document}/xlsx', [Vacation2026Controller::class, 'exportExcel'])
@@ -109,6 +120,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     Route::get('/admin/references', [ReferenceManagementController::class, 'index'])
         ->name('admin.references.index');
+    Route::get('/admin/audit-logs', [AuditLogController::class, 'index'])
+        ->name('admin.audit-logs.index');
     Route::post('/admin/references/drens', [ReferenceManagementController::class, 'storeDren'])
         ->name('admin.references.drens.store');
     Route::put('/admin/references/drens/{dren}', [ReferenceManagementController::class, 'updateDren'])
@@ -133,6 +146,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('admin.references.centres-ecrit.update');
     Route::delete('/admin/references/centres-ecrit/{centreEcrit}', [ReferenceManagementController::class, 'destroyCentreEcrit'])
         ->name('admin.references.centres-ecrit.destroy');
+
+    Route::post('/repartition/statistiques/rapport/import', [RepartitionReportController::class, 'importPreviousStats'])
+        ->name('repartition.stats.report.import');
+    Route::post('/repartition/statistiques/rapport/import-dren', [RepartitionReportController::class, 'importPreviousDrenRecap'])
+        ->name('repartition.stats.report.import-dren');
 });
 
 Route::get('/decision-centre', [DecisionCentreController::class, 'index'])->name('decision.centre');

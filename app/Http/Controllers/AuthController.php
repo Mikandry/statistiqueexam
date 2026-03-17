@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,6 +31,7 @@ class AuthController extends Controller
         }
 
         $request->session()->regenerate();
+        AuditLog::record($request, 'login', ['email' => $credentials['email']]);
 
         return redirect()->intended(route('bepc.repartition.create'));
     }
@@ -55,12 +57,14 @@ class AuthController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        AuditLog::record($request, 'register', ['email' => $user->email]);
 
         return redirect()->intended(route('bepc.repartition.create'));
     }
 
     public function logout(Request $request): RedirectResponse
     {
+        AuditLog::record($request, 'logout');
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

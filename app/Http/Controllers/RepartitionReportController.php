@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\RepartitionSalle;
+use App\Models\AuditLog;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -180,6 +182,868 @@ class RepartitionReportController extends Controller
                     ->sortDesc(),
             ],
             'pdfMode' => false,
+        ]);
+    }
+
+    public function statsReport(Request $request)
+    {
+        $payload = $this->buildStatsReportPayload($request);
+
+        return view('repartition.stat-report', $payload);
+    }
+
+    public function statsReportPdf(Request $request)
+    {
+        $payload = $this->buildStatsReportPayload($request);
+        $payload['pdfMode'] = true;
+
+        return response()->view('repartition.stat-report', $payload);
+    }
+
+    public function statsReportWord(Request $request): \Symfony\Component\HttpFoundation\Response
+    {
+        $payload = $this->buildStatsReportPayload($request);
+        $payload['pdfMode'] = true;
+        $content = view('repartition.stat-report', $payload)->render();
+
+        $fileName = 'rapport_statistique_'.($payload['filters']['annee_n'] !== '' ? $payload['filters']['annee_n'].'_' : '').'word.doc';
+
+        return response($content, 200, [
+            'Content-Type' => 'application/msword; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+        ]);
+    }
+
+    private function buildStatsReportPayload(Request $request): array
+    {
+        $anneesCurrent = DB::table('repartition_salles')
+            ->select('annee')
+            ->distinct()
+            ->orderByDesc('annee')
+            ->pluck('annee')
+            ->values()
+            ->all();
+
+        $anneesImport = DB::table('repartition_stats_imports')
+            ->select('annee')
+            ->distinct()
+            ->orderByDesc('annee')
+            ->pluck('annee')
+            ->values()
+            ->all();
+        $anneesImportDren = DB::table('repartition_stats_dren_imports')
+            ->select('annee')
+            ->distinct()
+            ->orderByDesc('annee')
+            ->pluck('annee')
+            ->values()
+            ->all();
+
+        $filters = [
+            'annee_n' => (string) $request->query('annee_n', $anneesCurrent[0] ?? ''),
+            'annee_n1' => (string) $request->query('annee_n1', $anneesImport[0] ?? ''),
+            'annee_n1_dren' => (string) $request->query('annee_n1_dren', $anneesImportDren[0] ?? ''),
+            'type_examen' => strtoupper((string) $request->query('type_examen', self::TYPE_ALL)),
+            'dren' => (string) $request->query('dren', ''),
+            'cisco' => (string) $request->query('cisco', ''),
+        ];
+
+        if (! in_array($filters['type_examen'], [self::TYPE_ALL, self::TYPE_BEPC, self::TYPE_CEPE], true)) {
+            $filters['type_examen'] = self::TYPE_ALL;
+        }
+
+        $drens = DB::table('drens')
+            ->select('nom')
+            ->orderBy('nom')
+            ->pluck('nom')
+            ->toArray();
+
+        $ciscosQuery = DB::table('ciscos as cs')
+            ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+            ->select('cs.nom')
+            ->orderBy('cs.nom');
+
+        if ($filters['dren'] !== '') {
+            $ciscosQuery->where('d.nom', $filters['dren']);
+        }
+
+        $ciscos = $ciscosQuery->pluck('cs.nom')->toArray();
+
+        $ciscosByDren = DB::table('ciscos as cs')
+            ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+            ->orderBy('d.nom')
+            ->orderBy('cs.nom')
+            ->get(['d.nom as dren', 'cs.nom as cisco'])
+            ->groupBy('dren')
+            ->map(fn (Collection $items) => $items->pluck('cisco')->values()->all())
+            ->toArray();
+
+        $rows = collect();
+        if ($filters['annee_n'] !== '') {
+            $query = DB::table('repartition_salles as rs')
+                ->join('centre_ecrits as ce', 'ce.id', '=', 'rs.centre_ecrit_id')
+                ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
+                ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
+                ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+                ->select([
+                    'rs.annee',
+                    'rs.langue',
+                    'rs.numero_salle',
+                    'rs.effectif',
+                    'ce.id as centre_ecrit_id',
+                    'ce.nom as centre_ecrit',
+                    'cc.nom as centre_correction',
+                    'cs.nom as cisco',
+                    'd.nom as dren',
+                ])
+                ->where('rs.annee', $filters['annee_n'])
+                ->orderBy('d.nom')
+                ->orderBy('cs.nom')
+                ->orderBy('cc.nom')
+                ->orderBy('ce.nom')
+                ->orderBy('rs.numero_salle');
+
+            if ($filters['dren'] !== '') {
+                $query->where('d.nom', $filters['dren']);
+            }
+            if ($filters['cisco'] !== '') {
+                $query->where('cs.nom', $filters['cisco']);
+            }
+            if ($filters['type_examen'] === self::TYPE_BEPC) {
+                $query->where('rs.langue', '!=', self::CEPE_KEY);
+            } elseif ($filters['type_examen'] === self::TYPE_CEPE) {
+                $query->where('rs.langue', self::CEPE_KEY);
+            }
+
+            $rows = $query->get()->map(function ($row) {
+                $row->type_examen = $row->langue === self::CEPE_KEY ? self::TYPE_CEPE : self::TYPE_BEPC;
+
+                return $row;
+            });
+
+            $rows = $this->filterOutEmptySalles($rows);
+        }
+
+        $currentCentres = $rows
+            ->groupBy(fn ($row) => $this->buildCentreKey(
+                (string) $row->type_examen,
+                (string) $row->dren,
+                (string) $row->cisco,
+                (string) $row->centre_correction,
+                (string) $row->centre_ecrit
+            ))
+            ->map(function (Collection $group) {
+                $first = $group->first();
+
+                return [
+                    'type_examen' => (string) $first->type_examen,
+                    'dren' => (string) $first->dren,
+                    'cisco' => (string) $first->cisco,
+                    'centre_correction' => (string) $first->centre_correction,
+                    'centre_ecrit' => (string) $first->centre_ecrit,
+                    'total_candidats' => (int) $group->sum('effectif'),
+                    'total_salles' => $this->countDistinctSalles($group),
+                ];
+            });
+
+        $previousRowsQuery = DB::table('repartition_stats_imports')
+            ->orderBy('dren')
+            ->orderBy('cisco')
+            ->orderBy('centre_correction')
+            ->orderBy('centre_ecrit');
+
+        if ($filters['annee_n1'] !== '') {
+            $previousRowsQuery->where('annee', $filters['annee_n1']);
+        }
+        if ($filters['dren'] !== '') {
+            $previousRowsQuery->where('dren', $filters['dren']);
+        }
+        if ($filters['cisco'] !== '') {
+            $previousRowsQuery->where('cisco', $filters['cisco']);
+        }
+        if ($filters['type_examen'] === self::TYPE_BEPC) {
+            $previousRowsQuery->where('type_examen', self::TYPE_BEPC);
+        } elseif ($filters['type_examen'] === self::TYPE_CEPE) {
+            $previousRowsQuery->where('type_examen', self::TYPE_CEPE);
+        }
+
+        $previousRows = $previousRowsQuery->get();
+        $previousCentres = collect($previousRows)->keyBy(function ($row) {
+            return $this->buildCentreKey(
+                (string) $row->type_examen,
+                (string) $row->dren,
+                (string) $row->cisco,
+                (string) $row->centre_correction,
+                (string) $row->centre_ecrit
+            );
+        });
+
+        $comparisonRows = collect(array_unique(array_merge(
+            $currentCentres->keys()->all(),
+            $previousCentres->keys()->all()
+        )))->map(function (string $key) use ($currentCentres, $previousCentres) {
+            $current = $currentCentres->get($key);
+            $previous = $previousCentres->get($key);
+
+            $currentCandidates = (int) ($current['total_candidats'] ?? 0);
+            $previousCandidates = (int) ($previous->total_candidats ?? 0);
+            $currentSalles = (int) ($current['total_salles'] ?? 0);
+            $previousSalles = (int) ($previous->total_salles ?? 0);
+
+            $diffCandidates = $currentCandidates - $previousCandidates;
+            $diffSalles = $currentSalles - $previousSalles;
+            $progressCandidates = $previousCandidates > 0
+                ? round(($diffCandidates / $previousCandidates) * 100, 1)
+                : ($currentCandidates > 0 ? 100.0 : 0.0);
+            $progressSalles = $previousSalles > 0
+                ? round(($diffSalles / $previousSalles) * 100, 1)
+                : ($currentSalles > 0 ? 100.0 : 0.0);
+
+            $status = '';
+            if ($current && ! $previous) {
+                $status = 'Nouveau centre';
+            } elseif (! $current && $previous) {
+                $status = "Centre n'existe plus";
+            }
+
+            return [
+                'type_examen' => (string) ($current['type_examen'] ?? $previous?->type_examen ?? ''),
+                'dren' => (string) ($current['dren'] ?? $previous?->dren ?? ''),
+                'cisco' => (string) ($current['cisco'] ?? $previous?->cisco ?? ''),
+                'centre_correction' => (string) ($current['centre_correction'] ?? $previous?->centre_correction ?? ''),
+                'centre_ecrit' => (string) ($current['centre_ecrit'] ?? $previous?->centre_ecrit ?? ''),
+                'current_candidats' => $currentCandidates,
+                'previous_candidats' => $previousCandidates,
+                'current_salles' => $currentSalles,
+                'previous_salles' => $previousSalles,
+                'ecart_candidats' => $diffCandidates,
+                'ecart_salles' => $diffSalles,
+                'progression_candidats' => $progressCandidates,
+                'progression_salles' => $progressSalles,
+                'status' => $status,
+            ];
+        })->sortBy(['dren', 'cisco', 'centre_correction', 'centre_ecrit'])->values();
+
+        $bookData = $rows->isNotEmpty() ? $this->buildBookData($rows) : [];
+
+        $handicapCounts = DB::table('repartition_salles_specifiques as rss')
+            ->join('centre_ecrits as ce', 'ce.id', '=', 'rss.centre_ecrit_id')
+            ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
+            ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
+            ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+            ->select([
+                'd.nom as dren',
+                'cs.nom as cisco',
+                DB::raw('count(*) as total'),
+            ])
+            ->when($filters['annee_n'] !== '', fn ($query) => $query->where('rss.annee', $filters['annee_n']))
+            ->when($filters['dren'] !== '', fn ($query) => $query->where('d.nom', $filters['dren']))
+            ->when($filters['cisco'] !== '', fn ($query) => $query->where('cs.nom', $filters['cisco']))
+            ->when($filters['type_examen'] === self::TYPE_BEPC, fn ($query) => $query->where('rss.type_examen', self::TYPE_BEPC))
+            ->when($filters['type_examen'] === self::TYPE_CEPE, fn ($query) => $query->where('rss.type_examen', self::TYPE_CEPE))
+            ->groupBy('d.nom', 'cs.nom')
+            ->get()
+            ->groupBy('dren')
+            ->map(fn (Collection $rows) => $rows->keyBy('cisco')->map(fn ($row) => (int) $row->total)->toArray())
+            ->toArray();
+
+        $recapByDren = $currentCentres
+            ->groupBy('dren')
+            ->map(function (Collection $centres, string $dren) use ($handicapCounts) {
+                $centreCorrectionCount = $centres->pluck('centre_correction')->unique()->count();
+                $centreEcritCount = $centres->pluck('centre_ecrit')->unique()->count();
+                $handicapTotal = array_sum($handicapCounts[$dren] ?? []);
+
+                return [
+                    'dren' => $dren,
+                    'total_candidats' => (int) $centres->sum('total_candidats'),
+                    'total_salles' => (int) $centres->sum('total_salles'),
+                    'total_correction' => $centreCorrectionCount,
+                    'total_ecrit' => $centreEcritCount,
+                    'total_handicap' => $handicapTotal,
+                ];
+            })
+            ->values();
+
+        $recapByCisco = $currentCentres
+            ->groupBy(fn (array $centre) => $centre['dren'].'|'.$centre['cisco'])
+            ->map(function (Collection $centres) use ($handicapCounts) {
+                $first = $centres->first();
+                $dren = (string) ($first['dren'] ?? '');
+                $cisco = (string) ($first['cisco'] ?? '');
+                $centreCorrectionCount = $centres->pluck('centre_correction')->unique()->count();
+                $centreEcritCount = $centres->pluck('centre_ecrit')->unique()->count();
+                $handicapTotal = (int) ($handicapCounts[$dren][$cisco] ?? 0);
+
+                return [
+                    'dren' => $dren,
+                    'cisco' => $cisco,
+                    'total_candidats' => (int) $centres->sum('total_candidats'),
+                    'total_salles' => (int) $centres->sum('total_salles'),
+                    'total_correction' => $centreCorrectionCount,
+                    'total_ecrit' => $centreEcritCount,
+                    'total_handicap' => $handicapTotal,
+                ];
+            })
+            ->sortBy(['dren', 'cisco'])
+            ->values();
+
+        $peGeByDren = collect($bookData)
+            ->groupBy('dren')
+            ->map(function (Collection $centres, string $dren) {
+                return [
+                    'dren' => $dren,
+                    'total_pe' => (int) $centres->sum('pe'),
+                    'total_ge' => (int) $centres->sum('ge_count'),
+                ];
+            })
+            ->values();
+
+        $bepcLangueTotals = $rows
+            ->filter(fn ($row) => (string) $row->langue !== self::CEPE_KEY)
+            ->groupBy(fn ($row) => strtoupper(trim((string) $row->langue)))
+            ->map(fn (Collection $group) => $group->sum('effectif'))
+            ->sortDesc();
+
+        $languesComparisonChart = $bepcLangueTotals
+            ->filter(fn (int $value, string $label) => ! str_contains($label, 'OPTION'))
+            ->map(fn (int $value, string $label) => [
+                'label' => $label,
+                'value' => $value,
+            ])
+            ->values();
+
+        $optionBTotal = (int) $bepcLangueTotals
+            ->filter(fn (int $value, string $label) => str_contains($label, 'OPTION B'))
+            ->sum();
+        $optionATotal = (int) $bepcLangueTotals
+            ->filter(fn (int $value, string $label) => ! str_contains($label, 'OPTION B'))
+            ->sum();
+
+        $optionsComparisonChart = collect([
+            ['label' => 'OPTION A', 'value' => $optionATotal],
+            ['label' => 'OPTION B', 'value' => $optionBTotal],
+        ]);
+
+        $previousCiscoTotals = collect($previousRows)
+            ->groupBy(fn ($row) => $row->dren.'|'.$row->cisco)
+            ->map(function (Collection $group) {
+                $first = $group->first();
+                return [
+                    'dren' => (string) $first->dren,
+                    'cisco' => (string) $first->cisco,
+                    'total_candidats' => (int) $group->sum('total_candidats'),
+                    'total_salles' => (int) $group->sum('total_salles'),
+                ];
+            });
+
+        $ciscoComparison = collect(array_unique(array_merge(
+            $recapByCisco->map(fn (array $row) => $row['dren'].'|'.$row['cisco'])->all(),
+            $previousCiscoTotals->keys()->all()
+        )))->map(function (string $key) use ($recapByCisco, $previousCiscoTotals) {
+            [$dren, $cisco] = array_pad(explode('|', $key, 2), 2, '');
+            $current = $recapByCisco->first(fn (array $row) => $row['dren'] === $dren && $row['cisco'] === $cisco);
+            $previous = $previousCiscoTotals->get($key);
+            $currentC = (int) ($current['total_candidats'] ?? 0);
+            $previousC = (int) ($previous['total_candidats'] ?? 0);
+            $currentS = (int) ($current['total_salles'] ?? 0);
+            $previousS = (int) ($previous['total_salles'] ?? 0);
+
+            return [
+                'dren' => (string) $dren,
+                'cisco' => (string) $cisco,
+                'current_candidats' => $currentC,
+                'previous_candidats' => $previousC,
+                'current_salles' => $currentS,
+                'previous_salles' => $previousS,
+                'ecart_candidats' => $currentC - $previousC,
+                'ecart_salles' => $currentS - $previousS,
+            ];
+        })->sortBy(['dren', 'cisco'])->values();
+
+        $currentDrenLangues = $rows
+            ->filter(fn ($row) => (string) $row->langue !== self::CEPE_KEY)
+            ->groupBy('dren')
+            ->map(function (Collection $group) {
+                $bucket = [
+                    'anglais' => 0,
+                    'espagnol' => 0,
+                    'allemand' => 0,
+                    'option_b' => 0,
+                ];
+                foreach ($group as $row) {
+                    $label = strtoupper(trim((string) $row->langue));
+                    if (str_contains($label, 'OPTION B')) {
+                        $bucket['option_b'] += (int) $row->effectif;
+                    } elseif (str_contains($label, 'ANGLAIS')) {
+                        $bucket['anglais'] += (int) $row->effectif;
+                    } elseif (str_contains($label, 'ESP')) {
+                        $bucket['espagnol'] += (int) $row->effectif;
+                    } elseif (str_contains($label, 'ALL')) {
+                        $bucket['allemand'] += (int) $row->effectif;
+                    }
+                }
+                return $bucket;
+            })
+            ->toArray();
+
+        $drenImportQuery = DB::table('repartition_stats_dren_imports')
+            ->orderBy('dren');
+        if ($filters['annee_n1_dren'] !== '') {
+            $drenImportQuery->where('annee', $filters['annee_n1_dren']);
+        }
+        if ($filters['dren'] !== '') {
+            $drenImportQuery->where('dren', $filters['dren']);
+        }
+        $previousDrenRows = $drenImportQuery->get()->keyBy('dren');
+
+        $drenComparison = collect(array_unique(array_merge(
+            $recapByDren->pluck('dren')->all(),
+            $previousDrenRows->keys()->all()
+        )))->map(function (string $dren) use ($recapByDren, $previousDrenRows, $currentDrenLangues) {
+            $current = $recapByDren->first(fn (array $row) => $row['dren'] === $dren);
+            $previous = $previousDrenRows->get($dren);
+            $currentC = (int) ($current['total_candidats'] ?? 0);
+            $previousC = (int) ($previous->total_candidats ?? 0);
+            $currentS = (int) ($current['total_salles'] ?? 0);
+            $previousS = (int) ($previous->total_salles ?? 0);
+            $currentLang = $currentDrenLangues[$dren] ?? ['anglais' => 0, 'espagnol' => 0, 'allemand' => 0, 'option_b' => 0];
+
+            return [
+                'dren' => $dren,
+                'current_candidats' => $currentC,
+                'previous_candidats' => $previousC,
+                'current_salles' => $currentS,
+                'previous_salles' => $previousS,
+                'ecart_candidats' => $currentC - $previousC,
+                'ecart_salles' => $currentS - $previousS,
+                'current_anglais' => (int) ($currentLang['anglais'] ?? 0),
+                'current_espagnol' => (int) ($currentLang['espagnol'] ?? 0),
+                'current_allemand' => (int) ($currentLang['allemand'] ?? 0),
+                'current_option_b' => (int) ($currentLang['option_b'] ?? 0),
+                'previous_anglais' => (int) ($previous->anglais ?? 0),
+                'previous_espagnol' => (int) ($previous->espagnol ?? 0),
+                'previous_allemand' => (int) ($previous->allemand ?? 0),
+                'previous_option_b' => (int) ($previous->option_b ?? 0),
+            ];
+        })->sortBy('dren')->values();
+
+        $diffByDren = $comparisonRows
+            ->groupBy('dren')
+            ->map(function (Collection $rows, string $dren) {
+                return [
+                    'label' => $dren,
+                    'value' => (int) $rows->sum('ecart_candidats'),
+                ];
+            })
+            ->values()
+            ->sortByDesc('value')
+            ->values();
+
+        return [
+            'filters' => $filters,
+            'anneesCurrent' => $anneesCurrent,
+            'anneesImport' => $anneesImport,
+            'anneesImportDren' => $anneesImportDren,
+            'drens' => $drens,
+            'ciscos' => $ciscos,
+            'ciscosByDren' => $ciscosByDren,
+            'comparisonRows' => $comparisonRows,
+            'recapByDren' => $recapByDren,
+            'recapByCisco' => $recapByCisco,
+            'drenComparison' => $drenComparison,
+            'ciscoComparison' => $ciscoComparison,
+            'peGeByDren' => $peGeByDren,
+            'languesComparisonChart' => $languesComparisonChart,
+            'optionsComparisonChart' => $optionsComparisonChart,
+            'diffByDrenChart' => $diffByDren,
+            'showLangueComparison' => $filters['type_examen'] !== self::TYPE_CEPE,
+            'globalStats' => [
+                'current_candidats' => (int) $currentCentres->sum('total_candidats'),
+                'current_salles' => (int) $currentCentres->sum('total_salles'),
+                'previous_candidats' => (int) $previousRows->sum('total_candidats'),
+                'previous_salles' => (int) $previousRows->sum('total_salles'),
+                'total_handicap' => (int) array_sum(array_map('array_sum', $handicapCounts)),
+            ],
+            'pdfMode' => false,
+        ];
+    }
+
+    public function importPreviousStats(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'stats_file' => ['required', 'file'],
+            'annee_import' => ['nullable', 'string', 'max:9'],
+            'type_examen_import' => ['nullable', 'string', 'max:10'],
+        ]);
+
+        $rows = $this->parseImportCsvRows($request, 'stats_file');
+        if ($rows === []) {
+            return back()->withErrors(['stats_file' => 'Fichier vide ou format invalide.']);
+        }
+
+        $importYear = trim((string) $request->input('annee_import', ''));
+        $importType = strtoupper(trim((string) $request->input('type_examen_import', '')));
+        if (! in_array($importType, [self::TYPE_BEPC, self::TYPE_CEPE], true)) {
+            $importType = '';
+        }
+
+        $created = 0;
+        $updated = 0;
+        $errors = 0;
+        $rejects = [];
+
+        foreach ($rows as $idx => $row) {
+            $lineNumber = $idx + 2;
+            $annee = trim((string) ($row['annee'] ?? $importYear));
+            $typeExamen = strtoupper(trim((string) ($row['type_examen'] ?? $importType)));
+            $dren = trim((string) ($row['dren'] ?? ''));
+            $cisco = trim((string) ($row['cisco'] ?? ''));
+            $centreCorrection = trim((string) ($row['centre_correction'] ?? ''));
+            $centreEcrit = trim((string) ($row['centre_ecrit'] ?? ''));
+            $totalSalles = $row['total_salles'] ?? null;
+            $totalCandidats = $row['total_candidats'] ?? null;
+
+            if ($annee === '' || $typeExamen === '' || $dren === '' || $cisco === '' || $centreCorrection === '' || $centreEcrit === '') {
+                $rejects[] = "Ligne {$lineNumber}: colonnes obligatoires manquantes.";
+                $errors++;
+                continue;
+            }
+            if (! in_array($typeExamen, [self::TYPE_BEPC, self::TYPE_CEPE], true)) {
+                $rejects[] = "Ligne {$lineNumber}: type d'examen invalide ({$typeExamen}).";
+                $errors++;
+                continue;
+            }
+            if ($totalSalles === null || $totalCandidats === null || ! is_numeric($totalSalles) || ! is_numeric($totalCandidats)) {
+                $rejects[] = "Ligne {$lineNumber}: total salles/candidats invalide.";
+                $errors++;
+                continue;
+            }
+
+            $totalSalles = max(0, (int) $totalSalles);
+            $totalCandidats = max(0, (int) $totalCandidats);
+
+            $centreKey = $this->buildCentreKeyHash($typeExamen, $dren, $cisco, $centreCorrection, $centreEcrit);
+
+            $exists = DB::table('repartition_stats_imports')
+                ->where('annee', $annee)
+                ->where('type_examen', $typeExamen)
+                ->where('centre_key', $centreKey)
+                ->exists();
+
+            if ($exists) {
+                DB::table('repartition_stats_imports')
+                    ->where('annee', $annee)
+                    ->where('type_examen', $typeExamen)
+                    ->where('centre_key', $centreKey)
+                    ->update([
+                        'total_salles' => $totalSalles,
+                        'total_candidats' => $totalCandidats,
+                        'dren' => $dren,
+                        'cisco' => $cisco,
+                        'centre_correction' => $centreCorrection,
+                        'centre_ecrit' => $centreEcrit,
+                        'updated_at' => now(),
+                    ]);
+                $updated++;
+            } else {
+                DB::table('repartition_stats_imports')->insert([
+                    'annee' => $annee,
+                    'type_examen' => $typeExamen,
+                    'centre_key' => $centreKey,
+                    'dren' => $dren,
+                    'cisco' => $cisco,
+                    'centre_correction' => $centreCorrection,
+                    'centre_ecrit' => $centreEcrit,
+                    'total_salles' => $totalSalles,
+                    'total_candidats' => $totalCandidats,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $created++;
+            }
+        }
+
+        $response = back()
+            ->with('status', "Import stats N-1 terminé: {$created} créé(s), {$updated} mis à jour, {$errors} rejeté(s).")
+            ->with('import_rejects', array_slice($rejects, 0, 120));
+        AuditLog::record($request, 'import_stats_n1', [
+            'created' => $created,
+            'updated' => $updated,
+            'errors' => $errors,
+        ]);
+        return $response;
+    }
+
+    public function importPreviousDrenRecap(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'dren_recap_file' => ['required', 'file'],
+            'annee_import_dren' => ['nullable', 'string', 'max:9'],
+        ]);
+
+        $rows = $this->parseImportCsvRows($request, 'dren_recap_file');
+        if ($rows === []) {
+            return back()->withErrors(['dren_recap_file' => 'Fichier vide ou format invalide.']);
+        }
+
+        $importYear = trim((string) $request->input('annee_import_dren', ''));
+        $created = 0;
+        $updated = 0;
+        $errors = 0;
+        $rejects = [];
+
+        foreach ($rows as $idx => $row) {
+            $lineNumber = $idx + 2;
+            $annee = trim((string) ($row['annee'] ?? $importYear));
+            $dren = trim((string) ($row['dren'] ?? ''));
+            $totalCandidats = $row['total_candidats'] ?? null;
+            $totalSalles = $row['total_salles'] ?? null;
+            $anglais = $row['anglais'] ?? 0;
+            $espagnol = $row['espagnol'] ?? 0;
+            $allemand = $row['allemand'] ?? 0;
+            $optionB = $row['option_b'] ?? 0;
+
+            if ($annee === '' || $dren === '') {
+                $rejects[] = "Ligne {$lineNumber}: colonnes annee/dren obligatoires.";
+                $errors++;
+                continue;
+            }
+            if (! is_numeric($totalCandidats) || ! is_numeric($totalSalles)) {
+                $rejects[] = "Ligne {$lineNumber}: total candidats/salles invalide.";
+                $errors++;
+                continue;
+            }
+
+            $payload = [
+                'annee' => $annee,
+                'dren' => $dren,
+                'total_candidats' => max(0, (int) $totalCandidats),
+                'total_salles' => max(0, (int) $totalSalles),
+                'anglais' => max(0, (int) $anglais),
+                'espagnol' => max(0, (int) $espagnol),
+                'allemand' => max(0, (int) $allemand),
+                'option_b' => max(0, (int) $optionB),
+            ];
+
+            $exists = DB::table('repartition_stats_dren_imports')
+                ->where('annee', $annee)
+                ->where('dren', $dren)
+                ->exists();
+
+            if ($exists) {
+                DB::table('repartition_stats_dren_imports')
+                    ->where('annee', $annee)
+                    ->where('dren', $dren)
+                    ->update(array_merge($payload, ['updated_at' => now()]));
+                $updated++;
+            } else {
+                DB::table('repartition_stats_dren_imports')->insert(array_merge($payload, [
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]));
+                $created++;
+            }
+        }
+
+        $response = back()
+            ->with('status', "Import recap DREN N-1 terminé: {$created} créé(s), {$updated} mis à jour, {$errors} rejeté(s).")
+            ->with('import_rejects', array_slice($rejects, 0, 120));
+        AuditLog::record($request, 'import_recap_dren_n1', [
+            'created' => $created,
+            'updated' => $updated,
+            'errors' => $errors,
+        ]);
+        return $response;
+    }
+
+    public function statsReportCentresExcel(Request $request)
+    {
+        $filters = [
+            'annee_n' => (string) $request->query('annee_n', ''),
+            'annee_n1' => (string) $request->query('annee_n1', ''),
+            'type_examen' => strtoupper((string) $request->query('type_examen', self::TYPE_ALL)),
+            'dren' => (string) $request->query('dren', ''),
+            'cisco' => (string) $request->query('cisco', ''),
+        ];
+
+        if (! in_array($filters['type_examen'], [self::TYPE_ALL, self::TYPE_BEPC, self::TYPE_CEPE], true)) {
+            $filters['type_examen'] = self::TYPE_ALL;
+        }
+
+        $query = DB::table('repartition_salles as rs')
+            ->join('centre_ecrits as ce', 'ce.id', '=', 'rs.centre_ecrit_id')
+            ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
+            ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
+            ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+            ->select([
+                'rs.annee',
+                'rs.langue',
+                'rs.numero_salle',
+                'rs.effectif',
+                'ce.id as centre_ecrit_id',
+                'ce.nom as centre_ecrit',
+                'cc.nom as centre_correction',
+                'cs.nom as cisco',
+                'd.nom as dren',
+            ]);
+
+        if ($filters['annee_n'] !== '') {
+            $query->where('rs.annee', $filters['annee_n']);
+        }
+        if ($filters['dren'] !== '') {
+            $query->where('d.nom', $filters['dren']);
+        }
+        if ($filters['cisco'] !== '') {
+            $query->where('cs.nom', $filters['cisco']);
+        }
+        if ($filters['type_examen'] === self::TYPE_BEPC) {
+            $query->where('rs.langue', '!=', self::CEPE_KEY);
+        } elseif ($filters['type_examen'] === self::TYPE_CEPE) {
+            $query->where('rs.langue', self::CEPE_KEY);
+        }
+
+        $rows = $query->get()->map(function ($row) {
+            $row->type_examen = $row->langue === self::CEPE_KEY ? self::TYPE_CEPE : self::TYPE_BEPC;
+            return $row;
+        });
+        $rows = $this->filterOutEmptySalles($rows);
+
+        $currentCentres = $rows
+            ->groupBy(fn ($row) => $this->buildCentreKey(
+                (string) $row->type_examen,
+                (string) $row->dren,
+                (string) $row->cisco,
+                (string) $row->centre_correction,
+                (string) $row->centre_ecrit
+            ))
+            ->map(function (Collection $group) {
+                $first = $group->first();
+
+                return [
+                    'type_examen' => (string) $first->type_examen,
+                    'dren' => (string) $first->dren,
+                    'cisco' => (string) $first->cisco,
+                    'centre_correction' => (string) $first->centre_correction,
+                    'centre_ecrit' => (string) $first->centre_ecrit,
+                    'total_candidats' => (int) $group->sum('effectif'),
+                    'total_salles' => $this->countDistinctSalles($group),
+                ];
+            });
+
+        $previousRowsQuery = DB::table('repartition_stats_imports')
+            ->orderBy('dren')
+            ->orderBy('cisco')
+            ->orderBy('centre_correction')
+            ->orderBy('centre_ecrit');
+
+        if ($filters['annee_n1'] !== '') {
+            $previousRowsQuery->where('annee', $filters['annee_n1']);
+        }
+        if ($filters['dren'] !== '') {
+            $previousRowsQuery->where('dren', $filters['dren']);
+        }
+        if ($filters['cisco'] !== '') {
+            $previousRowsQuery->where('cisco', $filters['cisco']);
+        }
+        if ($filters['type_examen'] === self::TYPE_BEPC) {
+            $previousRowsQuery->where('type_examen', self::TYPE_BEPC);
+        } elseif ($filters['type_examen'] === self::TYPE_CEPE) {
+            $previousRowsQuery->where('type_examen', self::TYPE_CEPE);
+        }
+
+        $previousRows = $previousRowsQuery->get();
+        $previousCentres = collect($previousRows)->keyBy(function ($row) {
+            return $this->buildCentreKey(
+                (string) $row->type_examen,
+                (string) $row->dren,
+                (string) $row->cisco,
+                (string) $row->centre_correction,
+                (string) $row->centre_ecrit
+            );
+        });
+
+        $comparisonRows = collect(array_unique(array_merge(
+            $currentCentres->keys()->all(),
+            $previousCentres->keys()->all()
+        )))->map(function (string $key) use ($currentCentres, $previousCentres) {
+            $current = $currentCentres->get($key);
+            $previous = $previousCentres->get($key);
+            $currentCandidates = (int) ($current['total_candidats'] ?? 0);
+            $previousCandidates = (int) ($previous->total_candidats ?? 0);
+            $currentSalles = (int) ($current['total_salles'] ?? 0);
+            $previousSalles = (int) ($previous->total_salles ?? 0);
+
+            $status = '';
+            if ($current && ! $previous) {
+                $status = 'Nouveau centre';
+            } elseif (! $current && $previous) {
+                $status = "Centre n'existe plus";
+            }
+
+            return [
+                'dren' => (string) ($current['dren'] ?? $previous?->dren ?? ''),
+                'cisco' => (string) ($current['cisco'] ?? $previous?->cisco ?? ''),
+                'centre_correction' => (string) ($current['centre_correction'] ?? $previous?->centre_correction ?? ''),
+                'centre_ecrit' => (string) ($current['centre_ecrit'] ?? $previous?->centre_ecrit ?? ''),
+                'type_examen' => (string) ($current['type_examen'] ?? $previous?->type_examen ?? ''),
+                'current_candidats' => $currentCandidates,
+                'previous_candidats' => $previousCandidates,
+                'current_salles' => $currentSalles,
+                'previous_salles' => $previousSalles,
+                'ecart_candidats' => $currentCandidates - $previousCandidates,
+                'progression_candidats' => $previousCandidates > 0 ? round((($currentCandidates - $previousCandidates) / $previousCandidates) * 100, 1) : ($currentCandidates > 0 ? 100.0 : 0.0),
+                'status' => $status,
+            ];
+        })->sortBy(['dren', 'cisco', 'centre_correction', 'centre_ecrit'])->values();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('COMPARAISON_CENTRES');
+
+        $sheet->fromArray([
+            ['Comparaison Centres N / N-1'],
+            ['Annee N', $filters['annee_n'] ?: 'Toutes', 'Annee N-1', $filters['annee_n1'] ?: 'Toutes', 'Examen', $filters['type_examen']],
+            ['DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'EXAMEN', 'CANDIDATS N', 'CANDIDATS N-1', 'SALLES N', 'SALLES N-1', 'ECART', 'PROGRESSION %', 'STATUT'],
+        ], null, 'A1');
+
+        $sheet->mergeCells('A1:L1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+
+        $rowIndex = 4;
+        foreach ($comparisonRows as $row) {
+            $sheet->fromArray([[
+                $row['dren'],
+                $row['cisco'],
+                $row['centre_correction'],
+                $row['centre_ecrit'],
+                $row['type_examen'],
+                (int) $row['current_candidats'],
+                (int) $row['previous_candidats'],
+                (int) $row['current_salles'],
+                (int) $row['previous_salles'],
+                (int) $row['ecart_candidats'],
+                (float) $row['progression_candidats'],
+                $row['status'],
+            ]], null, "A{$rowIndex}");
+            $rowIndex++;
+        }
+
+        $lastCol = $sheet->getHighestColumn();
+        $sheet->getStyle("A3:{$lastCol}3")->getFont()->setBold(true);
+        $sheet->getStyle("A3:{$lastCol}3")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle("A3:{$lastCol}".($rowIndex - 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        foreach (range('A', $lastCol) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $fileName = 'comparaison_centres_'.($filters['annee_n'] !== '' ? $filters['annee_n'].'_' : '').($filters['annee_n1'] !== '' ? $filters['annee_n1'].'_' : '').strtolower($filters['type_examen']).'.xlsx';
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
@@ -399,66 +1263,196 @@ class RepartitionReportController extends Controller
         if ($bookData->isEmpty()) {
             $pdfLikeSheet->setCellValue('A1', 'Aucune donnee pour les filtres selectionnes.');
         } else {
+            $isBepc = ($filters['type_examen'] ?? self::TYPE_ALL) === self::TYPE_BEPC;
+
+            if ($isBepc && $recapSheets->isNotEmpty()) {
+                foreach ($recapSheets as $recap) {
+                    $pdfLikeSheet->setCellValue("A{$pdfLikeRow}", 'Feuille recap DREN: '.$recap['dren']);
+                    $pdfLikeSheet->mergeCells("A{$pdfLikeRow}:G{$pdfLikeRow}");
+                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}")->getFont()->setBold(true);
+                    $pdfLikeRow++;
+
+                    $pdfLikeSheet->setCellValue("A{$pdfLikeRow}", 'C correction: '.$recap['total_correction']);
+                    $pdfLikeSheet->setCellValue("E{$pdfLikeRow}", 'Candidats: '.$recap['total_candidats']);
+                    $pdfLikeRow++;
+                    $pdfLikeSheet->setCellValue("A{$pdfLikeRow}", "Centre d'ecrit: ".$recap['total_ecrit']);
+                    $pdfLikeSheet->setCellValue("E{$pdfLikeRow}", 'Salle: '.$recap['total_salles']);
+                    $pdfLikeRow++;
+                    $pdfLikeSheet->setCellValue("A{$pdfLikeRow}", 'Total GE/Matiere: '.$recap['total_ge']);
+                    $pdfLikeSheet->setCellValue("E{$pdfLikeRow}", 'GE: '.$recap['total_ge']);
+                    $pdfLikeRow += 2;
+
+                    $pdfLikeSheet->fromArray([[
+                        'CISCO',
+                        'centre de correction',
+                        'CENTRE',
+                        'CANDIDATS',
+                        'Salles',
+                        'GE/Matieres',
+                        'Répartition GE',
+                    ]], null, "A{$pdfLikeRow}");
+                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}:G{$pdfLikeRow}")->getFont()->setBold(true);
+                    $pdfLikeRow++;
+
+                    foreach (($recap['rows'] ?? []) as $line) {
+                        $pdfLikeSheet->fromArray([[
+                            $line['cisco'],
+                            $line['centre_correction'],
+                            $line['centre_ecrit'],
+                            (int) $line['candidats'],
+                            (int) $line['salles'],
+                            (int) $line['ge_total'],
+                            (string) ($line['ge_repartition'] ?? ''),
+                        ]], null, "A{$pdfLikeRow}");
+                        $pdfLikeRow++;
+                    }
+
+                    $pdfLikeRow += 2;
+                }
+            }
+
             foreach ($bookData as $centre) {
                 if (($filters['type_examen'] ?? self::TYPE_ALL) === self::TYPE_BEPC && ($centre['type_examen'] ?? '') !== self::TYPE_BEPC) {
                     continue;
                 }
 
-                $pdfLikeSheet->setCellValue("A{$pdfLikeRow}", 'CENTRE: '.$centre['centre_ecrit'].' ('.$centre['type_examen'].')');
-                $pdfLikeSheet->mergeCells("A{$pdfLikeRow}:H{$pdfLikeRow}");
-                $pdfLikeSheet->getStyle("A{$pdfLikeRow}")->getFont()->setBold(true);
-                $pdfLikeRow++;
-
-                $pdfLikeSheet->fromArray([
-                    ['DREN', $centre['dren'], 'ANNEE', $centre['annee'], 'CISCO', $centre['cisco'], 'CENTRE CORRECTION', $centre['centre_correction']],
-                    ['Axe dispatching', (string) ($centre['axe_dispatching'] ?? '-'), 'Point largage', (string) ($centre['point_largage'] ?? '-'), 'PE', (int) $centre['pe'], 'GE', (int) $centre['ge_count']],
-                    ['Repartition GE', implode('+', array_map(fn (int $n) => (string) $n, $centre['ge_distribution'] ?? [])), '', '', '', '', '', ''],
-                ], null, "A{$pdfLikeRow}");
-                $pdfLikeSheet->mergeCells("B{$pdfLikeRow}:H{$pdfLikeRow}");
-                $pdfLikeSheet->mergeCells("B".($pdfLikeRow + 1).":D".($pdfLikeRow + 1));
-                $pdfLikeSheet->mergeCells("F".($pdfLikeRow + 1).":G".($pdfLikeRow + 1));
-                $pdfLikeSheet->mergeCells("B".($pdfLikeRow + 2).":H".($pdfLikeRow + 2));
-                $pdfLikeRow += 4;
-
-                foreach (($centre['tables'] ?? []) as $table) {
-                    $headers = ['Langue / Option'];
-                    foreach (($table['salles'] ?? []) as $salle) {
-                        $headers[] = 'Salle '.(int) $salle;
-                    }
-                    $headers[] = 'Total langue';
-                    $pdfLikeSheet->fromArray([$headers], null, "A{$pdfLikeRow}");
-                    $headerLastCol = Coordinate::stringFromColumnIndex(count($headers));
-                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFont()->setBold(true);
-                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
-                    $pdfLikeRow++;
-
-                    foreach (($table['rows'] ?? []) as $langueRow) {
-                        $line = [$langueRow['label']];
-                        $lineTotal = 0;
-                        foreach (($table['salles'] ?? []) as $salle) {
-                            $value = (int) ($langueRow['values'][$salle] ?? 0);
-                            $line[] = $value;
-                            $lineTotal += $value;
+                if ($isBepc) {
+                    $langueOrder = ['Anglais', 'Allemand', 'Esp', 'Option B'];
+                    $langueLabels = [
+                        'Anglais' => 'Ang',
+                        'Allemand' => 'ALL',
+                        'Esp' => 'ESP',
+                        'Option B' => 'B',
+                    ];
+                    $langueLines = [];
+                    foreach ($langueOrder as $langue) {
+                        $total = (int) ($centre['langue_totals'][$langue] ?? 0);
+                        if ($total <= 0) {
+                            continue;
                         }
-                        $line[] = $lineTotal;
-                        $pdfLikeSheet->fromArray([$line], null, "A{$pdfLikeRow}");
+                        $salleCount = (int) ($centre['langue_salles'][$langue] ?? 0);
+                        $label = $langueLabels[$langue] ?? $langue;
+                        $langueLines[] = "Total cddts {$label}: {$total} total salle {$label}: {$salleCount}";
+                    }
+
+                    if ($langueLines === []) {
+                        $langueLines[] = 'Total par langues: 0';
+                    }
+
+                    $maxSalles = collect($centre['tables'] ?? [])
+                        ->map(fn ($table) => count($table['salles'] ?? []))
+                        ->max() ?? 0;
+                    $rightColIndex = max(7, 2 + (int) $maxSalles);
+                    $rightCol = Coordinate::stringFromColumnIndex($rightColIndex);
+
+                    $summaryStart = $pdfLikeRow;
+                    foreach ($langueLines as $line) {
+                        $pdfLikeSheet->setCellValue("A{$pdfLikeRow}", $line);
                         $pdfLikeRow++;
                     }
 
-                    $totalRow = ['TOTAL SALLE'];
-                    $grandTotal = 0;
-                    foreach (($table['salles'] ?? []) as $salle) {
-                        $salleTotal = (int) (($table['totaux_salles'][$salle] ?? 0));
-                        $totalRow[] = $salleTotal;
-                        $grandTotal += $salleTotal;
+                    $pdfLikeSheet->setCellValue("{$rightCol}{$summaryStart}", 'Total candidats: '.$centre['total_candidats']);
+                    $pdfLikeSheet->setCellValue("{$rightCol}".($summaryStart + 1), 'Total salle: '.$centre['total_salles']);
+                    $pdfLikeSheet->setCellValue("{$rightCol}".($summaryStart + 2), 'Total GE/Matiere: '.$centre['ge_count']);
+                    $pdfLikeRow = max($pdfLikeRow, $summaryStart + 3);
+                    $pdfLikeRow++;
+                } else {
+                    $pdfLikeSheet->setCellValue("A{$pdfLikeRow}", 'CENTRE: '.$centre['centre_ecrit'].' ('.$centre['type_examen'].')');
+                    $pdfLikeSheet->mergeCells("A{$pdfLikeRow}:H{$pdfLikeRow}");
+                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}")->getFont()->setBold(true);
+                    $pdfLikeRow++;
+
+                    $pdfLikeSheet->fromArray([
+                        ['DREN', $centre['dren'], 'ANNEE', $centre['annee'], 'CISCO', $centre['cisco'], 'CENTRE CORRECTION', $centre['centre_correction']],
+                        ['Axe dispatching', (string) ($centre['axe_dispatching'] ?? '-'), 'Point largage', (string) ($centre['point_largage'] ?? '-'), 'PE', (int) $centre['pe'], 'GE', (int) $centre['ge_count']],
+                        ['Repartition GE', implode('+', array_map(fn (int $n) => (string) $n, $centre['ge_distribution'] ?? [])), '', '', '', '', '', ''],
+                    ], null, "A{$pdfLikeRow}");
+                    $pdfLikeSheet->mergeCells("B{$pdfLikeRow}:H{$pdfLikeRow}");
+                    $pdfLikeSheet->mergeCells("B".($pdfLikeRow + 1).":D".($pdfLikeRow + 1));
+                    $pdfLikeSheet->mergeCells("F".($pdfLikeRow + 1).":G".($pdfLikeRow + 1));
+                    $pdfLikeSheet->mergeCells("B".($pdfLikeRow + 2).":H".($pdfLikeRow + 2));
+                    $pdfLikeRow += 4;
+                }
+
+                foreach (($centre['tables'] ?? []) as $table) {
+                    if ($isBepc) {
+                        $rowspan = count($table['rows'] ?? []) + 2;
+                        $startRow = $pdfLikeRow;
+                        $pdfLikeSheet->setCellValue("A{$startRow}", $centre['centre_ecrit']);
+                        $pdfLikeSheet->mergeCells("A{$startRow}:A".($startRow + $rowspan - 1));
+                        $pdfLikeSheet->setCellValue("B{$startRow}", 'Salles');
+
+                        $colIndex = 3;
+                        foreach (($table['salles'] ?? []) as $salle) {
+                            $col = Coordinate::stringFromColumnIndex($colIndex);
+                            $pdfLikeSheet->setCellValue("{$col}{$startRow}", 'S'.(int) $salle);
+                            $colIndex++;
+                        }
+                        $headerLastCol = Coordinate::stringFromColumnIndex(max($colIndex - 1, 3));
+                        $pdfLikeSheet->getStyle("A{$startRow}:{$headerLastCol}{$startRow}")->getFont()->setBold(true);
+                        $pdfLikeRow++;
+
+                        foreach (($table['rows'] ?? []) as $langueRow) {
+                            $pdfLikeSheet->setCellValue("B{$pdfLikeRow}", $langueRow['label']);
+                            $colIndex = 3;
+                            foreach (($table['salles'] ?? []) as $salle) {
+                                $col = Coordinate::stringFromColumnIndex($colIndex);
+                                $pdfLikeSheet->setCellValue("{$col}{$pdfLikeRow}", (int) ($langueRow['values'][$salle] ?? 0));
+                                $colIndex++;
+                            }
+                            $pdfLikeRow++;
+                        }
+
+                        $pdfLikeSheet->setCellValue("B{$pdfLikeRow}", 'Total');
+                        $colIndex = 3;
+                        foreach (($table['salles'] ?? []) as $salle) {
+                            $col = Coordinate::stringFromColumnIndex($colIndex);
+                            $pdfLikeSheet->setCellValue("{$col}{$pdfLikeRow}", (int) (($table['totaux_salles'][$salle] ?? 0)));
+                            $colIndex++;
+                        }
+                        $pdfLikeSheet->getStyle("A{$startRow}:{$headerLastCol}{$pdfLikeRow}")
+                            ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                        $pdfLikeRow += 2;
+                    } else {
+                        $headers = ['Langue / Option'];
+                        foreach (($table['salles'] ?? []) as $salle) {
+                            $headers[] = 'Salle '.(int) $salle;
+                        }
+                        $headers[] = 'Total langue';
+                        $pdfLikeSheet->fromArray([$headers], null, "A{$pdfLikeRow}");
+                        $headerLastCol = Coordinate::stringFromColumnIndex(count($headers));
+                        $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFont()->setBold(true);
+                        $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+                        $pdfLikeRow++;
+
+                        foreach (($table['rows'] ?? []) as $langueRow) {
+                            $line = [$langueRow['label']];
+                            $lineTotal = 0;
+                            foreach (($table['salles'] ?? []) as $salle) {
+                                $value = (int) ($langueRow['values'][$salle] ?? 0);
+                                $line[] = $value;
+                                $lineTotal += $value;
+                            }
+                            $line[] = $lineTotal;
+                            $pdfLikeSheet->fromArray([$line], null, "A{$pdfLikeRow}");
+                            $pdfLikeRow++;
+                        }
+
+                        $totalRow = ['TOTAL SALLE'];
+                        $grandTotal = 0;
+                        foreach (($table['salles'] ?? []) as $salle) {
+                            $salleTotal = (int) (($table['totaux_salles'][$salle] ?? 0));
+                            $totalRow[] = $salleTotal;
+                            $grandTotal += $salleTotal;
+                        }
+                        $totalRow[] = $grandTotal;
+                        $pdfLikeSheet->fromArray([$totalRow], null, "A{$pdfLikeRow}");
+                        $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFont()->setBold(true);
+                        $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
+                        $pdfLikeSheet->getStyle("A".($pdfLikeRow - (count($table['rows'] ?? []) + 1)).":{$headerLastCol}{$pdfLikeRow}")
+                            ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                        $pdfLikeRow += 2;
                     }
-                    $totalRow[] = $grandTotal;
-                    $pdfLikeSheet->fromArray([$totalRow], null, "A{$pdfLikeRow}");
-                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFont()->setBold(true);
-                    $pdfLikeSheet->getStyle("A{$pdfLikeRow}:{$headerLastCol}{$pdfLikeRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
-                    $pdfLikeSheet->getStyle("A".($pdfLikeRow - (count($table['rows'] ?? []) + 1)).":{$headerLastCol}{$pdfLikeRow}")
-                        ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-                    $pdfLikeRow += 2;
                 }
 
                 $pdfLikeRow++;
@@ -469,6 +1463,73 @@ class RepartitionReportController extends Controller
             for ($i = 1; $i <= $pdfLikeLastColIndex; $i++) {
                 $pdfLikeSheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
             }
+        }
+
+        $specSheet = $spreadsheet->createSheet();
+        $specSheet->setTitle('BESOINS_SPECIAUX');
+        $specQuery = DB::table('repartition_salles_specifiques as rss')
+            ->join('centre_ecrits as ce', 'ce.id', '=', 'rss.centre_ecrit_id')
+            ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
+            ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
+            ->join('drens as d', 'd.id', '=', 'cs.dren_id')
+            ->select([
+                'rss.type_examen',
+                'rss.annee',
+                'd.nom as dren',
+                'cs.nom as cisco',
+                'cc.nom as centre_correction',
+                'ce.nom as centre_ecrit',
+                'rss.numero_salle',
+                'rss.type_handicap',
+                'rss.saisi_par',
+            ])
+            ->orderBy('rss.annee')
+            ->orderBy('d.nom')
+            ->orderBy('cs.nom')
+            ->orderBy('cc.nom')
+            ->orderBy('ce.nom')
+            ->orderBy('rss.numero_salle');
+
+        if (($filters['annee'] ?? '') !== '') {
+            $specQuery->where('rss.annee', $filters['annee']);
+        }
+        if (($filters['dren'] ?? '') !== '') {
+            $specQuery->where('d.nom', $filters['dren']);
+        }
+
+        $specRows = $specQuery->get();
+        if ($specRows->isEmpty()) {
+            $specSheet->setCellValue('A1', 'Aucune donnée de besoins spécifiques.');
+        } else {
+            $specSheet->fromArray([
+                'TYPE EXAMEN',
+                'ANNEE',
+                'DREN',
+                'CISCO',
+                'CENTRE CORRECTION',
+                'CENTRE ECRIT',
+                'SALLE',
+                'TYPE HANDICAP',
+                'SAISI PAR',
+            ], null, 'A1');
+
+            $rowIndex = 2;
+            foreach ($specRows as $row) {
+                $specSheet->fromArray([
+                    $row->type_examen,
+                    $row->annee,
+                    $row->dren,
+                    $row->cisco,
+                    $row->centre_correction,
+                    $row->centre_ecrit,
+                    (int) $row->numero_salle,
+                    $row->type_handicap,
+                    $row->saisi_par,
+                ], null, "A{$rowIndex}");
+                $rowIndex++;
+            }
+
+            $this->styleSheetWithHeader($specSheet);
         }
 
         $spreadsheet->setActiveSheetIndex(0);
@@ -1435,28 +2496,52 @@ class RepartitionReportController extends Controller
                 $salleChunks = $salles->chunk(self::MAX_SALLES_PER_TABLE);
 
                 $rowsByLangue = $centreRows->groupBy('langue');
-                $labels = $rowsByLangue
-                    ->filter(fn (Collection $langueRows) => (int) $langueRows->sum('effectif') > 0)
-                    ->keys()
-                    ->map(fn (string $langue) => $langue === self::CEPE_KEY ? 'Total CEPE' : $langue)
-                    ->sortBy(function (string $label) use ($langueOrder) {
-                        if ($label === 'Total CEPE') {
-                            return -1;
-                        }
+                $typeExamen = (string) $first->type_examen;
+                $isBepc = $typeExamen === self::TYPE_BEPC;
+                $bepcLangueMap = [
+                    'Anglais' => 'Ang',
+                    'Allemand' => 'ALL',
+                    'Esp' => 'ESP',
+                    'Option B' => 'B',
+                ];
+                $bepcLangueOrder = ['Anglais', 'Allemand', 'Esp', 'Option B'];
 
-                        return $langueOrder[$label] ?? 999;
-                    })
-                    ->values();
+                if ($isBepc) {
+                    $labels = collect($bepcLangueOrder)
+                        ->filter(fn (string $langue) => (int) ($rowsByLangue->get($langue, collect())->sum('effectif')) > 0)
+                        ->map(fn (string $langue) => $bepcLangueMap[$langue])
+                        ->values();
+                } else {
+                    $labels = $rowsByLangue
+                        ->filter(fn (Collection $langueRows) => (int) $langueRows->sum('effectif') > 0)
+                        ->keys()
+                        ->map(fn (string $langue) => $langue === self::CEPE_KEY ? 'Total CEPE' : $langue)
+                        ->sortBy(function (string $label) use ($langueOrder) {
+                            if ($label === 'Total CEPE') {
+                                return -1;
+                            }
+
+                            return $langueOrder[$label] ?? 999;
+                        })
+                        ->values();
+                }
                 if ($labels->isEmpty()) {
                     $labels = $rowsByLangue->keys()
-                        ->map(fn (string $langue) => $langue === self::CEPE_KEY ? 'Total CEPE' : $langue)
+                        ->map(fn (string $langue) => $langue === self::CEPE_KEY ? 'Total CEPE' : ($bepcLangueMap[$langue] ?? $langue))
                         ->take(1)
                         ->values();
                 }
 
                 $tables = $salleChunks->map(function (Collection $chunk, int $index) use ($labels, $rowsByLangue) {
                     $tableRows = $labels->map(function (string $label) use ($chunk, $rowsByLangue) {
-                        $langueKey = $label === 'Total CEPE' ? self::CEPE_KEY : $label;
+                        $langueKey = match ($label) {
+                            'Ang' => 'Anglais',
+                            'ALL' => 'Allemand',
+                            'ESP' => 'Esp',
+                            'B' => 'Option B',
+                            'Total CEPE' => self::CEPE_KEY,
+                            default => $label,
+                        };
                         $langueRows = $rowsByLangue->get($langueKey, collect())->keyBy('numero_salle');
 
                         return [
@@ -1481,6 +2566,27 @@ class RepartitionReportController extends Controller
 
                 $pe = $this->countDistinctSalles($centreRows);
                 $geDistribution = $this->getGeDistribution($pe, (string) $first->type_examen);
+                $geDistributionProbleme = $first->type_examen === self::TYPE_CEPE
+                    ? $this->getGeDistribution($pe, self::TYPE_BEPC)
+                    : [];
+                $geDistributionAutres = $first->type_examen === self::TYPE_CEPE
+                    ? $this->getGeDistribution($pe, self::TYPE_CEPE)
+                    : [];
+                $langueTotals = [];
+                $langueSalleCounts = [];
+                foreach ($bepcLangueOrder as $langue) {
+                    $langueRows = $rowsByLangue->get($langue, collect());
+                    $total = (int) $langueRows->sum('effectif');
+                    if ($total <= 0) {
+                        continue;
+                    }
+                    $langueTotals[$langue] = $total;
+                    $langueSalleCounts[$langue] = $langueRows
+                        ->filter(fn ($row) => (int) $row->effectif > 0)
+                        ->pluck('numero_salle')
+                        ->unique()
+                        ->count();
+                }
 
                 return [
                     'dren' => $first->dren,
@@ -1496,6 +2602,10 @@ class RepartitionReportController extends Controller
                     'pe' => $pe,
                     'ge_count' => count($geDistribution),
                     'ge_distribution' => $geDistribution,
+                    'ge_distribution_probleme' => $geDistributionProbleme,
+                    'ge_distribution_autres' => $geDistributionAutres,
+                    'langue_totals' => $langueTotals,
+                    'langue_salles' => $langueSalleCounts,
                     'tables' => $tables,
                 ];
             })
@@ -1539,10 +2649,15 @@ class RepartitionReportController extends Controller
                     ];
                 })->values();
 
+                $totalCorrection = $centres->pluck('centre_correction')->unique()->count();
+                $totalEcrit = $centres->pluck('centre_ecrit')->unique()->count();
+
                 return [
                     'dren' => $dren,
                     'rows' => $rows->all(),
                     'total_centres' => $rows->count(),
+                    'total_correction' => $totalCorrection,
+                    'total_ecrit' => $totalEcrit,
                     'total_candidats' => (int) $rows->sum('candidats'),
                     'total_salles' => (int) $rows->sum('salles'),
                     'total_ge' => (int) $rows->sum('ge_total'),
@@ -1559,27 +2674,35 @@ class RepartitionReportController extends Controller
             ->map(function (Collection $drenCentres, string $dren) {
                 $pages = [];
                 $currentPage = [];
+                $currentWeight = 0;
+                $pageCapacity = 4;
 
                 foreach ($drenCentres->values()->all() as $centre) {
-                    if ($currentPage === []) {
-                        $currentPage[] = $centre;
+                    $pe = (int) ($centre['pe'] ?? 0);
+                    $weight = 1;
+                    if ($pe > self::MAX_SALLES_PER_TABLE) {
+                        $weight = $pageCapacity;
+                    } elseif ($pe > 10) {
+                        $weight = 2;
+                    }
+
+                    if ($weight >= $pageCapacity) {
+                        if ($currentPage !== []) {
+                            $pages[] = $currentPage;
+                            $currentPage = [];
+                            $currentWeight = 0;
+                        }
+                        $pages[] = [$centre];
                         continue;
                     }
 
-                    $first = $currentPage[0];
-                    $canPair = count($currentPage) === 1
-                        && ((int) ($first['pe'] ?? 0)) <= self::MAX_SALLES_PER_TABLE
-                        && ((int) ($centre['pe'] ?? 0)) <= self::MAX_SALLES_PER_TABLE;
-
-                    if ($canPair) {
-                        $currentPage[] = $centre;
+                    if ($currentWeight + $weight > $pageCapacity && $currentPage !== []) {
                         $pages[] = $currentPage;
                         $currentPage = [];
-                        continue;
+                        $currentWeight = 0;
                     }
-
-                    $pages[] = $currentPage;
-                    $currentPage = [$centre];
+                    $currentPage[] = $centre;
+                    $currentWeight += $weight;
                 }
 
                 if ($currentPage !== []) {
@@ -1696,6 +2819,135 @@ class RepartitionReportController extends Controller
         }
     }
 
+    private function buildCentreKey(string $typeExamen, string $dren, string $cisco, string $centreCorrection, string $centreEcrit): string
+    {
+        return implode('|', [
+            $this->normalizeCompareKey($typeExamen),
+            $this->normalizeCompareKey($dren),
+            $this->normalizeCompareKey($cisco),
+            $this->normalizeCompareKey($centreCorrection),
+            $this->normalizeCompareKey($centreEcrit),
+        ]);
+    }
+
+    private function buildCentreKeyHash(string $typeExamen, string $dren, string $cisco, string $centreCorrection, string $centreEcrit): string
+    {
+        return hash('sha256', $this->buildCentreKey($typeExamen, $dren, $cisco, $centreCorrection, $centreEcrit));
+    }
+
+    private function normalizeCompareKey(string $value): string
+    {
+        $value = trim(mb_strtolower($value));
+        $value = preg_replace('/\s+/', ' ', $value);
+        $normalized = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+
+        return $normalized !== false ? $normalized : $value;
+    }
+
+    private function parseImportCsvRows(Request $request, string $fileKey): array
+    {
+        $file = $request->file($fileKey);
+        if (! $file) {
+            return [];
+        }
+
+        $handle = fopen($file->getRealPath(), 'rb');
+        if (! $handle) {
+            return [];
+        }
+
+        $firstLine = fgets($handle);
+        if ($firstLine === false) {
+            fclose($handle);
+            return [];
+        }
+
+        $semicolonCols = str_getcsv($firstLine, ';');
+        $commaCols = str_getcsv($firstLine, ',');
+        $delimiter = count($semicolonCols) > count($commaCols) ? ';' : ',';
+
+        rewind($handle);
+        $headers = fgetcsv($handle, 0, $delimiter);
+        if (! is_array($headers)) {
+            fclose($handle);
+            return [];
+        }
+
+        $normalizedHeaders = array_map(fn ($header) => $this->normalizeImportHeader((string) $header), $headers);
+        $rows = [];
+
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+            if ($row === [null] || $row === false) {
+                continue;
+            }
+
+            $line = [];
+            foreach ($normalizedHeaders as $index => $key) {
+                if ($key === '') {
+                    continue;
+                }
+                $line[$key] = $row[$index] ?? null;
+            }
+            if (count(array_filter($line, fn ($value) => $value !== null && trim((string) $value) !== '')) === 0) {
+                continue;
+            }
+            $rows[] = $line;
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    private function normalizeImportHeader(string $header): string
+    {
+        $key = trim(mb_strtolower($header));
+        $key = preg_replace('/\s+/', '_', $key);
+        $key = str_replace(['-', '.'], '_', $key);
+
+        $map = [
+            'annee' => 'annee',
+            'annee_scolaire' => 'annee',
+            'examen' => 'type_examen',
+            'type_examen' => 'type_examen',
+            'type' => 'type_examen',
+            'dren' => 'dren',
+            'region' => 'dren',
+            'cisco' => 'cisco',
+            'district' => 'cisco',
+            'ang' => 'anglais',
+            'anglais' => 'anglais',
+            'esp' => 'espagnol',
+            'espagnol' => 'espagnol',
+            'espanol' => 'espagnol',
+            'all' => 'allemand',
+            'allemand' => 'allemand',
+            'cc' => 'centre_correction',
+            'centre_correction' => 'centre_correction',
+            'centre_correction_nom' => 'centre_correction',
+            'centre_correction_name' => 'centre_correction',
+            'centre_c' => 'centre_correction',
+            'ce' => 'centre_ecrit',
+            'centre_ecrit' => 'centre_ecrit',
+            'centre_ecrit_nom' => 'centre_ecrit',
+            'centre_ecrit_name' => 'centre_ecrit',
+            'centre_e' => 'centre_ecrit',
+            'total_salle' => 'total_salles',
+            'total_salles' => 'total_salles',
+            'salles' => 'total_salles',
+            'nombre_salles' => 'total_salles',
+            'total_candidat' => 'total_candidats',
+            'total_candidats' => 'total_candidats',
+            'candidats' => 'total_candidats',
+            'nombre_candidats' => 'total_candidats',
+            'option_b' => 'option_b',
+            'optionb' => 'option_b',
+            'opt_b' => 'option_b',
+        ];
+
+        return $map[$key] ?? $key;
+    }
+
     private function buildControleTraceRows(Collection $bookData): array
     {
         $peRows = [];
@@ -1795,20 +3047,17 @@ class RepartitionReportController extends Controller
             ->except('probleme')
             ->filter(fn (int $pages) => $pages > 0)
             ->count();
+        $hasProbleme = (int) ($pagesBySubject['probleme'] ?? 0) > 0;
 
         $livraisonRows = $bookData
             ->groupBy(fn (array $centre) => $centre['dren'].'|'.$centre['cisco'])
-            ->map(function (Collection $centres, string $key) use ($params, $pagesTotalParCandidat, $otherSubjectsCount) {
+            ->map(function (Collection $centres, string $key) use ($params, $pagesTotalParCandidat, $otherSubjectsCount, $hasProbleme) {
                 [$dren, $cisco] = explode('|', $key, 2);
                 $candidats = (int) $centres->sum('total_candidats');
                 $salles = (int) $centres->sum('total_salles');
                 $pe = $salles;
-                $geProbleme = (int) $centres->sum(function (array $centre) {
-                    return count($this->getGeDistribution((int) ($centre['pe'] ?? 0), self::TYPE_BEPC));
-                });
-                $geAutresParMatiere = (int) $centres->sum(function (array $centre) {
-                    return count($this->getGeDistribution((int) ($centre['pe'] ?? 0), self::TYPE_CEPE));
-                });
+                $geProbleme = $hasProbleme ? (int) count($this->getGeDistribution($pe, self::TYPE_BEPC)) : 0;
+                $geAutresParMatiere = $otherSubjectsCount > 0 ? (int) count($this->getGeDistribution($pe, self::TYPE_CEPE)) : 0;
                 $geAutres = $geAutresParMatiere * $otherSubjectsCount;
                 $ge = $geProbleme + $geAutres;
                 $soubique = (int) ceil($ge / $params['ge_par_soubique']);
