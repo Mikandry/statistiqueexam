@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Prévisualisation Dispatching</title>
 <link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
-    @if (file_exists(public_path('build/manifest.json')))
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
-    @endif
+    @include('partials.head-assets')
 </head>
 <body class="bg-slate-100 text-slate-900">
 <div class="mx-auto max-w-[1700px] p-4 md:p-6 lg:p-8">

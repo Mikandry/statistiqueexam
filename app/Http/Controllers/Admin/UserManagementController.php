@@ -11,6 +11,12 @@ use Illuminate\View\View;
 
 class UserManagementController extends Controller
 {
+    private const AVAILABLE_ROLES = [
+        User::ROLE_ADMIN,
+        User::ROLE_USER,
+        User::ROLE_LOGISTIQUE,
+    ];
+
     public function index(Request $request): View
     {
         $users = User::query()->orderBy('name')->paginate(20)->withQueryString();
@@ -26,7 +32,7 @@ class UserManagementController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
-            'role' => ['required', 'in:admin,user'],
+            'role' => ['required', 'in:'.implode(',', self::AVAILABLE_ROLES)],
         ]);
 
         User::create([
@@ -45,7 +51,7 @@ class UserManagementController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'password' => ['nullable', 'string', 'min:8'],
-            'role' => ['required', 'in:admin,user'],
+            'role' => ['required', 'in:'.implode(',', self::AVAILABLE_ROLES)],
         ]);
 
         $data = [

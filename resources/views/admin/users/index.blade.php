@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Utilisateurs</title>
 <link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
-    @if (file_exists(public_path('build/manifest.json')))
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
-    @endif
+    @include('partials.head-assets')
     <style>
         nav[role="navigation"] svg { width: 16px; height: 16px; }
         nav[role="navigation"] a, nav[role="navigation"] span { font-size: 12px; }
@@ -54,6 +50,7 @@
                                 <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" type="text" name="password" placeholder="Mot de passe (min 8)" required>
                                 <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors duration-200 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" name="role" required>
                                     <option value="user">Saisisseur</option>
+                                    <option value="logistique">Logistique</option>
                                     <option value="admin">Admin</option>
                                 </select>
                             </div>
@@ -92,6 +89,7 @@
                                         <td class="border border-slate-200 px-3 py-2">
                                             <select class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="role" required>
                                                 <option value="user" {{ $user->role === 'user' ? 'selected' : '' }}>Saisisseur</option>
+                                                <option value="logistique" {{ $user->role === 'logistique' ? 'selected' : '' }}>Logistique</option>
                                                 <option value="admin" {{ $user->role === 'admin' ? 'selected' : '' }}>Admin</option>
                                             </select>
                                         </td>

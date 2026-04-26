@@ -27,43 +27,21 @@ Route::post('/logout', [AuthController::class, 'logout'])
     ->middleware('auth')
     ->name('logout');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'nonlogistique'])->group(function () {
     Route::get('/bepc/repartition', [BepcRepartitionController::class, 'create'])
         ->name('bepc.repartition.create');
     Route::post('/bepc/repartition', [BepcRepartitionController::class, 'store'])
         ->name('bepc.repartition.store');
-
-    Route::get('/repartition/dashboard', [RepartitionReportController::class, 'dashboard'])
-        ->name('repartition.dashboard');
-    Route::get('/repartition/statistiques/rapport', [RepartitionReportController::class, 'statsReport'])
-        ->name('repartition.stats.report');
-    Route::get('/repartition/statistiques/rapport/pdf', [RepartitionReportController::class, 'statsReportPdf'])
-        ->name('repartition.stats.report.pdf');
-    Route::get('/repartition/statistiques/rapport/word', [RepartitionReportController::class, 'statsReportWord'])
-        ->name('repartition.stats.report.word');
-    Route::get('/repartition/statistiques/rapport/centres/xlsx', [RepartitionReportController::class, 'statsReportCentresExcel'])
-        ->name('repartition.stats.report.centres.excel');
     Route::get('/repartition/livre/preview', [RepartitionReportController::class, 'livrePreview'])
         ->name('repartition.livre.preview');
     Route::get('/repartition/livre/controle', [RepartitionReportController::class, 'livreControle'])
         ->name('repartition.livre.controle');
-    Route::get('/repartition/livre/controle/export/word', [RepartitionReportController::class, 'livreControleWord'])
+    Route::match(['get', 'post'], '/repartition/livre/controle/export/word', [RepartitionReportController::class, 'livreControleWord'])
         ->name('repartition.livre.controle.word');
     Route::get('/repartition/livre/pdf', [RepartitionReportController::class, 'livrePdf'])
         ->name('repartition.livre.pdf');
     Route::get('/repartition/livre/export/xlsx', [RepartitionReportController::class, 'livreExcel'])
         ->name('repartition.livre.excel');
-    Route::get('/repartition/livraison/cepe', [RepartitionReportController::class, 'cepeLivraison'])
-        ->name('repartition.livraison.cepe');
-    Route::get('/repartition/livraison/cepe/export/xlsx', [RepartitionReportController::class, 'cepeLivraisonExcel'])
-        ->name('repartition.livraison.cepe.excel');
-    Route::get('/repartition/export/excel', [RepartitionReportController::class, 'exportExcel'])
-        ->name('repartition.export.excel');
-    Route::get('/repartition/export/dispatching/preview', [RepartitionReportController::class, 'dispatchingPreview'])
-        ->name('repartition.export.dispatching.preview');
-    Route::get('/repartition/export/dispatching', [RepartitionReportController::class, 'exportDispatchingExcel'])
-        ->name('repartition.export.dispatching');
-
     Route::get('/imports', [ReferenceImportController::class, 'index'])
         ->name('imports.index');
     Route::post('/imports/references', [ReferenceImportController::class, 'importReferences'])
@@ -76,6 +54,53 @@ Route::middleware('auth')->group(function () {
         ->name('imports.centres.correction');
     Route::post('/imports/centres-ecrit', [ReferenceImportController::class, 'importCentresEcrit'])
         ->name('imports.centres.ecrit');
+});
+
+Route::middleware('auth')->group(function () {
+    Route::get('/repartition/dashboard', [RepartitionReportController::class, 'dashboard'])
+        ->name('repartition.dashboard');
+    Route::get('/repartition/simulation/soubique', [RepartitionReportController::class, 'subjectSoubiqueSimulation'])
+        ->name('repartition.simulation.soubique');
+    Route::get('/repartition/simulation/soubique/pv', [RepartitionReportController::class, 'subjectSoubiquePv'])
+        ->name('repartition.simulation.soubique.pv');
+    Route::get('/repartition/tirage', [RepartitionReportController::class, 'subjectPrintSimulation'])
+        ->name('repartition.tirage');
+    Route::get('/repartition/tirage/export/xlsx', [RepartitionReportController::class, 'subjectPrintExcel'])
+        ->name('repartition.tirage.excel');
+    Route::get('/repartition/groupes', [RepartitionReportController::class, 'groupes'])
+        ->name('repartition.groupes');
+    Route::get('/repartition/statistiques/rapport', [RepartitionReportController::class, 'statsReport'])
+        ->name('repartition.stats.report');
+    Route::get('/repartition/statistiques/rapport/pdf', [RepartitionReportController::class, 'statsReportPdf'])
+        ->name('repartition.stats.report.pdf');
+    Route::get('/repartition/statistiques/rapport/word', [RepartitionReportController::class, 'statsReportWord'])
+        ->name('repartition.stats.report.word');
+    Route::get('/repartition/statistiques/rapport/centres/xlsx', [RepartitionReportController::class, 'statsReportCentresExcel'])
+        ->name('repartition.stats.report.centres.excel');
+    Route::get('/repartition/export/excel', [RepartitionReportController::class, 'exportExcel'])
+        ->name('repartition.export.excel');
+    Route::get('/repartition/export/dispatching/preview', [RepartitionReportController::class, 'dispatchingPreview'])
+        ->name('repartition.export.dispatching.preview');
+    Route::get('/repartition/export/dispatching', [RepartitionReportController::class, 'exportDispatchingExcel'])
+        ->name('repartition.export.dispatching');
+});
+
+Route::middleware(['auth', 'logistics'])->group(function () {
+    Route::get('/repartition/livraison/cepe', [RepartitionReportController::class, 'cepeLivraison'])
+        ->name('repartition.livraison.cepe');
+    Route::get('/repartition/livraison/cepe/export/xlsx', [RepartitionReportController::class, 'cepeLivraisonExcel'])
+        ->name('repartition.livraison.cepe.excel');
+
+    Route::get('/repartition/logistique/bepc-feuilles', [RepartitionReportController::class, 'bepcCopies'])
+        ->name('repartition.logistique.bepc-copies');
+    Route::post('/repartition/logistique/bepc-feuilles/code-postal', [RepartitionReportController::class, 'saveBepcCopyPostalCode'])
+        ->name('repartition.logistique.bepc-copies.postal-code');
+    Route::get('/repartition/logistique/bepc-feuilles/export/xlsx', [RepartitionReportController::class, 'bepcCopiesExcel'])
+        ->name('repartition.logistique.bepc-copies.excel');
+    Route::get('/repartition/logistique/bepc-feuilles/export/word', [RepartitionReportController::class, 'bepcCopiesWord'])
+        ->name('repartition.logistique.bepc-copies.word');
+    Route::get('/repartition/logistique/bepc-feuilles/pdf', [RepartitionReportController::class, 'bepcCopiesPdf'])
+        ->name('repartition.logistique.bepc-copies.pdf');
 });
 
 Route::middleware(['auth', 'admin'])->group(function () {
@@ -115,6 +140,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('admin.statistics.index');
     Route::put('/admin/statistics/{stat}', [StatisticController::class, 'update'])
         ->name('admin.statistics.update');
+    Route::post('/admin/statistics/bulk-update', [StatisticController::class, 'updateBulk'])
+        ->name('admin.statistics.bulk-update');
+    Route::post('/admin/statistics/settings/general', [StatisticController::class, 'updateGeneralSettings'])
+        ->name('admin.statistics.settings.general');
     Route::delete('/admin/statistics/centre/{centreEcritId}', [StatisticController::class, 'destroyCentre'])
         ->name('admin.statistics.destroy-centre');
 
@@ -146,6 +175,22 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('admin.references.centres-ecrit.update');
     Route::delete('/admin/references/centres-ecrit/{centreEcrit}', [ReferenceManagementController::class, 'destroyCentreEcrit'])
         ->name('admin.references.centres-ecrit.destroy');
+    Route::post('/admin/references/dispatching-axes', [ReferenceManagementController::class, 'storeDispatchingAxis'])
+        ->name('admin.references.dispatching-axes.store');
+    Route::put('/admin/references/dispatching-axes/{index}', [ReferenceManagementController::class, 'updateDispatchingAxis'])
+        ->whereNumber('index')
+        ->name('admin.references.dispatching-axes.update');
+    Route::delete('/admin/references/dispatching-axes/{index}', [ReferenceManagementController::class, 'destroyDispatchingAxis'])
+        ->whereNumber('index')
+        ->name('admin.references.dispatching-axes.destroy');
+    Route::post('/admin/references/dispatching-drop-points', [ReferenceManagementController::class, 'storeDispatchingDropPoint'])
+        ->name('admin.references.dispatching-drop-points.store');
+    Route::put('/admin/references/dispatching-drop-points/{index}', [ReferenceManagementController::class, 'updateDispatchingDropPoint'])
+        ->whereNumber('index')
+        ->name('admin.references.dispatching-drop-points.update');
+    Route::delete('/admin/references/dispatching-drop-points/{index}', [ReferenceManagementController::class, 'destroyDispatchingDropPoint'])
+        ->whereNumber('index')
+        ->name('admin.references.dispatching-drop-points.destroy');
 
     Route::post('/repartition/statistiques/rapport/import', [RepartitionReportController::class, 'importPreviousStats'])
         ->name('repartition.stats.report.import');
@@ -154,3 +199,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
 });
 
 Route::get('/decision-centre', [DecisionCentreController::class, 'index'])->name('decision.centre');
+
+Route::get('/repartition/centres-saisie', [RepartitionReportController::class, 'centresSaisie'])
+    ->name('repartition.centres.saisie');
+Route::get('/repartition/centres-saisie/pdf', [RepartitionReportController::class, 'centresSaisiePdf'])
+    ->name('repartition.centres.saisie.pdf');

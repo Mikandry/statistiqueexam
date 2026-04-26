@@ -33,7 +33,11 @@ class AuthController extends Controller
         $request->session()->regenerate();
         AuditLog::record($request, 'login', ['email' => $credentials['email']]);
 
-        return redirect()->intended(route('bepc.repartition.create'));
+        $defaultRoute = Auth::user()?->isLogistique()
+            ? route('repartition.logistique.bepc-copies')
+            : route('bepc.repartition.create');
+
+        return redirect()->intended($defaultRoute);
     }
 
     public function showRegisterForm(): View

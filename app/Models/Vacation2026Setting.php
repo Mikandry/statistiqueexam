@@ -19,6 +19,8 @@ class Vacation2026Setting extends Model
         'presence_titre',
         'decompte_titre',
         'decision_reference',
+        'decision_article_1',
+        'decision_article_2',
         'signature',
     ];
 }

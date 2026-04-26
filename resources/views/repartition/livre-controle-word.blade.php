@@ -5,6 +5,14 @@
     <title>Fiche de Traçabilité et de Contrôle de Traçabilité</title>
 <link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
     <style>
+        @page WordSectionPortrait {
+            size: 595.3pt 841.9pt;
+            mso-page-orientation: portrait;
+        }
+        @page WordSectionLandscape {
+            size: 841.9pt 595.3pt;
+            mso-page-orientation: landscape;
+        }
         body { font-family: Arial, sans-serif; font-size: 11px; color: #111827; }
         h1 { font-size: 18px; margin: 0 0 8px 0; }
         h2 { font-size: 14px; margin: 16px 0 6px 0; }
@@ -14,9 +22,14 @@
         th, td { border: 1px solid #cbd5e1; padding: 4px; vertical-align: top; }
         th { background: #f1f5f9; text-align: left; }
         .right { text-align: right; }
+        .portrait-section { page: WordSectionPortrait; }
+        .landscape-section { page: WordSectionLandscape; }
+        .page-break { page-break-before: always; }
+        .small { font-size: 10px; }
     </style>
 </head>
 <body>
+<div class="portrait-section">
     <h1>Fiche de Traçabilité et de Contrôle de Traçabilité</h1>
     <div class="meta">
         <strong>Année:</strong> {{ $filters['annee'] !== '' ? $filters['annee'] : 'Toutes' }} |
@@ -31,28 +44,25 @@
         GE {{ number_format($stats['total_ge'], 0, ',', ' ') }}.
     </div>
 
-    <h2>Répartition PE par Compteur (à compléter)</h2>
-    @php
-        $peByDren = collect($peRows ?? [])->groupBy('dren')->map->count()->sortKeys();
-    @endphp
+    <h2>Répartition PE par Compteur - {{ $selectedCompteurModeLabel ?? 'Par DREN' }}</h2>
     <table>
         <thead>
             <tr>
-                <th>Groupe (DREN)</th>
+                <th>Groupe</th>
                 <th class="right">Total PE</th>
-                <th class="right">Nb compteurs (à saisir)</th>
+                <th class="right">Nb compteurs</th>
                 <th class="right">PE / compteur</th>
                 <th>Répartition plages PE</th>
             </tr>
         </thead>
         <tbody>
-            @forelse($peByDren as $dren => $countPe)
+            @forelse(($selectedCompteurSummary ?? []) as $row)
                 <tr>
-                    <td>{{ $dren }}</td>
-                    <td class="right">{{ number_format($countPe, 0, ',', ' ') }}</td>
-                    <td class="right">..........</td>
-                    <td class="right">..........</td>
-                    <td>................................................................</td>
+                    <td>{{ $row['label'] }}</td>
+                    <td class="right">{{ number_format($row['total_pe'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($row['compteur_count'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($row['pe_par_compteur'], 0, ',', ' ') }}</td>
+                    <td>{{ $row['repartition'] }}</td>
                 </tr>
             @empty
                 <tr><td colspan="5">Aucune donnée.</td></tr>
@@ -60,8 +70,62 @@
         </tbody>
     </table>
 
-    <h2>Fiche Contrôle PE</h2>
+    <h2>Répartition PE par Compteur - CISCO</h2>
     <table>
+        <thead>
+            <tr>
+                <th>Groupe (DREN / CISCO)</th>
+                <th class="right">Total PE</th>
+                <th class="right">Nb compteurs</th>
+                <th class="right">PE / compteur</th>
+                <th>Répartition plages PE</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse(($compteurSummaryByCisco ?? []) as $row)
+                <tr>
+                    <td>{{ $row['label'] }}</td>
+                    <td class="right">{{ number_format($row['total_pe'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($row['compteur_count'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($row['pe_par_compteur'], 0, ',', ' ') }}</td>
+                    <td>{{ $row['repartition'] }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="5">Aucune donnée.</td></tr>
+            @endforelse
+        </tbody>
+    </table>
+
+    <h2>Répartition PE par Compteur - Centre écrit</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Groupe (DREN / CISCO / Centre écrit)</th>
+                <th class="right">Total PE</th>
+                <th class="right">Nb compteurs</th>
+                <th class="right">PE / compteur</th>
+                <th>Répartition plages PE</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse(($compteurSummaryByCentre ?? []) as $row)
+                <tr>
+                    <td>{{ $row['label'] }}</td>
+                    <td class="right">{{ number_format($row['total_pe'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($row['compteur_count'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($row['pe_par_compteur'], 0, ',', ' ') }}</td>
+                    <td>{{ $row['repartition'] }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="5">Aucune donnée.</td></tr>
+            @endforelse
+        </tbody>
+    </table>
+</div>
+
+    <div class="landscape-section page-break">
+    <h2>Fiche Contrôle PE</h2>
+    <table class="small">
         <thead>
             <tr>
                 <th>DREN</th>
@@ -86,11 +150,11 @@
                     <td>{{ $row['type_examen'] }}</td>
                     <td class="right">{{ $row['pe_no'] }}</td>
                     <td class="right">{{ $row['ge_no'] }}</td>
-                    <td>....................</td>
-                    <td>....................</td>
-                    <td>....................</td>
-                    <td>....................</td>
-                    <td>....................</td>
+                    <td>{{ $row['compteur'] !== '' ? $row['compteur'] : '....................' }}</td>
+                    <td>{{ $row['matiere'] !== '' ? $row['matiere'] : '....................' }}</td>
+                    <td>{{ $row['datetime'] !== '' ? $row['datetime'] : '....................' }}</td>
+                    <td>{{ $row['agent'] !== '' ? $row['agent'] : '....................' }}</td>
+                    <td>{{ $row['obs'] !== '' ? $row['obs'] : '....................' }}</td>
                 </tr>
             @empty
                 <tr><td colspan="11">Aucune donnée.</td></tr>
@@ -99,7 +163,7 @@
     </table>
 
     <h2>Fiche Contrôle GE</h2>
-    <table>
+    <table class="small">
         <thead>
             <tr>
                 <th>DREN</th>
@@ -125,15 +189,16 @@
                     <td class="right">{{ $row['ge_no'] }}</td>
                     <td>{{ $row['pe_range'] }}</td>
                     <td class="right">{{ $row['pe_count'] }}</td>
-                    <td>....................</td>
-                    <td>....................</td>
-                    <td>....................</td>
-                    <td>....................</td>
+                    <td>{{ $row['compteur'] !== '' ? $row['compteur'] : '....................' }}</td>
+                    <td>{{ $row['datetime'] !== '' ? $row['datetime'] : '....................' }}</td>
+                    <td>{{ $row['agent'] !== '' ? $row['agent'] : '....................' }}</td>
+                    <td>{{ $row['obs'] !== '' ? $row['obs'] : '....................' }}</td>
                 </tr>
             @empty
                 <tr><td colspan="11">Aucune donnée.</td></tr>
             @endforelse
         </tbody>
     </table>
+    </div>
 </body>
 </html>

@@ -5,18 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rapport Statistique N / N-1</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-    @if (file_exists(public_path('build/manifest.json')))
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
-        <script src="https://cdn.tailwindcss.com"></script>
-    @endif
+    @include('partials.head-assets')
 
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { font-family: var(--app-font-sans); }
         .bar-track { background: #eef2ff; }
         .bar-fill { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
         .bar-fill.negative { background: linear-gradient(90deg, #f97316, #ef4444); }

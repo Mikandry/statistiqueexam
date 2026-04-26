@@ -5,18 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Service de l'Organisation des Examens - Saisie</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    @if (file_exists(public_path('build/manifest.json')))
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
-        <script src="https://cdn.tailwindcss.com"></script>
-    @endif
+    @include('partials.head-assets')
 
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { font-family: var(--app-font-sans); }
         .glass-panel { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(226, 232, 240, 0.6); }
         .input-focus-ring:focus { border-color: #6366f1; ring: 4px; ring-color: rgba(99, 102, 241, 0.1); outline: none; }
         .sticky-col { position: sticky; left: 0; z-index: 10; background-color: white; border-right: 2px solid #f1f5f9; }
@@ -30,9 +22,7 @@
 
 <div class="mx-auto max-w-[1700px] p-4 md:p-6 lg:p-8">
     <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
-        <div class="lg:sticky lg:top-8">
-            @include('partials.sidebar')
-        </div>
+        @include('partials.sidebar')
 
         <main class="min-w-0 flex-1 space-y-6">
             <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50">
@@ -66,6 +56,16 @@
                 </div>
 
                 <div class="p-6 md:p-10">
+                    @php
+                        $stickyTypeExamen = old('type_examen', $stickyContext['type_examen'] ?? $typeExamen);
+                        $stickyDrenId = old('dren_id', $stickyContext['dren_id'] ?? '');
+                        $stickyCiscoId = old('cisco_id', $stickyContext['cisco_id'] ?? '');
+                        $stickyCentreCorrectionId = old('centre_correction_id', $stickyContext['centre_correction_id'] ?? '');
+                        $stickyAnnee = old('annee', $stickyContext['annee'] ?? '');
+                        $stickyAxeDispatching = old('axe_dispatching', $stickyContext['axe_dispatching'] ?? '');
+                        $stickyPointLargage = old('point_largage', $stickyContext['point_largage'] ?? '');
+                        $stickyPointLargageOther = old('point_largage_other', $stickyContext['point_largage_other'] ?? '');
+                    @endphp
                     @if(session('status'))
                         <div class="mb-8 flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-emerald-800 border border-emerald-100">
                             <i class="fas fa-check-circle text-lg"></i>
@@ -95,8 +95,8 @@
                             <div class="space-y-2">
                                 <label class="text-sm font-bold text-slate-700 ml-1">Examen cible</label>
                                 <select name="type_examen" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-all focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none">
-                                    <option value="BEPC" {{ old('type_examen', $typeExamen) === 'BEPC' ? 'selected' : '' }}>BEPC</option>
-                                    <option value="CEPE" {{ old('type_examen', $typeExamen) === 'CEPE' ? 'selected' : '' }}>CEPE</option>
+                                    <option value="BEPC" {{ $stickyTypeExamen === 'BEPC' ? 'selected' : '' }}>BEPC</option>
+                                    <option value="CEPE" {{ $stickyTypeExamen === 'CEPE' ? 'selected' : '' }}>CEPE</option>
                                 </select>
                             </div>
                             <div class="space-y-2">
@@ -114,7 +114,7 @@
                     <form method="POST" action="{{ route('bepc.repartition.store') }}">
                         @csrf
                         <input type="hidden" name="nombre_salles" value="{{ $nombreSalles }}">
-                        <input type="hidden" name="type_examen" value="{{ old('type_examen', $typeExamen) }}">
+                        <input type="hidden" name="type_examen" value="{{ $stickyTypeExamen }}">
 
                         <div class="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                             <h2 class="mb-6 text-sm font-black uppercase tracking-widest text-slate-400 pb-4 border-b border-slate-100">
@@ -126,7 +126,7 @@
                                     <select id="dren_id" name="dren_id" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold focus:bg-white transition-all outline-none focus:ring-4 focus:ring-indigo-500/10">
                                         <option value="">Sélectionner</option>
                                         @foreach($drens as $dren)
-                                            <option value="{{ $dren->id }}" {{ (string) old('dren_id') === (string) $dren->id ? 'selected' : '' }}>{{ $dren->nom }}</option>
+                                            <option value="{{ $dren->id }}" {{ (string) $stickyDrenId === (string) $dren->id ? 'selected' : '' }}>{{ $dren->nom }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -150,20 +150,37 @@
                                 </div>
                                 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-bold text-slate-700">Axe de Dispatching</label>
-                                    <input id="axe_dispatching" type="text" name="axe_dispatching" value="{{ old('axe_dispatching') }}" list="axeSuggestions" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-indigo-500/10">
-                                    <datalist id="axeSuggestions">
-                                        @foreach($axesSuggestions as $axe) <option value="{{ $axe }}"></option> @endforeach
-                                    </datalist>
+                                    <div class="flex items-center justify-between gap-3">
+                                        <label class="text-sm font-bold text-slate-700">Axe de Dispatching</label>
+                                        @if(auth()->user()?->isAdmin())
+                                            <a href="{{ route('admin.references.index') }}#zone-dispatching-referentiels" class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Ajouter / modifier</a>
+                                        @endif
+                                    </div>
+                                    <select id="axe_dispatching" name="axe_dispatching" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-indigo-500/10">
+                                        <option value="">Sélectionner</option>
+                                        @foreach($dispatchingAxes as $axe)
+                                            <option value="{{ $axe }}" {{ $stickyAxeDispatching === $axe ? 'selected' : '' }}>{{ $axe }}</option>
+                                        @endforeach
+                                    </select>
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="text-sm font-bold text-slate-700">Point de largage</label>
-                                    <input id="point_largage" type="text" name="point_largage" value="{{ old('point_largage') }}" list="pointSuggestions" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none">
-                                    <datalist id="pointSuggestions"></datalist>
+                                    <div class="flex items-center justify-between gap-3">
+                                        <label class="text-sm font-bold text-slate-700">Point de largage</label>
+                                        @if(auth()->user()?->isAdmin())
+                                            <a href="{{ route('admin.references.index') }}#zone-dispatching-referentiels" class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Ajouter / modifier</a>
+                                        @endif
+                                    </div>
+                                    <select id="point_largage" name="point_largage" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-indigo-500/10">
+                                        <option value="">Sélectionner</option>
+                                    </select>
+                                    <input id="point_largage_other" type="text" name="point_largage_other" value="{{ $stickyPointLargageOther }}" placeholder="Préciser le point de largage" class="hidden w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-indigo-500/10">
+                                    <p id="point_largage_help" class="text-xs font-medium text-slate-500">
+                                        CEPE: le point de largage reprend automatiquement la CISCO. BEPC: vous pouvez choisir n'importe quelle CISCO, un point défini par l'admin, ou saisir un autre point.
+                                    </p>
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-bold text-slate-700">Année scolaire</label>
-                                    <input id="annee" type="text" name="annee" placeholder="2025-2026" value="{{ old('annee') }}" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none">
+                                    <input id="annee" type="text" name="annee" placeholder="2025-2026" value="{{ $stickyAnnee }}" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none">
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-bold text-slate-700 italic text-slate-400">Saisisseur : {{ auth()->user()->name }}</label>
@@ -176,7 +193,7 @@
                             </div>
                         </div>
 
-                        @if(old('type_examen', $typeExamen) === 'BEPC')
+                        @if($stickyTypeExamen === 'BEPC')
                             <div class="mb-10 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/30 p-6">
                                 <div class="mb-6 flex items-center justify-between">
                                     <div class="flex items-center gap-3">
@@ -229,7 +246,7 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-100">
-                                        @if(old('type_examen', $typeExamen) === 'BEPC')
+                                        @if($stickyTypeExamen === 'BEPC')
                                             @foreach($langues as $index => $langue)
                                                 <tr class="hover:bg-indigo-50/30 transition-colors">
                                                     <td class="sticky-col px-6 py-4 font-black text-slate-700 text-sm whitespace-nowrap">{{ $langue }}</td>
@@ -255,7 +272,7 @@
                             </div>
                         </div>
 
-                        @if(old('type_examen', $typeExamen) === 'BEPC')
+                        @if($stickyTypeExamen === 'BEPC')
                             <div id="foreign-effectifs" class="mb-10 overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-lg opacity-50 transition-all duration-300">
                                 <div class="bg-amber-500 px-8 py-4 text-white text-xs font-black uppercase tracking-widest">Effectifs Étrangers par Salle</div>
                                 <div class="overflow-x-auto custom-scrollbar">
@@ -330,23 +347,30 @@
         const ciscos = @json($ciscos);
         const centresCorrection = @json($centresCorrection);
         const centresEcrit = @json($centresEcrit);
-        const pointSuggestionsByAxe = @json($pointSuggestionsByAxe);
+        const dispatchingDropPoints = @json($dispatchingDropPoints);
+        const typeExamen = @json($stickyTypeExamen);
 
         const drenSelect = document.getElementById('dren_id');
         const ciscoSelect = document.getElementById('cisco_id');
         const ccSelect = document.getElementById('centre_correction_id');
         const ceSelect = document.getElementById('centre_ecrit_id');
         const axeInput = document.getElementById('axe_dispatching');
-        const pointSuggestions = document.getElementById('pointSuggestions');
+        const pointSelect = document.getElementById('point_largage');
+        const pointOtherInput = document.getElementById('point_largage_other');
         const saveButton = document.getElementById('save-button');
         const filterAlert = document.getElementById('filterAlert');
         const foreignModeCheckbox = document.getElementById('has_foreign_candidates');
         const foreignConfig = document.getElementById('foreign-config');
         const foreignEffectifsBlock = document.getElementById('foreign-effectifs');
 
-        const oldCisco = "{{ old('cisco_id') }}";
-        const oldCc = "{{ old('centre_correction_id') }}";
+        const oldCisco = @json((string) $stickyCiscoId);
+        const oldCc = @json((string) $stickyCentreCorrectionId);
         const oldCe = "{{ old('centre_ecrit_id') }}";
+        const oldPoint = @json($stickyPointLargage);
+        const oldPointOther = @json($stickyPointLargageOther);
+        const allCiscoNames = [...new Set(ciscos
+            .map((item) => String(item.nom || '').trim())
+            .filter((value) => value !== ''))].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 
         if (!drenSelect || !ciscoSelect || !ccSelect || !ceSelect) {
             return;
@@ -403,19 +427,84 @@
             }
         }
 
-        function refreshPointSuggestions() {
-            if (!axeInput || !pointSuggestions) return;
-            const axe = String(axeInput.value || '').trim().toLowerCase();
-            const match = Object.entries(pointSuggestionsByAxe)
-                .find(([label]) => String(label).trim().toLowerCase() === axe);
-            const values = match ? match[1] : [];
+        function toggleOtherPointInput() {
+            if (!pointSelect || !pointOtherInput) return;
+            const showOther = typeExamen === 'BEPC' && pointSelect.value === '__other__';
+            pointOtherInput.classList.toggle('hidden', !showOther);
+            pointOtherInput.required = showOther;
+            pointOtherInput.disabled = !showOther;
+            if (!showOther && oldPointOther === '') {
+                pointOtherInput.value = '';
+            }
+        }
 
-            pointSuggestions.innerHTML = '';
-            values.forEach((value) => {
+        function refreshPointOptions(selectedValue = '') {
+            if (!pointSelect) return;
+
+            const ciscoLabel = ciscoSelect.options[ciscoSelect.selectedIndex]?.text || '';
+            pointSelect.innerHTML = '';
+
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Sélectionner';
+            pointSelect.appendChild(placeholder);
+
+            if (typeExamen === 'CEPE') {
+                const option = document.createElement('option');
+                option.value = ciscoLabel;
+                option.textContent = ciscoLabel || 'CISCO sélectionnée';
+                option.selected = true;
+                pointSelect.appendChild(option);
+                pointSelect.value = ciscoLabel;
+                pointSelect.disabled = true;
+                toggleOtherPointInput();
+                return;
+            }
+
+            pointSelect.disabled = false;
+
+            const bepcPointOptions = [];
+
+            allCiscoNames.forEach((value) => {
+                bepcPointOptions.push({
+                    value,
+                    label: value === ciscoLabel ? `CISCO actuelle: ${value}` : `CISCO: ${value}`,
+                });
+            });
+
+            dispatchingDropPoints.forEach((value) => {
+                const trimmedValue = String(value || '').trim();
+                if (trimmedValue === '' || bepcPointOptions.some((option) => option.value === trimmedValue)) {
+                    return;
+                }
+
+                bepcPointOptions.push({
+                    value: trimmedValue,
+                    label: `Point configuré: ${trimmedValue}`,
+                });
+            });
+
+            bepcPointOptions.forEach(({ value, label }) => {
                 const option = document.createElement('option');
                 option.value = value;
-                pointSuggestions.appendChild(option);
+                option.textContent = label;
+                pointSelect.appendChild(option);
             });
+
+            const otherOption = document.createElement('option');
+            otherOption.value = '__other__';
+            otherOption.textContent = 'Autre...';
+            pointSelect.appendChild(otherOption);
+
+            if (selectedValue) {
+                const exists = Array.from(pointSelect.options).some((option) => option.value === selectedValue);
+                pointSelect.value = exists ? selectedValue : '__other__';
+                if (!exists && pointOtherInput) {
+                    pointOtherInput.value = selectedValue;
+                }
+            }
+
+            toggleOtherPointInput();
         }
 
         function updateSaveState() {
@@ -449,11 +538,14 @@
         }
 
         drenSelect.addEventListener('change', () => { refreshCisco(''); updateSaveState(); });
-        ciscoSelect.addEventListener('change', () => { refreshCentreCorrection(''); updateSaveState(); });
+        ciscoSelect.addEventListener('change', () => { refreshCentreCorrection(''); refreshPointOptions(''); updateSaveState(); });
         ccSelect.addEventListener('change', () => { refreshCentreEcrit(''); updateSaveState(); });
         ceSelect.addEventListener('change', updateSaveState);
         if (axeInput) {
-            axeInput.addEventListener('input', refreshPointSuggestions);
+            axeInput.addEventListener('change', () => refreshPointOptions(pointSelect ? pointSelect.value : ''));
+        }
+        if (pointSelect) {
+            pointSelect.addEventListener('change', toggleOtherPointInput);
         }
         if (foreignModeCheckbox) {
             foreignModeCheckbox.addEventListener('change', updateForeignState);
@@ -471,7 +563,7 @@
         if (oldCe) {
             ceSelect.value = oldCe;
         }
-        refreshPointSuggestions();
+        refreshPointOptions(oldPoint);
         updateForeignState();
         updateSaveState();
     })();

@@ -4,32 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Livraison CEPE par CISCO | SOE</title>
-<link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
     
-    @if (file_exists(public_path('build/manifest.json')))
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
-        <script src="https://cdn.tailwindcss.com"></script>
-    @endif
+    @include('partials.head-assets')
 
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
-        .table-container { border-radius: 1rem; overflow: hidden; border: 1px solid #e2e8f0; }
+        :root {
+            --primary-indigo: #6366f1;
+            --slate-border: #e2e8f0;
+        }
+        
+        body {
+            font-family: var(--app-font-sans);
+            font-feature-settings: 'cv11', 'ss01';
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .table-container { border-radius: 1rem; overflow: hidden; border: 1px solid var(--slate-border); }
         .sticky-header th { position: sticky; top: 0; z-index: 20; background: #f8fafc; }
-        .input-card:focus-within { border-color: #6366f1; ring: 4px; ring-color: rgba(99, 102, 241, 0.05); }
-        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        /* Modernized Focus State */
+        .input-card:focus-within { 
+            border-color: var(--primary-indigo); 
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); 
+        }
+
+        /* Cross-browser Modern Scrollbar */
+        .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { 
+            background: #cbd5e1; 
+            border-radius: 10px; 
+            border: 2px solid transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Modern Form Elements styling for fallback */
+        select, input { accent-color: var(--primary-indigo); }
     </style>
 </head>
 
 <body class="h-full antialiased text-slate-900">
 
 <div class="mx-auto max-w-[1800px] p-4 md:p-6 lg:p-8">
-    <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
+    <div class="flex items-start gap-6">
         @include('partials.sidebar')
 
         <main class="min-w-0 flex-1 space-y-6">
@@ -65,10 +88,12 @@
                     <div class="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
                         <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">GE Total</p>
                         <p class="text-xl font-extrabold text-indigo-600">{{ number_format($global['total_ge'], 0, ',', ' ') }}</p>
+                        <p class="mt-1 text-[11px] font-semibold text-slate-500">Marge GE: {{ number_format($params['ge_margin_percent'], 1, ',', ' ') }}%</p>
                     </div>
                     <div class="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
                         <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">PE Total</p>
                         <p class="text-xl font-extrabold text-slate-900">{{ number_format($global['total_pe'], 0, ',', ' ') }}</p>
+                        <p class="mt-1 text-[11px] font-semibold text-slate-500">Marge PE: {{ number_format($params['pe_margin_percent'], 1, ',', ' ') }}%</p>
                     </div>
                     <div class="rounded-2xl border border-slate-900 bg-slate-900 p-4">
                         <p class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">RAM Papier</p>
@@ -134,6 +159,14 @@
                                     <input name="marqueur_par_soubique" type="number" step="0.1" min="0" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none" value="{{ $params['marqueur_par_soubique'] }}">
                                 </div>
                                 <div class="space-y-1.5">
+                                    <label class="text-[10px] font-black text-slate-400 uppercase">Marge PE (%)</label>
+                                    <input name="pe_margin_percent" type="number" step="0.1" min="0" max="100" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none" value="{{ $params['pe_margin_percent'] }}">
+                                </div>
+                                <div class="space-y-1.5">
+                                    <label class="text-[10px] font-black text-slate-400 uppercase">Marge GE (%)</label>
+                                    <input name="ge_margin_percent" type="number" step="0.1" min="0" max="100" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none" value="{{ $params['ge_margin_percent'] }}">
+                                </div>
+                                <div class="space-y-1.5">
                                     <label class="text-[10px] font-black text-slate-400 uppercase">Pages Français</label>
                                     <input name="pages_francais" type="number" min="0" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold outline-none" value="{{ $pagesBySubject['francais'] }}">
                                 </div>
@@ -151,7 +184,7 @@
                 <div class="px-8 pb-8">
                     <div class="rounded-2xl border-l-4 border-indigo-500 bg-indigo-50/50 p-4 text-xs font-medium text-indigo-700 leading-relaxed">
                         <i class="fas fa-info-circle mr-2"></i>
-                        <strong>Méthode de calcul :</strong> PE = Salles • GE Problème = Règle 3 PE/GE • GE Autres = ({{ (int) ($otherSubjectsCount ?? 0) }} matières) × GE(6 PE/GE) • Soubique = ⌈GE Total / Ratio⌉ • Cire = ⌈(PE + GE + Soubique) / Ratio Cire⌉.
+                        <strong>Méthode de calcul :</strong> PE = Salles + marge PE • GE Problème = Règle 3 PE/GE avec marge GE • GE Autres = ({{ (int) ($otherSubjectsCount ?? 0) }} matières) × GE(6 PE/GE) avec marge GE • Soubique = ⌈GE Total / Ratio⌉ • Cire = ⌈(PE + GE + Soubique) / Ratio Cire⌉.
                     </div>
                 </div>
             </div>
@@ -179,8 +212,18 @@
                                     <td class="px-6 py-4 font-bold text-slate-900">{{ $row['dren'] }}</td>
                                     <td class="px-6 py-4 font-medium text-slate-600">{{ $row['cisco'] }}</td>
                                     <td class="px-4 py-4 text-right font-black text-slate-900">{{ number_format($row['candidats'], 0, ',', ' ') }}</td>
-                                    <td class="px-4 py-4 text-right font-black text-indigo-600 bg-indigo-50/20">{{ number_format($row['ge'], 0, ',', ' ') }}</td>
-                                    <td class="px-4 py-4 text-right font-bold text-slate-600">{{ number_format($row['pe'], 0, ',', ' ') }}</td>
+                                    <td class="px-4 py-4 text-right font-black text-indigo-600 bg-indigo-50/20">
+                                        <div>{{ number_format($row['ge'], 0, ',', ' ') }}</div>
+                                        @if(($row['ge_margin_count'] ?? 0) > 0)
+                                            <div class="mt-1 text-[11px] font-semibold text-indigo-400">Base {{ number_format($row['ge_base_reference'], 0, ',', ' ') }} + {{ number_format($row['ge_margin_count'], 0, ',', ' ') }}</div>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-4 text-right font-bold text-slate-600">
+                                        <div>{{ number_format($row['pe'], 0, ',', ' ') }}</div>
+                                        @if(($row['pe_margin_count'] ?? 0) > 0)
+                                            <div class="mt-1 text-[11px] font-semibold text-slate-400">Base {{ number_format($row['pe_base'], 0, ',', ' ') }} + {{ number_format($row['pe_margin_count'], 0, ',', ' ') }}</div>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-4 text-right">
                                         <span class="inline-flex rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700 border border-amber-100">
                                             {{ number_format($row['soubique'], 0, ',', ' ') }}

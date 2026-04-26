@@ -7,12 +7,15 @@ use App\Models\CentreEcrit;
 use App\Models\Cisco;
 use App\Models\Dren;
 use App\Models\AuditLog;
+use App\Models\GlobalSetting;
 use App\Models\RepartitionSalle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class BepcRepartitionController extends Controller
 {
+    private const STICKY_CONTEXT_SESSION_KEY = 'repartition_saisie_context';
+
     private const TYPE_BEPC = 'BEPC';
 
     private const TYPE_CEPE = 'CEPE';
@@ -27,6 +30,11 @@ class BepcRepartitionController extends Controller
         if (! in_array($typeExamen, [self::TYPE_BEPC, self::TYPE_CEPE], true)) {
             $typeExamen = self::TYPE_BEPC;
         }
+
+        $settings = GlobalSetting::query()->first();
+        $dispatchingAxes = $this->parseConfiguredList((string) ($settings?->dispatching_axes ?? ''));
+        $dispatchingDropPoints = $this->parseConfiguredList((string) ($settings?->dispatching_drop_points ?? ''));
+        $stickyContext = (array) $request->session()->get(self::STICKY_CONTEXT_SESSION_KEY, []);
 
         $centresEcritDisponibles = CentreEcrit::query()
             ->join('centre_corrections as cc', 'cc.id', '=', 'centre_ecrits.centre_correction_id')
@@ -47,29 +55,6 @@ class BepcRepartitionController extends Controller
                 'cc.cisco_id',
             ]);
 
-        $axesSuggestions = DB::table('repartition_salles')
-            ->whereNotNull('axe_dispatching')
-            ->where('axe_dispatching', '!=', '')
-            ->select('axe_dispatching')
-            ->distinct()
-            ->orderBy('axe_dispatching')
-            ->pluck('axe_dispatching')
-            ->values();
-
-        $pointSuggestionsByAxe = DB::table('repartition_salles')
-            ->whereNotNull('axe_dispatching')
-            ->where('axe_dispatching', '!=', '')
-            ->whereNotNull('point_largage')
-            ->where('point_largage', '!=', '')
-            ->select('axe_dispatching', 'point_largage')
-            ->distinct()
-            ->orderBy('axe_dispatching')
-            ->orderBy('point_largage')
-            ->get()
-            ->groupBy('axe_dispatching')
-            ->map(fn ($rows) => $rows->pluck('point_largage')->values())
-            ->toArray();
-
         return view('bepc-repartition.create', [
             'langues' => RepartitionSalle::LANGUES,
             'nombreSalles' => $nombreSalles,
@@ -81,8 +66,9 @@ class BepcRepartitionController extends Controller
                 ->orderBy('nom')
                 ->get(['id', 'cisco_id', 'nom', 'type_examen']),
             'centresEcrit' => $centresEcritDisponibles,
-            'axesSuggestions' => $axesSuggestions,
-            'pointSuggestionsByAxe' => $pointSuggestionsByAxe,
+            'dispatchingAxes' => $dispatchingAxes,
+            'dispatchingDropPoints' => $dispatchingDropPoints,
+            'stickyContext' => $stickyContext,
         ]);
     }
 
@@ -96,7 +82,8 @@ class BepcRepartitionController extends Controller
             'centre_correction_id' => ['required', 'integer', 'exists:centre_corrections,id'],
             'centre_ecrit_id' => ['required', 'integer', 'exists:centre_ecrits,id'],
             'axe_dispatching' => ['required', 'string', 'max:255'],
-            'point_largage' => ['required', 'string', 'max:255'],
+            'point_largage' => ['nullable', 'string', 'max:255'],
+            'point_largage_other' => ['nullable', 'string', 'max:255'],
             'annee' => ['required', 'regex:/^\d{4}-\d{4}$/'],
             'nombre_salles' => ['required', 'integer', 'min:1', 'max:50'],
             'salles_inutilisables' => ['nullable', 'string', 'max:255'],
@@ -109,6 +96,9 @@ class BepcRepartitionController extends Controller
 
         $nombreSalles = (int) $validated['nombre_salles'];
         $typeExamen = $validated['type_examen'];
+        $pointLargage = trim((string) ($validated['point_largage'] ?? ''));
+        $pointLargageOther = trim((string) ($validated['point_largage_other'] ?? ''));
+        $shouldPersistCustomDropPoint = false;
         $totalCandidatsSaisis = 0;
         $sallesInutilisables = $this->parseRoomNumbers((string) ($validated['salles_inutilisables'] ?? ''), $nombreSalles);
         $sallesDisponibles = array_values(array_diff(range(1, $nombreSalles), $sallesInutilisables));
@@ -117,6 +107,17 @@ class BepcRepartitionController extends Controller
             return back()
                 ->withInput()
                 ->withErrors(['salles_inutilisables' => 'Toutes les salles sont marquées comme inutilisables.']);
+        }
+
+        if ($typeExamen === self::TYPE_BEPC && $pointLargage === '__other__') {
+            if ($pointLargageOther === '') {
+                return back()
+                    ->withInput()
+                    ->withErrors(['point_largage_other' => 'Précisez le point de largage BEPC lorsque vous choisissez "Autre".']);
+            }
+
+            $validated['point_largage'] = $pointLargageOther;
+            $shouldPersistCustomDropPoint = true;
         }
 
         if ($typeExamen === self::TYPE_BEPC) {
@@ -298,6 +299,18 @@ class BepcRepartitionController extends Controller
                 ->withErrors(['centre_ecrit_id' => 'La hiérarchie DREN/CISCO/Centre sélectionnée est invalide.']);
         }
 
+        if ($typeExamen === self::TYPE_CEPE) {
+            $validated['point_largage'] = trim((string) $cisco->nom);
+        } elseif (trim((string) ($validated['point_largage'] ?? '')) === '') {
+            return back()
+                ->withInput()
+                ->withErrors(['point_largage' => 'Veuillez sélectionner un point de largage BEPC.']);
+        }
+
+        if ($typeExamen === self::TYPE_BEPC && $shouldPersistCustomDropPoint) {
+            $this->appendConfiguredDropPoint((string) $validated['point_largage']);
+        }
+
         $nomSaisie = trim((string) ($request->user()?->name ?? ''));
 
         if ($nomSaisie === '') {
@@ -432,6 +445,19 @@ class BepcRepartitionController extends Controller
             'salles' => $nombreSalles,
         ]);
 
+        $request->session()->put(self::STICKY_CONTEXT_SESSION_KEY, [
+            'type_examen' => $typeExamen,
+            'annee' => $validated['annee'],
+            'dren_id' => (int) $dren->id,
+            'cisco_id' => (int) $cisco->id,
+            'centre_correction_id' => (int) $centreCorrection->id,
+            'axe_dispatching' => trim((string) $validated['axe_dispatching']),
+            'point_largage' => trim((string) $validated['point_largage']),
+            'point_largage_other' => $typeExamen === self::TYPE_BEPC && $pointLargage === '__other__'
+                ? $pointLargageOther
+                : '',
+        ]);
+
         return redirect()
             ->route('bepc.repartition.create', [
                 'nombre_salles' => $nombreSalles,
@@ -455,6 +481,49 @@ class BepcRepartitionController extends Controller
             ->sort()
             ->values()
             ->all();
+    }
+
+    private function parseConfiguredList(string $value): array
+    {
+        return collect(preg_split('/\r\n|\r|\n/', $value) ?: [])
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function appendConfiguredDropPoint(string $value): void
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return;
+        }
+
+        $settings = GlobalSetting::query()->first();
+
+        if (! $settings) {
+            $settings = GlobalSetting::query()->create([
+                'bepc_copy_margin_percent' => 5,
+                'dispatching_drop_points' => $value,
+            ]);
+
+            return;
+        }
+
+        $points = $this->parseConfiguredList((string) ($settings->dispatching_drop_points ?? ''));
+        $alreadyExists = collect($points)
+            ->contains(fn (string $item) => strcasecmp($item, $value) === 0);
+
+        if ($alreadyExists) {
+            return;
+        }
+
+        $points[] = $value;
+
+        $settings->update([
+            'dispatching_drop_points' => implode("\n", $points),
+        ]);
     }
 
     private function parseSpecialCandidates(string $value, array $sallesDisponibles): array

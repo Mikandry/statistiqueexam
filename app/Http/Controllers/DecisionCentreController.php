@@ -7,6 +7,7 @@ use App\Models\Dren;
 use App\Models\CISCO;
 use App\Models\CentreCorrection;
 use App\Models\CentreEcrit;
+use App\Models\RepartitionSalle;
 
 class DecisionCentreController extends Controller
 {
@@ -27,9 +28,9 @@ class DecisionCentreController extends Controller
             $ciscoId = null;
         }
 
-        // Query correction and written centers
+        // Query correction and written centres
         $centresCorrection = CentreCorrection::query()->with('cisco.dren');
-        $centresEcrit = CentreEcrit::query()->with('centreCorrection.cisco.dren');
+        $centresEcrit = CentreEcrit::query()->with(['centreCorrection.cisco.dren', 'repartitions']);
 
         if ($typeExamen) {
             $centresCorrection->where('type_examen', $typeExamen);
@@ -54,6 +55,27 @@ class DecisionCentreController extends Controller
 
         $centresCorrection = $centresCorrection->get();
         $centresEcrit = $centresEcrit->get()->unique('id')->values();
+
+        // Build written centres with their actual entry status.
+        $centresSaisis = $centresEcrit
+            ->filter(fn (CentreEcrit $centre) => $centre->repartitions->contains(fn (RepartitionSalle $repartition) => filled($repartition->saisi_par)))
+            ->map(function (CentreEcrit $centre) {
+                return [
+                    'nom' => $centre->nom,
+                    'region' => $centre->centreCorrection?->cisco?->dren?->nom ?? '-',
+                ];
+            })
+            ->values();
+
+        $centresNonSaisis = $centresEcrit
+            ->filter(fn (CentreEcrit $centre) => ! $centre->repartitions->contains(fn (RepartitionSalle $repartition) => filled($repartition->saisi_par)))
+            ->map(function (CentreEcrit $centre) {
+                return [
+                    'nom' => $centre->nom,
+                    'region' => $centre->centreCorrection?->cisco?->dren?->nom ?? '-',
+                ];
+            })
+            ->values();
 
         // Build table data with imported centres
         $tableData = [];
@@ -105,7 +127,8 @@ class DecisionCentreController extends Controller
         return view('decision.centre', compact(
             'drens', 'ciscos', 'tableData',
             'totalDren', 'totalCisco', 'totalCorrection', 'totalEcrit',
-            'typeExamen', 'drenId', 'ciscoId'
+            'typeExamen', 'drenId', 'ciscoId',
+            'centresSaisis', 'centresNonSaisis'
         ));
     }
 }

@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Historique IP</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
-    @if (file_exists(public_path('build/manifest.json')))
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
-    @endif
+    @include('partials.head-assets')
     <style>
         nav[role="navigation"] svg { width: 16px; height: 16px; }
         nav[role="navigation"] a, nav[role="navigation"] span { font-size: 12px; }

@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Traitement de vacation pour 2026</title>
 <link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
-    @if (file_exists(public_path('build/manifest.json')))
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
-    @endif
+    @include('partials.head-assets')
 </head>
 <body class="bg-slate-100 text-slate-900">
 <div class="mx-auto max-w-[1800px] p-4 md:p-6">
@@ -132,16 +128,20 @@
                         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <div>
                                 <label class="mb-1 block text-sm font-medium text-slate-700">Titre fiche de présence</label>
-                                <input type="text" name="presence_titre" value="{{ old('presence_titre', $setting?->presence_titre) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="FICHE DE PRESENCE">
+                                <input type="text" name="presence_titre" value="{{ old('presence_titre', $setting?->presence_titre) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="FICHE DE PRÉSENCE">
                             </div>
                             <div>
                                 <label class="mb-1 block text-sm font-medium text-slate-700">Titre état de décompte</label>
-                                <input type="text" name="decompte_titre" value="{{ old('decompte_titre', $setting?->decompte_titre) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="ETAT DE DECOMPTE">
+                                <input type="text" name="decompte_titre" value="{{ old('decompte_titre', $setting?->decompte_titre) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="ÉTAT DE DÉCOMPTE">
                             </div>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-slate-700">Référence décision (colonne)</label>
-                            <input type="text" name="decision_reference" value="{{ old('decision_reference', $setting?->decision_reference) }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="ELABORATION 150">
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Article 1 de la décision</label>
+                            <textarea name="decision_article_1" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Sont nommés pour participer aux travaux...">{{ old('decision_article_1', $setting?->decision_article_1) }}</textarea>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-slate-700">Article 2 de la décision</label>
+                            <textarea name="decision_article_2" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Les intéressés percevront les vacations prévues...">{{ old('decision_article_2', $setting?->decision_article_2) }}</textarea>
                         </div>
                         <div>
                             <label class="mb-1 block text-sm font-medium text-slate-700">Signataire</label>
@@ -227,8 +227,8 @@
                         </div>
 
                         <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-                            <div class="mb-2 font-medium text-slate-700">Etat de décompte (Excel)</div>
-                            <form method="GET" action="{{ route('vacation2026.exports.xlsx', ['document' => 'decompte']) }}" class="grid grid-cols-1 gap-2 md:grid-cols-5">
+                            <div class="mb-2 font-medium text-slate-700">État de décompte (Excel)</div>
+                            <form method="GET" action="{{ route('vacation2026.exports.xlsx', ['document' => 'decompte']) }}" class="grid grid-cols-1 gap-2 md:grid-cols-6">
                                 <select name="activity_id" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
                                     <option value="">Toutes activités</option>
                                     @foreach($activities as $activity)
@@ -237,9 +237,14 @@
                                 </select>
                                 <input type="number" step="0.01" min="0" name="irsa_percent" value="{{ request('irsa_percent', 0) }}" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="IRSA %">
                                 <input type="number" min="5" name="rows_per_page" value="{{ request('rows_per_page', 25) }}" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Lignes / page">
+                                <input type="number" min="1" name="first_page_rows" value="{{ request('first_page_rows', 6) }}" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Lignes 1ère page">
                                 <label class="inline-flex items-center gap-2 text-xs text-slate-600">
                                     <input type="checkbox" name="page_reports" value="1" class="rounded border-slate-300">
                                     Report & total par page
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-xs text-slate-600">
+                                    <input type="checkbox" name="first_page_header" value="1" checked class="rounded border-slate-300">
+                                    Entête sur 1ère page
                                 </label>
                                 <button type="submit" class="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-600">Décompte (Excel)</button>
                             </form>
@@ -339,145 +344,55 @@
 
             @if($activeTab === 'balance')
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 class="text-lg font-semibold text-slate-900">6) Tableau d'équilibre des montants</h2>
-                <p class="mt-1 text-sm text-slate-600">Vue de contrôle pour voir qui est dans quelle activité et comparer les montants reçus.</p>
+                <h2 class="text-lg font-semibold text-slate-900"> Tableau d'équilibre des montants</h2>
+                <p class="mt-1 text-sm text-slate-600">Vue consolidée par agent. Le rapprochement se fait d'abord par IM, puis par nom et localité quand l'IM manque. L'écart est calculé par localité ou service.</p>
                 <form method="GET" class="mt-3 flex flex-wrap items-center gap-2 text-sm">
                     <input type="hidden" name="tab" value="balance">
                     <input type="text" name="balance_localite" value="{{ $balanceLocalite }}" placeholder="Filtrer par localité de service" class="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-2 text-sm">
                     <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700">Filtrer</button>
+                    <a href="{{ route('vacation2026.exports.xlsx', ['document' => 'equilibre', 'balance_localite' => $balanceLocalite]) }}"
+                       class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700">
+                        Export Excel TCD
+                    </a>
                 </form>
 
                 <div class="mt-4 overflow-x-auto">
                     <table class="min-w-full border-collapse text-sm">
                         <thead>
                         <tr class="bg-slate-100 text-slate-700">
-                            <th class="border border-slate-200 px-3 py-2 text-left">Examen</th>
-                            <th class="border border-slate-200 px-3 py-2 text-left">Activité</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Participants</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Jours</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Taux moyen</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Montant moyen</th>
+                            <th class="border border-slate-200 px-3 py-2 text-left">Nom</th>
+                            <th class="border border-slate-200 px-3 py-2 text-left">IM</th>
+                            <th class="border border-slate-200 px-3 py-2 text-left">Localité / Service</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Nombre d'affectations</th>
                             <th class="border border-slate-200 px-3 py-2 text-right">Montant total</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Écart localité/service</th>
+                            <th class="border border-slate-200 px-3 py-2 text-left">Anomalie</th>
                         </tr>
                         </thead>
                         <tbody>
-                        @forelse($activityBalance as $line)
+                        @forelse($participantEquilibre as $line)
                             <tr>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['examen'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['activite'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format($line['participants'], 0, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format($line['jours'], 0, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['average_taux'], 2, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['average_montant'], 2, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['total_montant'], 2, ',', ' ') }}</td>
+                                <td class="border border-slate-200 px-3 py-2">
+                                    <div class="font-semibold text-slate-900">{{ $line['nom'] }}</div>
+                                    <div class="mt-1 text-xs text-slate-500">{{ $line['activities'] }}</div>
+                                </td>
+                                <td class="border border-slate-200 px-3 py-2">{{ $line['im'] !== '' ? $line['im'] : '-' }}</td>
+                                <td class="border border-slate-200 px-3 py-2">{{ $line['localite'] }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) $line['nb_affectations'], 0, ',', ' ') }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) $line['montant_total'], 2, ',', ' ') }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right">
+                                    <div class="{{ $line['ecart_affectations_localite'] < 0 ? 'text-amber-700' : ($line['ecart_affectations_localite'] > 0 ? 'text-emerald-700' : 'text-slate-600') }}">
+                                        Affect.: {{ $line['ecart_affectations_localite'] > 0 ? '+' : '' }}{{ number_format((float) $line['ecart_affectations_localite'], 2, ',', ' ') }}
+                                    </div>
+                                    <div class="{{ $line['ecart_montant_localite'] < 0 ? 'text-amber-700' : ($line['ecart_montant_localite'] > 0 ? 'text-emerald-700' : 'text-slate-600') }}">
+                                        Montant: {{ $line['ecart_montant_localite'] > 0 ? '+' : '' }}{{ number_format((float) $line['ecart_montant_localite'], 2, ',', ' ') }}
+                                    </div>
+                                </td>
+                                <td class="border border-slate-200 px-3 py-2">{{ $line['anomalie'] !== '' ? $line['anomalie'] : '-' }}</td>
                             </tr>
                         @empty
                             <tr>
                                 <td colspan="7" class="border border-slate-200 px-3 py-4 text-center text-slate-500">Aucune donnée d'équilibrage pour le moment.</td>
-                            </tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="mt-5 overflow-x-auto">
-                    <table class="min-w-full border-collapse text-sm">
-                        <thead>
-                        <tr class="bg-slate-100 text-slate-700">
-                            <th class="border border-slate-200 px-3 py-2 text-left">Examen</th>
-                            <th class="border border-slate-200 px-3 py-2 text-left">Activité</th>
-                            <th class="border border-slate-200 px-3 py-2 text-left">Participant</th>
-                            <th class="border border-slate-200 px-3 py-2 text-left">IM</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Jours</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Taux</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Montant reçu</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Écart vs moyenne activité</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        @forelse($participantBalance as $line)
-                            <tr>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['examen'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['activite'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['nom'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['im'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['jours'], 0, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['taux'], 2, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) $line['montant'], 2, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right {{ $line['ecart_montant'] < 0 ? 'text-amber-700' : 'text-emerald-700' }}">
-                                    {{ $line['ecart_montant'] > 0 ? '+' : '' }}{{ number_format((float) $line['ecart_montant'], 2, ',', ' ') }}
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="8" class="border border-slate-200 px-3 py-4 text-center text-slate-500">Aucun participant affecté.</td>
-                            </tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="mt-5 overflow-x-auto">
-                    <table class="min-w-full border-collapse text-sm">
-                        <thead>
-                        <tr class="bg-slate-100 text-slate-700">
-                            <th class="border border-slate-200 px-3 py-2 text-left">Participant</th>
-                            <th class="border border-slate-200 px-3 py-2 text-left">IM</th>
-                            <th class="border border-slate-200 px-3 py-2 text-left">Localité / Service</th>
-                            <th class="border border-slate-200 px-3 py-2 text-left">Activités</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Affectations</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Total jours</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Montant total reçu</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Equilibre</th>
-                            <th class="border border-slate-200 px-3 py-2 text-left">Statut</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        @forelse($participantTotals as $line)
-                            <tr>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['nom'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['im'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['localite'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['activities'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['assignments'], 0, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['jours'], 0, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) $line['montant'], 2, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right {{ $line['equilibre'] < 0 ? 'text-amber-700' : ($line['equilibre'] > 0 ? 'text-emerald-700' : '') }}">
-                                    {{ $line['equilibre'] > 0 ? '+' : '' }}{{ number_format((float) $line['equilibre'], 2, ',', ' ') }}
-                                </td>
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['equilibre_label'] }}</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="9" class="border border-slate-200 px-3 py-4 text-center text-slate-500">Aucun total par participant.</td>
-                            </tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="mt-5 overflow-x-auto">
-                    <table class="min-w-full border-collapse text-sm">
-                        <thead>
-                        <tr class="bg-slate-100 text-slate-700">
-                            <th class="border border-slate-200 px-3 py-2 text-left">Service</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Participants</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Affectations</th>
-                            <th class="border border-slate-200 px-3 py-2 text-right">Montant total</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        @forelse($serviceBalance as $line)
-                            @php($isKeyService = in_array(strtoupper(trim($line['service'])), ['DEXAMC', 'SOE', 'SEE', 'BAG'], true))
-                            <tr class="{{ $isKeyService ? 'bg-amber-50' : '' }}">
-                                <td class="border border-slate-200 px-3 py-2">{{ $line['service'] }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['participants'], 0, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right">{{ number_format((float) $line['assignments'], 0, ',', ' ') }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold">{{ number_format((float) $line['montant'], 2, ',', ' ') }}</td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="4" class="border border-slate-200 px-3 py-4 text-center text-slate-500">Aucune balance par service.</td>
                             </tr>
                         @endforelse
                         </tbody>

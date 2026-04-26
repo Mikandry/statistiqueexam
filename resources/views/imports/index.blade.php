@@ -5,19 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Imports Référentiels | Système d'Organisation</title>
 <link rel="icon" type="image/svg+xml" href="{{ asset('soe-favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    @if (file_exists(public_path('build/manifest.json')))
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @else
-        <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
-        <script src="https://cdn.tailwindcss.com"></script>
-    @endif
+        @include('partials.head-assets')
 
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { font-family: var(--app-font-sans); }
         .import-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .import-card:hover { transform: translateY(-4px); border-color: #6366f1; }
         .file-input-wrapper input[type=file]::file-selector-button {
@@ -98,10 +89,10 @@
             </div>
 
             <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div class="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
                     <div>
                         <h2 class="text-xl font-extrabold tracking-tight text-slate-900">Import général</h2>
-                        <p class="mt-1 text-sm font-medium text-slate-500">
+                        <p class="mt-2 text-xs text-slate-500 leading-relaxed max-w-md">
                             Importer DREN, CISCO, centre de correction et centre d'écrit en même temps. Les doublons ne sont pas ajoutés.
                             Format accepté: avec en-têtes ou directement 4 colonnes dans l'ordre
                             <code>DREN</code>, <code>CISCO</code>, <code>Centre correction</code>, <code>Centre écrit</code>.
@@ -110,7 +101,7 @@
                     <form method="POST" action="{{ route('imports.references') }}" enctype="multipart/form-data" class="flex flex-col gap-4 md:flex-row md:items-end">
                         @csrf
                         <div class="space-y-1">
-                            <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Type d'examen</label>
+                            <label class="text-xs font-semibold text-slate-600 ml-1">Type d'examen</label>
                             <select name="type_examen" required class="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-bold focus:bg-white outline-none ring-indigo-500/20 focus:ring-4 transition-all">
                                 <option value="BEPC">BEPC</option>
                                 <option value="CEPE">CEPE</option>

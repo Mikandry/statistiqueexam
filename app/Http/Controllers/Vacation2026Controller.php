@@ -17,6 +17,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class Vacation2026Controller extends Controller
@@ -81,124 +82,8 @@ class Vacation2026Controller extends Controller
             ->pluck('taux', 'activity_id');
 
         $setting = Vacation2026Setting::query()->first();
-        $participantBalance = $assignmentsAll->map(function (Vacation2026Assignment $assignment) {
-            $jours = (int) ($assignment->activity?->nb_jours ?? 0);
-            $activityRate = $this->supportsActivityRate() && $assignment->activity?->taux_activite !== null
-                ? (float) $assignment->activity->taux_activite
-                : null;
-            $fallbackRate = $assignment->taux !== null ? (float) $assignment->taux : null;
-            $taux = $activityRate ?? $fallbackRate ?? 0.0;
-            $montant = $jours * $taux;
-
-            return [
-                'assignment_id' => $assignment->id,
-                'agent_id' => (int) ($assignment->agent?->id ?? 0),
-                'activity_id' => (int) ($assignment->activity?->id ?? 0),
-                'examen' => (string) ($assignment->activity?->examen ?? ''),
-                'activite' => (string) ($assignment->activity?->libelle ?? ''),
-                'nom' => (string) ($assignment->agent?->nom ?? ''),
-                'im' => (string) ($assignment->agent?->im ?? ''),
-                'localite' => (string) ($assignment->agent?->localite_service ?? ''),
-                'jours' => $jours,
-                'taux' => $taux,
-                'montant' => $montant,
-            ];
-        });
-
-        $activityBalance = $participantBalance
-            ->groupBy('activity_id')
-            ->map(function (Collection $rows) {
-                $first = $rows->first();
-                $count = $rows->count();
-                $totalMontant = (float) $rows->sum('montant');
-                $averageMontant = $count > 0 ? $totalMontant / $count : 0.0;
-                $averageTaux = $count > 0 ? (float) $rows->avg('taux') : 0.0;
-
-                return [
-                    'activity_id' => (int) $first['activity_id'],
-                    'examen' => (string) $first['examen'],
-                    'activite' => (string) $first['activite'],
-                    'participants' => $count,
-                    'jours' => (int) $first['jours'],
-                    'total_montant' => $totalMontant,
-                    'average_montant' => $averageMontant,
-                    'average_taux' => $averageTaux,
-                ];
-            })
-            ->values();
-
-        $averageByActivity = $activityBalance->keyBy('activity_id')->map(fn (array $row) => (float) $row['average_montant']);
-        $participantBalance = $participantBalance->map(function (array $row) use ($averageByActivity) {
-            $avg = (float) ($averageByActivity->get($row['activity_id']) ?? 0);
-            $row['average_activity_montant'] = $avg;
-            $row['ecart_montant'] = $row['montant'] - $avg;
-
-            return $row;
-        });
-
-        $participantTotals = $participantBalance
-            ->groupBy('agent_id')
-            ->map(function (Collection $rows) use ($averageByActivity) {
-                $first = $rows->first();
-                $totalMontant = (float) $rows->sum('montant');
-                $totalJours = (int) $rows->sum('jours');
-                $expectedMontant = (float) $rows->sum(function (array $row) use ($averageByActivity) {
-                    return (float) ($averageByActivity->get($row['activity_id']) ?? 0);
-                });
-                $equilibre = $totalMontant - $expectedMontant;
-                $equilibreLabel = $equilibre > 0
-                    ? 'trop percu'
-                    : ($equilibre < 0 ? 'need more activities' : 'equilibre');
-                $activities = $rows
-                    ->map(fn (array $row) => trim($row['examen'].' - '.$row['activite']))
-                    ->unique()
-                    ->values()
-                    ->implode(', ');
-
-                return [
-                    'agent_id' => (int) $first['agent_id'],
-                    'nom' => (string) $first['nom'],
-                    'im' => (string) $first['im'],
-                    'localite' => (string) $first['localite'],
-                    'activities' => $activities,
-                    'assignments' => $rows->count(),
-                    'jours' => $totalJours,
-                    'montant' => $totalMontant,
-                    'equilibre' => $equilibre,
-                    'equilibre_label' => $equilibreLabel,
-                ];
-            })
-            ->when($balanceLocalite !== '', function (Collection $rows) use ($balanceLocalite) {
-                $needle = mb_strtolower($balanceLocalite);
-
-                return $rows->filter(function (array $row) use ($needle) {
-                    return str_contains(mb_strtolower($row['localite']), $needle);
-                });
-            })
-            ->values();
-
-        $serviceBalance = $participantBalance
-            ->groupBy(fn (array $row) => $row['localite'] !== '' ? $row['localite'] : 'Non renseigné')
-            ->map(function (Collection $rows, string $service) {
-                $uniqueParticipants = $rows->pluck('agent_id')->unique()->count();
-                $totalMontant = (float) $rows->sum('montant');
-
-                return [
-                    'service' => $service,
-                    'participants' => $uniqueParticipants,
-                    'assignments' => $rows->count(),
-                    'montant' => $totalMontant,
-                ];
-            })
-            ->when($balanceLocalite !== '', function (Collection $rows) use ($balanceLocalite) {
-                $needle = mb_strtolower($balanceLocalite);
-
-                return $rows->filter(function (array $row) use ($needle) {
-                    return str_contains(mb_strtolower($row['service']), $needle);
-                });
-            })
-            ->sortByDesc('montant')
-            ->values();
+        $equilibreData = $this->buildEquilibreData($balanceLocalite);
+        $participantEquilibre = $equilibreData['participant_equilibre'];
 
         return view('repartition.vacation-2026', [
             'tab' => $tab,
@@ -210,10 +95,7 @@ class Vacation2026Controller extends Controller
             'availableAgents' => $availableAgents,
             'assignments' => $assignments,
             'assignmentRatesByActivity' => $assignmentRatesByActivity,
-            'activityBalance' => $activityBalance,
-            'participantBalance' => $participantBalance,
-            'participantTotals' => $participantTotals,
-            'serviceBalance' => $serviceBalance,
+            'participantEquilibre' => $participantEquilibre,
             'setting' => $setting,
             'stats' => [
                 'agents_total' => Vacation2026Agent::count(),
@@ -361,6 +243,8 @@ class Vacation2026Controller extends Controller
             'presence_titre' => ['nullable', 'string', 'max:255'],
             'decompte_titre' => ['nullable', 'string', 'max:255'],
             'decision_reference' => ['nullable', 'string', 'max:255'],
+            'decision_article_1' => ['nullable', 'string'],
+            'decision_article_2' => ['nullable', 'string'],
             'signature' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -492,35 +376,29 @@ class Vacation2026Controller extends Controller
         $setting = Vacation2026Setting::query()->first();
         $filename = "vacation_2026_{$document}.doc";
 
-        $decisionReference = $setting?->decision_reference;
-        if ($document === 'decision' && $decisionReference === null) {
-            $decisionReference = 'ELABORATION 150';
-        }
         $headers = $this->documentHeaders($document);
-        if ($document === 'decision' && $decisionReference !== null && $decisionReference !== '') {
-            $headers[] = 'REFERENCE';
-        }
 
         $content = view('repartition.vacation-2026-document', [
             'document' => $document,
             'rows' => $rows,
             'headers' => $headers,
             'documentTitle' => $this->resolveDocumentTitle($document, $setting),
-            'decisionReference' => $decisionReference,
             'setting' => $setting,
             'selectedActivity' => $activity,
         ])->render();
+        $content = "\xEF\xBB\xBF".$content;
 
         return response($content, 200, [
             'Content-Type' => 'application/msword; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Content-Transfer-Encoding' => 'binary',
         ]);
     }
 
     public function exportExcel(Request $request, string $document)
     {
         $document = $this->normalizeDocumentType($document);
-        if (! in_array($document, ['decompte', 'presence', 'recap'], true)) {
+        if (! in_array($document, ['decompte', 'presence', 'recap', 'equilibre'], true)) {
             abort(404);
         }
 
@@ -543,22 +421,49 @@ class Vacation2026Controller extends Controller
             if ($rowsPerPage < 5) {
                 $rowsPerPage = 5;
             }
+            $firstPageRows = (int) $request->query('first_page_rows', $rowsPerPage);
+            if ($firstPageRows < 1) {
+                $firstPageRows = 1;
+            }
+            if ($firstPageRows > $rowsPerPage) {
+                $firstPageRows = $rowsPerPage;
+            }
             $withPageReports = (bool) $request->query('page_reports', false);
+            $withFirstPageHeader = (bool) $request->query('first_page_header', true);
 
-            $headers = ['EXAMEN', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE', 'NB JOURS', 'TAUX', 'MONTANT BRUT', 'IRSA %', 'MONTANT IRSA', 'MONTANT NET'];
-            $sheet->fromArray($headers, null, 'A1');
+            $headers = ['N°', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE', 'NB JOURS', 'TAUX', 'MONTANT BRUT', 'IRSA %', 'MONTANT IRSA', 'MONTANT NET'];
+            $line = 1;
+            if ($withFirstPageHeader) {
+                $line = $this->writeWorksheetHeader(
+                    $sheet,
+                    'K',
+                    $this->resolveDocumentTitle($document, $setting),
+                    $setting,
+                    $activity
+                );
+            }
+            $headerRow = $line;
+            $sheet->fromArray($headers, null, "A{$headerRow}");
+            $sheet->getStyle("A{$headerRow}:K{$headerRow}")->getFont()->setBold(true);
+            $sheet->getStyle("A{$headerRow}:K{$headerRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDBEAFE');
+            $line = $headerRow + 1;
 
-            $line = 2;
+            $pageIndex = 1;
             $pageCount = 0;
             $pageMontantBrut = 0.0;
             $pageMontantIrsa = 0.0;
             $pageMontantNet = 0.0;
-            foreach ($rows as $item) {
+            $cumulMontantBrut = 0.0;
+            $cumulMontantIrsa = 0.0;
+            $cumulMontantNet = 0.0;
+            $currentPageLimit = $withFirstPageHeader ? $firstPageRows : $rowsPerPage;
+            $totalRows = $rows->count();
+            foreach ($rows as $index => $item) {
                 $brut = (float) ($item['montant'] ?? 0);
                 $irsaAmount = $brut * ($irsaPercent / 100);
                 $net = $brut - $irsaAmount;
                 $sheet->fromArray([
-                    $item['examen'],
+                    $index + 1,
                     $item['activite'],
                     $item['nom'],
                     $item['im'],
@@ -576,40 +481,59 @@ class Vacation2026Controller extends Controller
                 $pageMontantIrsa += $irsaAmount;
                 $pageMontantNet += $net;
 
-                if ($withPageReports && $pageCount >= $rowsPerPage) {
-                    $sheet->setCellValue("G{$line}", 'TOTAL PAGE');
-                    $sheet->setCellValue("H{$line}", number_format($pageMontantBrut, 2, '.', ''));
-                    $sheet->setCellValue("J{$line}", number_format($pageMontantIrsa, 2, '.', ''));
-                    $sheet->setCellValue("K{$line}", number_format($pageMontantNet, 2, '.', ''));
-                    $sheet->getStyle("G{$line}:K{$line}")->getFont()->setBold(true);
+                if ($withPageReports && $pageCount >= $currentPageLimit) {
+                    $cumulMontantBrut += $pageMontantBrut;
+                    $cumulMontantIrsa += $pageMontantIrsa;
+                    $cumulMontantNet += $pageMontantNet;
+                    $this->writeDecompteTotalsRow(
+                        $sheet,
+                        $line,
+                        $pageIndex > 1 ? 'TOTAL AVEC REPORT' : 'TOTAL PAGE',
+                        $cumulMontantBrut,
+                        $cumulMontantIrsa,
+                        $cumulMontantNet
+                    );
                     $line++;
 
-                    $sheet->setBreak("A{$line}", \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::BREAK_ROW);
-                    $sheet->setCellValue("G{$line}", 'REPORT PAGE PRECEDENTE');
-                    $sheet->setCellValue("H{$line}", number_format($pageMontantBrut, 2, '.', ''));
-                    $sheet->setCellValue("J{$line}", number_format($pageMontantIrsa, 2, '.', ''));
-                    $sheet->setCellValue("K{$line}", number_format($pageMontantNet, 2, '.', ''));
-                    $sheet->getStyle("G{$line}:K{$line}")->getFont()->setBold(true);
-                    $line++;
+                    if ($index < ($totalRows - 1)) {
+                        $sheet->setBreak("A{$line}", Worksheet::BREAK_ROW);
+                        $this->writeDecompteTotalsRow(
+                            $sheet,
+                            $line,
+                            'REPORT PAGE PRECEDENTE',
+                            $cumulMontantBrut,
+                            $cumulMontantIrsa,
+                            $cumulMontantNet
+                        );
+                        $line++;
+                    }
 
+                    $pageIndex++;
                     $pageCount = 0;
                     $pageMontantBrut = 0.0;
                     $pageMontantIrsa = 0.0;
                     $pageMontantNet = 0.0;
+                    $currentPageLimit = $rowsPerPage;
                 }
             }
 
-            if ($withPageReports && $line > 2 && $pageCount > 0) {
-                $sheet->setCellValue("G{$line}", 'TOTAL PAGE');
-                $sheet->setCellValue("H{$line}", number_format($pageMontantBrut, 2, '.', ''));
-                $sheet->setCellValue("J{$line}", number_format($pageMontantIrsa, 2, '.', ''));
-                $sheet->setCellValue("K{$line}", number_format($pageMontantNet, 2, '.', ''));
-                $sheet->getStyle("G{$line}:K{$line}")->getFont()->setBold(true);
+            if ($withPageReports && $pageCount > 0) {
+                $cumulMontantBrut += $pageMontantBrut;
+                $cumulMontantIrsa += $pageMontantIrsa;
+                $cumulMontantNet += $pageMontantNet;
+                $this->writeDecompteTotalsRow(
+                    $sheet,
+                    $line,
+                    $pageIndex > 1 ? 'TOTAL AVEC REPORT' : 'TOTAL PAGE',
+                    $cumulMontantBrut,
+                    $cumulMontantIrsa,
+                    $cumulMontantNet
+                );
                 $line++;
             }
 
-            if ($line === 2) {
-                $sheet->setCellValue('A2', 'Aucune donnée affectée.');
+            if ($line === ($headerRow + 1)) {
+                $sheet->setCellValue("A{$line}", 'Aucune donnée affectée.');
             }
         } elseif ($document === 'presence') {
             $maxDays = (int) max(1, $rows->max('jours') ?? 1);
@@ -617,11 +541,14 @@ class Vacation2026Controller extends Controller
             for ($d = 1; $d <= $maxDays; $d++) {
                 $dayHeaders[] = "J{$d}";
             }
-            $headers = array_merge(['EXAMEN', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE'], $dayHeaders);
+            $headers = array_merge(['N°', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE'], $dayHeaders);
             $sheet->fromArray($headers, null, 'A1');
+            $presenceLastColumn = Coordinate::stringFromColumnIndex(count($headers));
+            $sheet->getStyle("A1:{$presenceLastColumn}1")->getFont()->setBold(true);
+            $sheet->getStyle("A1:{$presenceLastColumn}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDBEAFE');
 
             $line = 2;
-            foreach ($rows as $item) {
+            foreach ($rows as $index => $item) {
                 $jours = (int) $item['jours'];
                 $dayCells = [];
                 for ($d = 1; $d <= $maxDays; $d++) {
@@ -629,7 +556,7 @@ class Vacation2026Controller extends Controller
                 }
 
                 $sheet->fromArray(array_merge([
-                    $item['examen'],
+                    $index + 1,
                     $item['activite'],
                     $item['nom'],
                     $item['im'],
@@ -643,7 +570,7 @@ class Vacation2026Controller extends Controller
             }
 
             $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
-        } else {
+        } elseif ($document === 'recap') {
             $headers = ['EXAMEN', 'ACTIVITE', 'PARTICIPANTS', 'NB JOURS', 'TAUX MOYEN', 'MONTANT MOYEN', 'MONTANT TOTAL'];
             $sheet->fromArray($headers, null, 'A1');
 
@@ -685,17 +612,77 @@ class Vacation2026Controller extends Controller
             if ($line === 2) {
                 $sheet->setCellValue('A2', 'Aucune donnée affectée.');
             }
+        } else {
+            $equilibreData = $this->buildEquilibreData(trim((string) $request->query('balance_localite', '')));
+            $summaryRows = $equilibreData['participant_equilibre'];
+            $detailRows = $equilibreData['participant_rows'];
+
+            $sheet->setTitle('SYNTHESE AGENTS');
+            $headers = ['NOM', 'IM', 'LOCALITE / SERVICE', 'ACTIVITES', 'NB AFFECTATIONS', 'NB ACTIVITES', 'MONTANT TOTAL', 'ECART AFFECTATIONS LOCALITE', 'ECART MONTANT LOCALITE', 'ANOMALIE'];
+            $sheet->fromArray($headers, null, 'A1');
+
+            $line = 2;
+            foreach ($summaryRows as $item) {
+                $sheet->fromArray([
+                    $item['nom'],
+                    $item['im'],
+                    $item['localite'],
+                    $item['activities'],
+                    $item['nb_affectations'],
+                    $item['nb_activites'],
+                    number_format((float) $item['montant_total'], 2, '.', ''),
+                    number_format((float) $item['ecart_affectations_localite'], 2, '.', ''),
+                    number_format((float) $item['ecart_montant_localite'], 2, '.', ''),
+                    $item['anomalie'],
+                ], null, "A{$line}");
+                $line++;
+            }
+
+            if ($line === 2) {
+                $sheet->setCellValue('A2', 'Aucune donnée d\'équilibrage.');
+            }
+
+            $detailSheet = $spreadsheet->createSheet();
+            $detailSheet->setTitle('DETAIL AFFECTATIONS');
+            $detailHeaders = ['NOM', 'IM', 'LOCALITE / SERVICE', 'EXAMEN', 'ACTIVITE', 'NB JOURS', 'TAUX', 'MONTANT', 'CLE AGENT', 'ANOMALIE'];
+            $detailSheet->fromArray($detailHeaders, null, 'A1');
+
+            $anomaliesByParticipant = $summaryRows
+                ->mapWithKeys(fn (array $item) => [$item['participant_key'] => $item['anomalie']]);
+
+            $line = 2;
+            foreach ($detailRows as $item) {
+                $detailSheet->fromArray([
+                    $item['nom'],
+                    $item['im'],
+                    $item['localite'],
+                    $item['examen'],
+                    $item['activite'],
+                    $item['jours'],
+                    number_format((float) $item['taux'], 2, '.', ''),
+                    number_format((float) $item['montant'], 2, '.', ''),
+                    $item['participant_key'],
+                    $anomaliesByParticipant->get($item['participant_key'], ''),
+                ], null, "A{$line}");
+                $line++;
+            }
+
+            if ($line === 2) {
+                $detailSheet->setCellValue('A2', 'Aucune affectation.');
+            }
         }
 
-        $lastColumn = $sheet->getHighestColumn();
-        $lastRow = max(2, $sheet->getHighestRow());
-        $sheet->getStyle("A1:{$lastColumn}1")->getFont()->setBold(true);
-        $sheet->getStyle("A1:{$lastColumn}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDBEAFE');
-        $sheet->getStyle("A1:{$lastColumn}{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        foreach ($spreadsheet->getAllSheets() as $currentSheet) {
+            $lastColumn = $currentSheet->getHighestColumn();
+            $lastRow = max(2, $currentSheet->getHighestRow());
+            $currentSheet->getStyle("A1:{$lastColumn}1")->getFont()->setBold(true);
+            $currentSheet->getStyle("A1:{$lastColumn}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDBEAFE');
+            $currentSheet->getStyle("A1:{$lastColumn}{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
 
-        $lastIndex = Coordinate::columnIndexFromString($lastColumn);
-        for ($i = 1; $i <= $lastIndex; $i++) {
-            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
+            $lastIndex = Coordinate::columnIndexFromString($lastColumn);
+            for ($i = 1; $i <= $lastIndex; $i++) {
+                $currentSheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
+            }
         }
 
         $writer = new Xlsx($spreadsheet);
@@ -722,21 +709,13 @@ class Vacation2026Controller extends Controller
         $rows = $this->buildDocumentRows($activity?->id);
         $setting = Vacation2026Setting::query()->first();
 
-        $decisionReference = $setting?->decision_reference;
-        if ($document === 'decision' && $decisionReference === null) {
-            $decisionReference = 'ELABORATION 150';
-        }
         $headers = $this->documentHeaders($document);
-        if ($document === 'decision' && $decisionReference !== null && $decisionReference !== '') {
-            $headers[] = 'REFERENCE';
-        }
 
         return response()->view('repartition.vacation-2026-document', [
             'document' => $document,
             'rows' => $rows,
             'headers' => $headers,
             'documentTitle' => $this->resolveDocumentTitle($document, $setting),
-            'decisionReference' => $decisionReference,
             'setting' => $setting,
             'selectedActivity' => $activity,
         ]);
@@ -842,16 +821,148 @@ class Vacation2026Controller extends Controller
     private function normalizeDocumentType(string $document): string
     {
         return match ($document) {
-            'note-service', 'decompte', 'decision', 'presence', 'recap' => $document,
+            'note-service', 'decompte', 'decision', 'presence', 'recap', 'equilibre' => $document,
             default => 'note-service',
         };
+    }
+
+    private function buildEquilibreData(string $balanceLocalite = ''): array
+    {
+        $participantRows = $this->buildDocumentRows()
+            ->map(function (array $row) {
+                $im = trim((string) ($row['im'] ?? ''));
+                $localite = trim((string) ($row['localite'] ?? ''));
+
+                return [
+                    'examen' => (string) ($row['examen'] ?? ''),
+                    'activite' => (string) ($row['activite'] ?? ''),
+                    'nom' => (string) ($row['nom'] ?? ''),
+                    'im' => $im,
+                    'localite' => $localite !== '' ? $localite : 'Non renseigné',
+                    'jours' => (int) ($row['jours'] ?? 0),
+                    'taux' => (float) ($row['taux'] ?? 0),
+                    'montant' => (float) ($row['montant'] ?? 0),
+                    'participant_key' => $im !== ''
+                        ? 'im:'.$im
+                        : 'identity:'.$this->normalizeText((string) ($row['nom'] ?? '')).'|'.$this->normalizeText($localite),
+                ];
+            });
+
+        $agentsWithAssignments = Vacation2026Agent::query()
+            ->has('assignments')
+            ->get(['nom', 'im', 'localite_service']);
+
+        $imAnomalies = $agentsWithAssignments
+            ->filter(fn (Vacation2026Agent $agent) => trim((string) $agent->im) !== '')
+            ->groupBy(fn (Vacation2026Agent $agent) => trim((string) $agent->im))
+            ->map(function (Collection $agents) {
+                return $agents->pluck('nom')
+                    ->map(fn ($name) => $this->normalizeText((string) $name))
+                    ->filter()
+                    ->unique()
+                    ->values();
+            })
+            ->filter(fn (Collection $names) => $names->count() > 1);
+
+        $identityAnomalies = $agentsWithAssignments
+            ->groupBy(fn (Vacation2026Agent $agent) => $this->normalizeText((string) $agent->nom).'|'.$this->normalizeText((string) $agent->localite_service))
+            ->map(function (Collection $agents) {
+                return $agents->pluck('im')
+                    ->map(fn ($im) => trim((string) $im))
+                    ->filter()
+                    ->unique()
+                    ->values();
+            })
+            ->filter(fn (Collection $ims) => $ims->count() > 1);
+
+        $participantEquilibre = $participantRows
+            ->groupBy('participant_key')
+            ->map(function (Collection $rows) use ($imAnomalies, $identityAnomalies) {
+                $first = $rows->first();
+                $activities = $rows
+                    ->map(fn (array $row) => trim($row['examen'].' - '.$row['activite']))
+                    ->filter()
+                    ->unique()
+                    ->values();
+                $im = trim((string) ($first['im'] ?? ''));
+                $identityKey = $this->normalizeText((string) ($first['nom'] ?? '')).'|'.$this->normalizeText((string) ($first['localite'] ?? ''));
+                $anomalies = collect();
+
+                if ($im !== '' && $imAnomalies->has($im)) {
+                    $anomalies->push('IM identique avec noms differents');
+                }
+                if ($identityAnomalies->has($identityKey)) {
+                    $anomalies->push('Nom/localite relies a plusieurs IM');
+                }
+
+                return [
+                    'participant_key' => (string) $first['participant_key'],
+                    'nom' => (string) $first['nom'],
+                    'im' => $im,
+                    'localite' => (string) ($first['localite'] ?? 'Non renseigné'),
+                    'nb_affectations' => $rows->count(),
+                    'nb_activites' => $activities->count(),
+                    'activities' => $activities->implode(', '),
+                    'montant_total' => (float) $rows->sum('montant'),
+                    'anomalie' => $anomalies->implode(' | '),
+                ];
+            });
+
+        $serviceAverages = $participantEquilibre
+            ->groupBy('localite')
+            ->map(function (Collection $rows) {
+                return [
+                    'moyenne_montant' => $rows->count() > 0 ? (float) $rows->avg('montant_total') : 0.0,
+                    'moyenne_affectations' => $rows->count() > 0 ? (float) $rows->avg('nb_affectations') : 0.0,
+                ];
+            });
+
+        $participantEquilibre = $participantEquilibre
+            ->map(function (array $row) use ($serviceAverages) {
+                $serviceAverage = $serviceAverages->get($row['localite'], [
+                    'moyenne_montant' => 0.0,
+                    'moyenne_affectations' => 0.0,
+                ]);
+                $row['ecart_montant_localite'] = (float) $row['montant_total'] - (float) $serviceAverage['moyenne_montant'];
+                $row['ecart_affectations_localite'] = (float) $row['nb_affectations'] - (float) $serviceAverage['moyenne_affectations'];
+
+                return $row;
+            })
+            ->when($balanceLocalite !== '', function (Collection $rows) use ($balanceLocalite) {
+                $needle = mb_strtolower($balanceLocalite);
+
+                return $rows->filter(function (array $row) use ($needle) {
+                    return str_contains(mb_strtolower($row['localite']), $needle);
+                });
+            })
+            ->sortBy([
+                ['localite', 'asc'],
+                ['nom', 'asc'],
+            ])
+            ->values();
+
+        $participantKeys = $participantEquilibre->pluck('participant_key')->all();
+        $participantRows = $participantRows
+            ->filter(fn (array $row) => in_array($row['participant_key'], $participantKeys, true))
+            ->sortBy([
+                ['localite', 'asc'],
+                ['nom', 'asc'],
+                ['examen', 'asc'],
+                ['activite', 'asc'],
+            ])
+            ->values();
+
+        return [
+            'participant_equilibre' => $participantEquilibre,
+            'participant_rows' => $participantRows,
+        ];
     }
 
     private function documentHeaders(string $document): array
     {
         return match ($document) {
-            'decompte' => ['EXAMEN', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE', 'NB JOURS', 'TAUX', 'MONTANT'],
-            'presence' => ['EXAMEN', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE', 'CIN', 'SIGNATURE'],
+            'decompte' => ['N°', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE', 'NB JOURS', 'TAUX', 'MONTANT'],
+            'presence' => ['N°', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE', 'CIN', 'SIGNATURE'],
             'decision' => ['N°', 'NOM ET PRENOMS', 'IM', 'LOCALITE DE SERVICE'],
             default => ['EXAMEN', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE'],
         };
@@ -861,7 +972,7 @@ class Vacation2026Controller extends Controller
     {
         return match ($document) {
             'decompte' => [
-                $item['examen'],
+                $item['numero'] ?? '',
                 $item['activite'],
                 $item['nom'],
                 $item['im'],
@@ -871,7 +982,7 @@ class Vacation2026Controller extends Controller
                 $item['montant'] !== null ? number_format((float) $item['montant'], 2, '.', '') : '',
             ],
             'presence' => [
-                $item['examen'],
+                $item['numero'] ?? '',
                 $item['activite'],
                 $item['nom'],
                 $item['im'],
@@ -880,12 +991,10 @@ class Vacation2026Controller extends Controller
                 '',
             ],
             'decision' => [
-                $item['examen'],
-                $item['activite'],
+                $item['numero'] ?? '',
                 $item['nom'],
                 $item['im'],
                 $item['localite'],
-                'ELABORATION 150',
             ],
             default => [
                 $item['examen'],
@@ -925,5 +1034,49 @@ class Vacation2026Controller extends Controller
         $value = preg_replace('/[^a-z0-9]+/i', ' ', $value) ?? $value;
 
         return trim($value);
+    }
+
+    private function writeWorksheetHeader(
+        \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet,
+        string $lastColumn,
+        string $documentTitle,
+        ?Vacation2026Setting $setting,
+        ?Vacation2026Activity $activity
+    ): int {
+        $line = 1;
+        $blocks = array_values(array_filter([
+            trim((string) ($setting?->entete ?? '')),
+            trim($documentTitle),
+            'Activité : '.($activity ? trim($activity->examen.' - '.$activity->libelle) : 'Toutes activités'),
+        ], fn ($value) => $value !== ''));
+
+        foreach ($blocks as $index => $block) {
+            $sheet->mergeCells("A{$line}:{$lastColumn}{$line}");
+            $sheet->setCellValue("A{$line}", $block);
+            $sheet->getStyle("A{$line}:{$lastColumn}{$line}")->getAlignment()->setWrapText(true);
+            if ($index === 1) {
+                $sheet->getStyle("A{$line}:{$lastColumn}{$line}")->getFont()->setBold(true)->setSize(14);
+            } else {
+                $sheet->getStyle("A{$line}:{$lastColumn}{$line}")->getFont()->setBold($index === 2);
+            }
+            $line++;
+        }
+
+        return $line + 1;
+    }
+
+    private function writeDecompteTotalsRow(
+        \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet,
+        int $line,
+        string $label,
+        float $montantBrut,
+        float $montantIrsa,
+        float $montantNet
+    ): void {
+        $sheet->setCellValue("G{$line}", $label);
+        $sheet->setCellValue("H{$line}", number_format($montantBrut, 2, '.', ''));
+        $sheet->setCellValue("J{$line}", number_format($montantIrsa, 2, '.', ''));
+        $sheet->setCellValue("K{$line}", number_format($montantNet, 2, '.', ''));
+        $sheet->getStyle("G{$line}:K{$line}")->getFont()->setBold(true);
     }
 }

@@ -7,6 +7,7 @@ use App\Models\CentreCorrection;
 use App\Models\CentreEcrit;
 use App\Models\Cisco;
 use App\Models\Dren;
+use App\Models\GlobalSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -123,6 +124,7 @@ class ReferenceManagementController extends Controller
                 return $matchesDren && $matchesCisco && $matchesType;
             })
             ->values();
+        $settings = $this->getGlobalSettings();
 
         return view('admin.references.index', [
             'drens' => $drens,
@@ -141,6 +143,8 @@ class ReferenceManagementController extends Controller
             'selectedCentreCorrectionId' => $selectedCentreCorrectionId,
             'selectedTypeExamen' => $selectedTypeExamen,
             'centreTypeForForms' => $centreTypeForForms,
+            'dispatchingAxes' => $this->parseConfiguredList((string) ($settings->dispatching_axes ?? '')),
+            'dispatchingDropPoints' => $this->parseConfiguredList((string) ($settings->dispatching_drop_points ?? '')),
         ]);
     }
 
@@ -259,6 +263,94 @@ class ReferenceManagementController extends Controller
         return back()->with('status', "Centre de correction {$centreName} ({$typeExamen}) supprimé avec ses centres d'écrit et statistiques associées.");
     }
 
+    public function storeDispatchingAxis(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'nom' => ['required', 'string', 'max:255'],
+        ]);
+
+        $axes = $this->parseConfiguredList((string) ($this->getGlobalSettings()->dispatching_axes ?? ''));
+        $axes[] = trim((string) $validated['nom']);
+
+        $this->persistConfiguredList('dispatching_axes', $axes);
+
+        return back()->with('status', 'Axe de dispatching ajouté.');
+    }
+
+    public function updateDispatchingAxis(Request $request, int $index): RedirectResponse
+    {
+        $validated = $request->validate([
+            'nom' => ['required', 'string', 'max:255'],
+        ]);
+
+        $axes = $this->parseConfiguredList((string) ($this->getGlobalSettings()->dispatching_axes ?? ''));
+        if (! array_key_exists($index, $axes)) {
+            return back()->withErrors(['dispatching_axes' => 'Axe introuvable.']);
+        }
+
+        $axes[$index] = trim((string) $validated['nom']);
+        $this->persistConfiguredList('dispatching_axes', $axes);
+
+        return back()->with('status', 'Axe de dispatching modifié.');
+    }
+
+    public function destroyDispatchingAxis(int $index): RedirectResponse
+    {
+        $axes = $this->parseConfiguredList((string) ($this->getGlobalSettings()->dispatching_axes ?? ''));
+        if (! array_key_exists($index, $axes)) {
+            return back()->withErrors(['dispatching_axes' => 'Axe introuvable.']);
+        }
+
+        unset($axes[$index]);
+        $this->persistConfiguredList('dispatching_axes', $axes);
+
+        return back()->with('status', 'Axe de dispatching supprimé.');
+    }
+
+    public function storeDispatchingDropPoint(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'nom' => ['required', 'string', 'max:255'],
+        ]);
+
+        $points = $this->parseConfiguredList((string) ($this->getGlobalSettings()->dispatching_drop_points ?? ''));
+        $points[] = trim((string) $validated['nom']);
+
+        $this->persistConfiguredList('dispatching_drop_points', $points);
+
+        return back()->with('status', 'Point de largage ajouté.');
+    }
+
+    public function updateDispatchingDropPoint(Request $request, int $index): RedirectResponse
+    {
+        $validated = $request->validate([
+            'nom' => ['required', 'string', 'max:255'],
+        ]);
+
+        $points = $this->parseConfiguredList((string) ($this->getGlobalSettings()->dispatching_drop_points ?? ''));
+        if (! array_key_exists($index, $points)) {
+            return back()->withErrors(['dispatching_drop_points' => 'Point de largage introuvable.']);
+        }
+
+        $points[$index] = trim((string) $validated['nom']);
+        $this->persistConfiguredList('dispatching_drop_points', $points);
+
+        return back()->with('status', 'Point de largage modifié.');
+    }
+
+    public function destroyDispatchingDropPoint(int $index): RedirectResponse
+    {
+        $points = $this->parseConfiguredList((string) ($this->getGlobalSettings()->dispatching_drop_points ?? ''));
+        if (! array_key_exists($index, $points)) {
+            return back()->withErrors(['dispatching_drop_points' => 'Point de largage introuvable.']);
+        }
+
+        unset($points[$index]);
+        $this->persistConfiguredList('dispatching_drop_points', $points);
+
+        return back()->with('status', 'Point de largage supprimé.');
+    }
+
     public function storeCentreEcrit(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -314,5 +406,42 @@ class ReferenceManagementController extends Controller
         $centreEcrit->delete();
 
         return back()->with('status', "Centre d'écrit {$centreName} ({$typeExamen}) supprimé avec ses statistiques associées.");
+    }
+
+    private function getGlobalSettings(): GlobalSetting
+    {
+        $setting = GlobalSetting::query()->first();
+
+        if ($setting) {
+            return $setting;
+        }
+
+        return GlobalSetting::query()->create([
+            'bepc_copy_margin_percent' => 5,
+        ]);
+    }
+
+    private function parseConfiguredList(string $value): array
+    {
+        return collect(preg_split('/\r\n|\r|\n/', $value) ?: [])
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function persistConfiguredList(string $field, array $items): void
+    {
+        $normalized = collect($items)
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
+            ->unique()
+            ->values()
+            ->implode("\n");
+
+        $this->getGlobalSettings()->update([
+            $field => $normalized,
+        ]);
     }
 }
