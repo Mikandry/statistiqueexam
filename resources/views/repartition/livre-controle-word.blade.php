@@ -49,6 +49,7 @@
         <thead>
             <tr>
                 <th>Groupe</th>
+                <th>Assigné à</th>
                 <th class="right">Total PE</th>
                 <th class="right">Nb compteurs</th>
                 <th class="right">PE / compteur</th>
@@ -59,16 +60,42 @@
             @forelse(($selectedCompteurSummary ?? []) as $row)
                 <tr>
                     <td>{{ $row['label'] }}</td>
+                    <td>{{ $row['group_name'] ?? '' }}</td>
                     <td class="right">{{ number_format($row['total_pe'], 0, ',', ' ') }}</td>
                     <td class="right">{{ number_format($row['compteur_count'], 0, ',', ' ') }}</td>
                     <td class="right">{{ number_format($row['pe_par_compteur'], 0, ',', ' ') }}</td>
                     <td>{{ $row['repartition'] }}</td>
                 </tr>
             @empty
-                <tr><td colspan="5">Aucune donnée.</td></tr>
+                <tr><td colspan="6">Aucune donnée.</td></tr>
             @endforelse
         </tbody>
     </table>
+
+    <h2>Tâches par groupe</h2>
+    @forelse(($controleTaskGroups ?? []) as $group)
+        <div class="box">
+            <strong>{{ $group['name'] }}</strong>
+            @if(($group['counters'] ?? collect())->isNotEmpty())
+                @foreach($group['counters'] as $counter)
+                    <div>
+                        <strong>{{ $counter['name'] }}:</strong>
+                        @if(($counter['tasks'] ?? collect())->isNotEmpty())
+                            @foreach($counter['tasks'] as $task)
+                                {{ $task['centre_ecrit'] }} {{ $task['range'] }}@unless($loop->last); @endunless
+                            @endforeach
+                        @else
+                            Aucune tâche.
+                        @endif
+                    </div>
+                @endforeach
+            @else
+                <div>Aucune tâche assignée.</div>
+            @endif
+        </div>
+    @empty
+        <div class="box">Aucune tâche de groupe.</div>
+    @endforelse
 
     <h2>Répartition PE par Compteur - CISCO</h2>
     <table>

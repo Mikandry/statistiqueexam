@@ -7,6 +7,8 @@ use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\BepcRepartitionController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DecisionCentreController;
+use App\Http\Controllers\ExamResultController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ReferenceImportController;
 use App\Http\Controllers\RepartitionReportController;
 use App\Http\Controllers\Vacation2026Controller;
@@ -34,10 +36,16 @@ Route::middleware(['auth', 'nonlogistique'])->group(function () {
         ->name('bepc.repartition.store');
     Route::get('/repartition/livre/preview', [RepartitionReportController::class, 'livrePreview'])
         ->name('repartition.livre.preview');
+    Route::get('/repartition/livre/pe-ge', [RepartitionReportController::class, 'livrePeGe'])
+        ->name('repartition.livre.pe-ge');
     Route::get('/repartition/livre/controle', [RepartitionReportController::class, 'livreControle'])
         ->name('repartition.livre.controle');
+    Route::get('/repartition/livre/controle/auto', [RepartitionReportController::class, 'livreControleAuto'])
+        ->name('repartition.livre.controle.auto');
     Route::match(['get', 'post'], '/repartition/livre/controle/export/word', [RepartitionReportController::class, 'livreControleWord'])
         ->name('repartition.livre.controle.word');
+    Route::match(['get', 'post'], '/repartition/livre/pv/auto/word', [RepartitionReportController::class, 'livrePvAutoWord'])
+        ->name('repartition.livre.pv.auto.word');
     Route::get('/repartition/livre/pdf', [RepartitionReportController::class, 'livrePdf'])
         ->name('repartition.livre.pdf');
     Route::get('/repartition/livre/export/xlsx', [RepartitionReportController::class, 'livreExcel'])
@@ -57,8 +65,26 @@ Route::middleware(['auth', 'nonlogistique'])->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::get('/resultats-examens', [ExamResultController::class, 'index'])
+        ->name('exam-results.index');
+    Route::post('/resultats-examens', [ExamResultController::class, 'store'])
+        ->name('exam-results.store');
+    Route::put('/resultats-examens/{examResult}', [ExamResultController::class, 'update'])
+        ->name('exam-results.update');
+    Route::delete('/resultats-examens/{examResult}', [ExamResultController::class, 'destroy'])
+        ->name('exam-results.destroy');
+    Route::post('/resultats-examens/{examResult}/publier', [ExamResultController::class, 'publish'])
+        ->name('exam-results.publish');
+    Route::get('/resultats-examens/export/excel', [ExamResultController::class, 'exportExcel'])
+        ->name('exam-results.export.excel');
+    Route::get('/resultats-examens/export/pdf', [ExamResultController::class, 'exportPdf'])
+        ->name('exam-results.export.pdf');
+
     Route::get('/repartition/dashboard', [RepartitionReportController::class, 'dashboard'])
         ->name('repartition.dashboard');
+    Route::put('/repartition/besoins-specifiques/{candidate}', [RepartitionReportController::class, 'updateSpecialCandidate'])
+        ->whereNumber('candidate')
+        ->name('repartition.special-candidates.update');
     Route::get('/repartition/simulation/soubique', [RepartitionReportController::class, 'subjectSoubiqueSimulation'])
         ->name('repartition.simulation.soubique');
     Route::get('/repartition/simulation/soubique/pv', [RepartitionReportController::class, 'subjectSoubiquePv'])
@@ -69,12 +95,18 @@ Route::middleware('auth')->group(function () {
         ->name('repartition.tirage.excel');
     Route::get('/repartition/groupes', [RepartitionReportController::class, 'groupes'])
         ->name('repartition.groupes');
+    Route::get('/repartition/recap-saisie', [RepartitionReportController::class, 'saisieRecap'])
+        ->name('repartition.saisie.recap');
     Route::get('/repartition/statistiques/rapport', [RepartitionReportController::class, 'statsReport'])
         ->name('repartition.stats.report');
     Route::get('/repartition/statistiques/rapport/pdf', [RepartitionReportController::class, 'statsReportPdf'])
         ->name('repartition.stats.report.pdf');
     Route::get('/repartition/statistiques/rapport/word', [RepartitionReportController::class, 'statsReportWord'])
         ->name('repartition.stats.report.word');
+    Route::get('/repartition/statistiques/rapport/simple/word', [RepartitionReportController::class, 'statsReportWordSimple'])
+        ->name('repartition.stats.report.simple.word');
+    Route::get('/repartition/statistiques/rapport/simple/pdf', [RepartitionReportController::class, 'statsReportPdfSimple'])
+        ->name('repartition.stats.report.simple.pdf');
     Route::get('/repartition/statistiques/rapport/centres/xlsx', [RepartitionReportController::class, 'statsReportCentresExcel'])
         ->name('repartition.stats.report.centres.excel');
     Route::get('/repartition/export/excel', [RepartitionReportController::class, 'exportExcel'])
@@ -83,9 +115,30 @@ Route::middleware('auth')->group(function () {
         ->name('repartition.export.dispatching.preview');
     Route::get('/repartition/export/dispatching', [RepartitionReportController::class, 'exportDispatchingExcel'])
         ->name('repartition.export.dispatching');
+    Route::get('/repartition/options-langues/stats', [RepartitionReportController::class, 'languageOptionStats'])
+        ->name('repartition.options.langues.stats');
 });
 
 Route::middleware(['auth', 'logistics'])->group(function () {
+    Route::get('/logistique/comptabilite-matieres', [InventoryController::class, 'index'])
+        ->name('inventory.index');
+    Route::post('/logistique/comptabilite-matieres/materiels', [InventoryController::class, 'storeMaterial'])
+        ->name('inventory.materials.store');
+    Route::put('/logistique/comptabilite-matieres/materiels/{material}', [InventoryController::class, 'updateMaterial'])
+        ->name('inventory.materials.update');
+    Route::delete('/logistique/comptabilite-matieres/materiels/{material}', [InventoryController::class, 'destroyMaterial'])
+        ->name('inventory.materials.destroy');
+    Route::post('/logistique/comptabilite-matieres/mouvements', [InventoryController::class, 'storeMovement'])
+        ->name('inventory.movements.store');
+    Route::post('/logistique/comptabilite-matieres/fournisseurs', [InventoryController::class, 'storeSupplier'])
+        ->name('inventory.suppliers.store');
+    Route::post('/logistique/comptabilite-matieres/commandes', [InventoryController::class, 'storeOrder'])
+        ->name('inventory.orders.store');
+    Route::get('/logistique/comptabilite-matieres/export/excel', [InventoryController::class, 'exportExcel'])
+        ->name('inventory.export.excel');
+    Route::get('/logistique/comptabilite-matieres/export/pdf', [InventoryController::class, 'exportPdf'])
+        ->name('inventory.export.pdf');
+
     Route::get('/repartition/livraison/cepe', [RepartitionReportController::class, 'cepeLivraison'])
         ->name('repartition.livraison.cepe');
     Route::get('/repartition/livraison/cepe/export/xlsx', [RepartitionReportController::class, 'cepeLivraisonExcel'])
@@ -138,6 +191,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     Route::get('/admin/statistics', [StatisticController::class, 'index'])
         ->name('admin.statistics.index');
+    Route::put('/admin/statistics/dispatching/centre', [StatisticController::class, 'updateCentreDispatching'])
+        ->name('admin.statistics.dispatching.update');
     Route::put('/admin/statistics/{stat}', [StatisticController::class, 'update'])
         ->name('admin.statistics.update');
     Route::post('/admin/statistics/bulk-update', [StatisticController::class, 'updateBulk'])
@@ -167,12 +222,16 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('admin.references.centres-correction.store');
     Route::put('/admin/references/centres-correction/{centreCorrection}', [ReferenceManagementController::class, 'updateCentreCorrection'])
         ->name('admin.references.centres-correction.update');
+    Route::put('/admin/references/centres-correction/{centreCorrection}/duplicate-name', [ReferenceManagementController::class, 'updateDuplicateCentreCorrectionName'])
+        ->name('admin.references.centres-correction.duplicate-name.update');
     Route::delete('/admin/references/centres-correction/{centreCorrection}', [ReferenceManagementController::class, 'destroyCentreCorrection'])
         ->name('admin.references.centres-correction.destroy');
     Route::post('/admin/references/centres-ecrit', [ReferenceManagementController::class, 'storeCentreEcrit'])
         ->name('admin.references.centres-ecrit.store');
     Route::put('/admin/references/centres-ecrit/{centreEcrit}', [ReferenceManagementController::class, 'updateCentreEcrit'])
         ->name('admin.references.centres-ecrit.update');
+    Route::put('/admin/references/centres-ecrit/{centreEcrit}/duplicate-name', [ReferenceManagementController::class, 'updateDuplicateCentreEcritName'])
+        ->name('admin.references.centres-ecrit.duplicate-name.update');
     Route::delete('/admin/references/centres-ecrit/{centreEcrit}', [ReferenceManagementController::class, 'destroyCentreEcrit'])
         ->name('admin.references.centres-ecrit.destroy');
     Route::post('/admin/references/dispatching-axes', [ReferenceManagementController::class, 'storeDispatchingAxis'])
@@ -191,6 +250,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::delete('/admin/references/dispatching-drop-points/{index}', [ReferenceManagementController::class, 'destroyDispatchingDropPoint'])
         ->whereNumber('index')
         ->name('admin.references.dispatching-drop-points.destroy');
+    Route::post('/admin/references/special-candidates', [ReferenceManagementController::class, 'storeSpecialCandidates'])
+        ->name('admin.references.special-candidates.store');
 
     Route::post('/repartition/statistiques/rapport/import', [RepartitionReportController::class, 'importPreviousStats'])
         ->name('repartition.stats.report.import');

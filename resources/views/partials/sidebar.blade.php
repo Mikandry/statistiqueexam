@@ -57,6 +57,32 @@
                 </span>
             </a>
 
+            @if(! $user?->isLogistique())
+                <a class="{{ request()->routeIs('exam-results.*') ? $activeItem : $idleItem }}" href="{{ route('exam-results.index') }}">
+                    <span class="app-sidebar-icon-wrap bg-emerald-100 text-emerald-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                        </svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Résultats examens</span>
+                        <span class="app-sidebar-link-meta">Publication officielle</span>
+                    </span>
+                </a>
+            @endif
+
+            <a class="{{ request()->routeIs('repartition.options.langues.stats') ? $activeItem : $idleItem }}" href="{{ route('repartition.options.langues.stats') }}">
+                <span class="app-sidebar-icon-wrap bg-fuchsia-100 text-fuchsia-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747S17.5 6.253 12 6.253z" />
+                    </svg>
+                </span>
+                <span class="app-sidebar-copy-block">
+                    <span class="app-sidebar-link-title">Stats par langue</span>
+                    <span class="app-sidebar-link-meta">PE/GE par option</span>
+                </span>
+            </a>
+
             <a class="{{ request()->routeIs('repartition.simulation.soubique') ? $activeItem : $idleItem }}" href="{{ route('repartition.simulation.soubique') }}">
                 <span class="app-sidebar-icon-wrap bg-amber-100 text-amber-700">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -66,6 +92,17 @@
                 <span class="app-sidebar-copy-block">
                     <span class="app-sidebar-link-title">Simulation soubique</span>
                     <span class="app-sidebar-link-meta">Sujets par centre</span>
+                </span>
+            </a>
+            <a class="{{ request()->routeIs('repartition.export.dispatching.preview') ? $activeItem : $idleItem }}" href="{{ route('repartition.export.dispatching.preview') }}">
+                <span class="app-sidebar-icon-wrap bg-amber-100 text-amber-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 17h12M5 11h14M7 7h10M5 14h14M8 20h8M8 4h8M4 8h16M4 16h16M4 12h16M4 6h16M4 18h16M4 10h16M4 14h16" />
+                    </svg>
+                </span>
+                <span class="app-sidebar-copy-block">
+                    <span class="app-sidebar-link-title">Dispatching</span>
+                    <span class="app-sidebar-link-meta">Dispatching par axe</span>
                 </span>
             </a>
 
@@ -82,6 +119,18 @@
             </a>
 
             @if($user?->canAccessLogistics())
+                <a class="{{ request()->routeIs('inventory.*') ? $activeItem : $idleItem }}" href="{{ route('inventory.index') }}">
+                    <span class="app-sidebar-icon-wrap bg-emerald-100 text-emerald-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Comptabilité matières</span>
+                        <span class="app-sidebar-link-meta">Stock et approvisionnement</span>
+                    </span>
+                </a>
+
                 <a class="{{ request()->routeIs('repartition.logistique.bepc-copies*') ? $activeItem : $idleItem }}" href="{{ route('repartition.logistique.bepc-copies') }}">
                     <span class="app-sidebar-icon-wrap bg-cyan-100 text-cyan-700">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -117,6 +166,18 @@
                     <span class="app-sidebar-copy-block">
                         <span class="app-sidebar-link-title">Saisie</span>
                         <span class="app-sidebar-link-meta">Création et répartition</span>
+                    </span>
+                </a>
+
+                <a class="{{ request()->routeIs('repartition.saisie.recap') ? $activeItem : $idleItem }}" href="{{ route('repartition.saisie.recap') }}">
+                    <span class="app-sidebar-icon-wrap bg-sky-100 text-sky-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m4 2v-6m4 6V7M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Récap saisie</span>
+                        <span class="app-sidebar-link-meta">DREN complètes</span>
                     </span>
                 </a>
             @endif
@@ -262,13 +323,18 @@
     .app-sidebar-shell {
         width: 100%;
         flex-shrink: 0;
+        max-height: 100vh;
     }
 
     .app-sidebar-panel {
         position: relative;
+        display: flex;
+        min-height: 0;
+        height: 100%;
         overflow: hidden;
+        flex-direction: column;
         border: 1px solid rgba(226, 232, 240, 0.9);
-        border-radius: 28px;
+        border-radius: 20px;
         background:
             radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 30%),
             linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 250, 252, 0.96));
@@ -286,10 +352,11 @@
 
     .app-sidebar-header {
         display: flex;
+        flex-shrink: 0;
         align-items: flex-start;
         justify-content: space-between;
         gap: 0.75rem;
-        padding: 1.25rem 1rem 0.75rem;
+        padding: 1.05rem 0.9rem 0.7rem;
     }
 
     .app-sidebar-brand,
@@ -306,7 +373,7 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 18px;
+        border-radius: 14px;
         flex-shrink: 0;
     }
 
@@ -374,12 +441,13 @@
 
     .app-sidebar-hint {
         display: flex;
+        flex-shrink: 0;
         align-items: center;
         gap: 0.5rem;
-        margin: 0 1rem 0.75rem;
-        padding: 0.8rem 0.95rem;
+        margin: 0 0.9rem 0.7rem;
+        padding: 0.72rem 0.85rem;
         border: 1px solid rgba(191, 219, 254, 0.95);
-        border-radius: 18px;
+        border-radius: 12px;
         background: rgba(239, 246, 255, 0.9);
         font-size: 0.74rem;
         font-weight: 700;
@@ -397,9 +465,34 @@
 
     .app-sidebar-nav {
         display: flex;
+        min-height: 0;
+        flex: 1;
         flex-direction: column;
-        gap: 0.55rem;
-        padding: 0 1rem 1rem;
+        gap: 0.68rem;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 0.15rem 1rem 1rem;
+        scrollbar-color: #cbd5e1 transparent;
+        scrollbar-width: thin;
+    }
+
+    .app-sidebar-nav::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .app-sidebar-nav::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .app-sidebar-nav::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: #cbd5e1;
+    }
+
+    .app-sidebar-item,
+    .app-sidebar-item-active {
+        border-radius: 14px;
+        min-height: 4.05rem;
     }
 
     .app-sidebar-copy-block {
@@ -432,16 +525,17 @@
     }
 
     .app-sidebar-footer {
-        padding: 1rem;
+        flex-shrink: 0;
+        padding: 0.85rem;
         border-top: 1px solid rgba(226, 232, 240, 0.95);
         background: linear-gradient(180deg, rgba(248, 250, 252, 0.72), rgba(255, 255, 255, 0.94));
     }
 
     .app-sidebar-user {
-        margin-bottom: 0.85rem;
-        padding: 0.8rem;
+        margin-bottom: 0.65rem;
+        padding: 0.72rem;
         border: 1px solid rgba(226, 232, 240, 0.95);
-        border-radius: 20px;
+        border-radius: 14px;
         background: rgba(255, 255, 255, 0.82);
     }
 
@@ -473,7 +567,8 @@
     @media (min-width: 1024px) {
         .app-sidebar-shell {
             position: sticky;
-            top: 1.5rem;
+            top: 1rem;
+            height: calc(100vh - 2rem);
             width: var(--sidebar-width, 20rem);
             transition: width 0.24s ease;
             align-self: flex-start;

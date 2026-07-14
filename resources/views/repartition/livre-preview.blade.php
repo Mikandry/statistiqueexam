@@ -181,7 +181,9 @@
                 <div class="no-print flex flex-wrap gap-2">
                     <a class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" href="{{ route('bepc.repartition.create') }}">Saisie</a>
                     <a class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" href="{{ route('repartition.dashboard', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren'], 'cisco' => $filters['cisco'] ?? '', 'centre_search' => $filters['centre_search'] ?? '']) }}">Dashboard</a>
+                    <a class="rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-3 py-2 text-sm font-medium text-fuchsia-700 hover:bg-fuchsia-100" href="{{ route('repartition.livre.pe-ge', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren'], 'cisco' => $filters['cisco'] ?? '', 'centre_search' => $filters['centre_search'] ?? '']) }}">PE/GE ajusté</a>
                     <a class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100" href="{{ route('repartition.livre.controle', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren'], 'cisco' => $filters['cisco'] ?? '', 'centre_search' => $filters['centre_search'] ?? '']) }}">Fiche contrôle</a>
+                    <a class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100" href="{{ route('repartition.livre.controle.auto', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren'], 'cisco' => $filters['cisco'] ?? '', 'centre_search' => $filters['centre_search'] ?? '']) }}">Traçabilité auto</a>
                     @if(auth()->user()?->isAdmin())
                         <a class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" href="{{ route('repartition.vacations', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren'], 'cisco' => $filters['cisco'] ?? '', 'centre_search' => $filters['centre_search'] ?? '']) }}">Vacations</a>
                     @endif
@@ -255,7 +257,8 @@
             @php
                 $contentPages = collect($centrePagesByDren ?? [])->sum(fn($item) => count($item['pages'] ?? []));
                 $recapPages = count($recapSheets ?? []);
-                $allPages = $contentPages + $recapPages;
+                $specialPageCount = collect($specialCandidates ?? [])->isNotEmpty() ? 1 : 0;
+                $allPages = $contentPages + $recapPages + $specialPageCount;
                 $pageNumber = 0;
             @endphp
             @if(!$pdfMode)
@@ -364,10 +367,18 @@
                 @foreach(($drenPages['pages'] ?? []) as $pageIndex => $centres)
                     @php
                         $pageNumber++;
+                        $pageCisco = (string) ($centres[0]['cisco'] ?? '');
+                        $previousPageCisco = $pageIndex > 0 ? (string) ($drenPages['pages'][$pageIndex - 1][0]['cisco'] ?? '') : '';
+                        $startsCisco = $pageIndex === 0 || $pageCisco !== $previousPageCisco;
                     @endphp
                     <section class="book-page mb-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-2 md:p-3">
                         @if(!$pdfMode)
                             <div class="pdf-section-title mb-3 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">Répartition Page {{ $pageIndex + 1 }} - DREN {{ $drenPages['dren'] }}</div>
+                        @endif
+                        @if($startsCisco)
+                            <div class="mb-3 rounded-lg border border-slate-900 bg-slate-200 px-3 py-2 text-xs font-black uppercase tracking-widest text-slate-900">
+                                CISCO {{ $pageCisco !== '' ? $pageCisco : '-' }}
+                            </div>
                         @endif
 
                         @foreach($centres as $centre)
@@ -403,38 +414,44 @@
                                     @endif
                                 @endunless
 
-                                @if($isBepcType)
-                                    <div class="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between pdf-centre-summary">
-                                        <div class="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
-                                            <div class="mb-1 text-[11px] font-bold uppercase text-slate-600">Total par langues</div>
-                                            @php
-                                                $langueLabels = [
-                                                    'Anglais' => 'Ang',
-                                                    'Allemand' => 'ALL',
-                                                    'Esp' => 'ESP',
-                                                    'Option B' => 'B',
-                                                ];
-                                            @endphp
-                                            @forelse(($centre['langue_totals'] ?? []) as $langue => $total)
-                                                <div class="langue-line">
-                                                    <span>Total candidats {{ $langueLabels[$langue] ?? $langue }}: <strong>{{ number_format($total, 0, ',', ' ') }}</strong></span>
-                                                    <span>Total salle {{ $langueLabels[$langue] ?? $langue }}: <strong>{{ number_format((int) ($centre['langue_salles'][$langue] ?? 0), 0, ',', ' ') }}</strong></span>
-                                                </div>
-                                            @empty
-                                                <div class="text-slate-500">Aucune langue.</div>
-                                            @endforelse
-                                        </div>
-                                        <div class="shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-semibold text-slate-800 md:text-right right">
-                                            <div>Total candidats: <strong>{{ number_format($centre['total_candidats'], 0, ',', ' ') }}</strong></div>
-                                            <div>Total salle: <strong>{{ number_format($centre['total_salles'], 0, ',', ' ') }}</strong></div>
-                                            <div>Total GE/Matiere: <strong>{{ number_format($centre['ge_count'], 0, ',', ' ') }}</strong></div>
-                                        </div>
-                                    </div>
-                                @endif
-
                                 @foreach($centre['tables'] as $table)
-                                    <div class="mb-2 text-xs font-medium text-slate-500">Tableau {{ $table['index'] }} / {{ count($centre['tables']) }}</div>
                                     <div class="mb-3 overflow-x-auto avoid-break pdf-centre-table">
+                                        @if($isBepcType && $loop->first)
+                                            <div class="mb-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-[11px] leading-tight text-slate-800 pdf-centre-summary">
+                                                @php
+                                                    $langueLabels = [
+                                                        'Anglais' => 'ANG',
+                                                        'Allemand' => 'ALL',
+                                                        'Esp' => 'ESP',
+                                                        'Option B' => 'B',
+                                                    ];
+                                                @endphp
+                                                <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                                                    <div class="min-w-0 flex-1 whitespace-nowrap">
+                                                        <strong>Langues:</strong>
+                                                        @forelse(($centre['langue_totals'] ?? []) as $langue => $total)
+                                                            <span>
+                                                                <strong>{{ $langueLabels[$langue] ?? $langue }}:</strong>
+                                                                {{ number_format($total, 0, ',', ' ') }}
+                                                                <span class="text-slate-500">| Salle:</span>
+                                                                {{ number_format((int) ($centre['langue_salles'][$langue] ?? 0), 0, ',', ' ') }}
+                                                            </span>
+                                                            @unless($loop->last)<span class="text-slate-400">;</span>@endunless
+                                                        @empty
+                                                            <span class="text-slate-500">Aucune langue.</span>
+                                                        @endforelse
+                                                    </div>
+                                                    <div class="shrink-0 whitespace-nowrap font-semibold text-slate-900">
+                                                        Candidats: <strong>{{ number_format($centre['total_candidats'], 0, ',', ' ') }}</strong>
+                                                        <span class="text-slate-400">|</span>
+                                                        Salle: <strong>{{ number_format($centre['total_salles'], 0, ',', ' ') }}</strong>
+                                                        <span class="text-slate-400">|</span>
+                                                        GE/matiere: <strong>{{ number_format($centre['ge_count'], 0, ',', ' ') }}</strong>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endif
+                                        <div class="mb-2 text-xs font-medium text-slate-500">Tableau {{ $table['index'] }} / {{ count($centre['tables']) }}</div>
                                         <table class="pdf-table min-w-full border border-slate-900 border-collapse text-xs">
                                             @if(($filters['type_examen'] ?? '') === 'BEPC')
                                                 @php $rowspan = count($table['rows']) + 2; @endphp
@@ -503,7 +520,53 @@
             @empty
                 <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Aucune donnée disponible pour les filtres actuels.</div>
             @endforelse
-            
+
+            @if(collect($specialCandidates ?? [])->isNotEmpty())
+                @php $pageNumber++; @endphp
+                <section class="book-page mb-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-2 md:p-3">
+                    @if(!$pdfMode)
+                        <div class="pdf-section-title mb-3 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">Candidats à besoins spécifiques</div>
+                    @endif
+                    <div class="rounded-xl border border-slate-200 bg-white p-4">
+                        <div class="mb-4 flex items-center justify-between gap-3">
+                            <h2 class="text-lg font-extrabold">Liste des candidats à besoins spécifiques</h2>
+                            <div class="text-xs font-bold text-slate-800">{{ number_format(collect($specialCandidates)->count(), 0, ',', ' ') }} entrées</div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="pdf-table min-w-full border border-slate-900 border-collapse text-xs">
+                                <thead>
+                                    <tr class="bg-slate-100 text-left">
+                                        <th class="border border-slate-200 px-2 py-2">Année</th>
+                                        <th class="border border-slate-200 px-2 py-2">Type</th>
+                                        <th class="border border-slate-200 px-2 py-2">DREN</th>
+                                        <th class="border border-slate-200 px-2 py-2">CISCO</th>
+                                        <th class="border border-slate-200 px-2 py-2">Centre écrit</th>
+                                        <th class="border border-slate-200 px-2 py-2 text-right">Salle</th>
+                                        <th class="border border-slate-200 px-2 py-2">Handicap</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach(collect($specialCandidates) as $candidate)
+                                        <tr>
+                                            <td class="border border-slate-200 px-2 py-2">{{ $candidate->annee }}</td>
+                                            <td class="border border-slate-200 px-2 py-2">{{ $candidate->type_examen }}</td>
+                                            <td class="border border-slate-200 px-2 py-2">{{ $candidate->dren }}</td>
+                                            <td class="border border-slate-200 px-2 py-2">{{ $candidate->cisco }}</td>
+                                            <td class="border border-slate-200 px-2 py-2">{{ $candidate->centre_ecrit }}</td>
+                                            <td class="border border-slate-200 px-2 py-2 text-right">{{ number_format($candidate->numero_salle, 0, ',', ' ') }}</td>
+                                            <td class="border border-slate-200 px-2 py-2">{{ $candidate->type_handicap }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="page-footer">
+                        <div>Page {{ $pageNumber }} / {{ $allPages }}</div>
+                        <div>produced by RAMAROSON Andry Michael V1.0</div>
+                    </div>
+                </section>
+            @endif
 
             </div>
         </main>

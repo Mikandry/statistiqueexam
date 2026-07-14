@@ -20,9 +20,20 @@
                             <h1 class="text-2xl font-bold tracking-tight">Prévisualisation export dispatching</h1>
                             <p class="mt-1 text-sm text-slate-500">Regroupement par DREN, axe et point de largage.</p>
                         </div>
+                        @php
+                            $exportParams = [
+                                'annee' => $filters['annee'],
+                                'type_examen' => $filters['type_examen'],
+                                'dren' => $filters['dren'],
+                            ];
+                            if (($dispatchingOrder['selected_axe'] ?? '') !== '') {
+                                $exportParams['order_axe'] = $dispatchingOrder['selected_axe'];
+                                $exportParams['point_order_positions'] = $dispatchingOrder['positions'] ?? [];
+                            }
+                        @endphp
                         <div class="flex flex-wrap gap-2">
                             <a class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700" href="{{ route('repartition.dashboard', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Dashboard</a>
-                            <a class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white" href="{{ route('repartition.export.dispatching', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Exporter XML Excel</a>
+                            <a class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white" href="{{ route('repartition.export.dispatching', $exportParams) }}">Exporter XML Excel</a>
                         </div>
                     </div>
                 </div>
@@ -58,6 +69,49 @@
                         <div class="flex items-end">
                             <button class="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white" type="submit">Filtrer</button>
                         </div>
+                    </form>
+
+                    <form method="GET" action="{{ route('repartition.export.dispatching.preview') }}" class="mb-6 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4">
+                        <input type="hidden" name="annee" value="{{ $filters['annee'] }}">
+                        <input type="hidden" name="type_examen" value="{{ $filters['type_examen'] }}">
+                        <input type="hidden" name="dren" value="{{ $filters['dren'] }}">
+
+                        <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                            <div class="w-full md:max-w-md">
+                                <label class="mb-1 block text-sm font-semibold text-slate-700" for="order_axe">Paramètre ordre des points par axe</label>
+                                <select id="order_axe" name="order_axe" class="w-full rounded-lg border border-indigo-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800">
+                                    @forelse(($dispatchingOrder['axes'] ?? collect()) as $axe)
+                                        <option value="{{ $axe }}" {{ ($dispatchingOrder['selected_axe'] ?? '') === $axe ? 'selected' : '' }}>{{ $axe }}</option>
+                                    @empty
+                                        <option value="">Aucun axe disponible</option>
+                                    @endforelse
+                                </select>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button class="rounded-lg border border-indigo-200 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50" type="submit">Afficher les points</button>
+                                <button class="rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-800" type="submit">Appliquer l'ordre</button>
+                                <button class="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800" type="submit" formaction="{{ route('repartition.export.dispatching') }}">Télécharger avec cet ordre</button>
+                            </div>
+                        </div>
+
+                        @if(($dispatchingOrder['ordered_points'] ?? collect())->isNotEmpty())
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                @foreach(($dispatchingOrder['ordered_points'] ?? collect()) as $point)
+                                    <label class="flex items-center gap-3 rounded-lg border border-indigo-100 bg-white p-3">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            name="point_order_positions[{{ $point }}]"
+                                            value="{{ (int) (($dispatchingOrder['positions'][$point] ?? $loop->iteration)) }}"
+                                            class="h-10 w-20 rounded-lg border border-slate-200 px-3 text-center text-sm font-bold text-slate-900"
+                                        >
+                                        <span class="min-w-0 flex-1 text-sm font-semibold text-slate-700">{{ $point }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="rounded-lg border border-indigo-100 bg-white p-3 text-sm text-slate-500">Choisissez un axe contenant des points de largage.</div>
+                        @endif
                     </form>
 
                     <div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">

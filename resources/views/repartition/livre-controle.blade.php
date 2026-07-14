@@ -22,6 +22,7 @@
                         </div>
                         <div class="flex flex-wrap gap-2">
                             <a class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" href="{{ route('repartition.livre.preview', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Retour Livre</a>
+                            <a class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100" href="{{ route('repartition.livre.controle.auto', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Traçabilité auto</a>
                             <form id="wordExportForm" method="POST" action="{{ route('repartition.livre.controle.word') }}" class="inline-flex">
                                 @csrf
                                 <input type="hidden" name="annee" value="{{ $filters['annee'] }}">
@@ -77,30 +78,57 @@
                     </div>
 
                     <div class="mb-8 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
-                        <h2 class="mb-2 text-base font-bold text-indigo-900">Répartition des PE par Compteur</h2>
-                        <p class="mb-3 text-xs text-indigo-700">Saisissez le nombre de compteurs par groupe (DREN, CISCO ou centre). Le système répartit automatiquement les PE.</p>
-                        <div class="mb-3 flex items-center gap-3">
-                            <label class="text-sm font-medium text-indigo-900" for="groupMode">Mode de calcul:</label>
-                            <select id="groupMode" class="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm">
-                                <option value="DREN">Par DREN</option>
-                                <option value="CISCO">Par CISCO</option>
-                                <option value="CENTRE_ECRIT">Par centre</option>
-                            </select>
+                        <h2 class="mb-2 text-base font-bold text-indigo-900">Affectation des DREN aux groupes</h2>
+                        <p class="mb-3 text-xs text-indigo-700">Définissez le nombre de groupes, puis choisissez pour chaque DREN le groupe auquel elle est affilée.</p>
+                        <input id="groupMode" type="hidden" value="DREN">
+                        <div id="globalCounterDiv" class="mb-3 hidden items-center gap-3" style="display: none;">
+                            <label class="text-sm font-medium text-indigo-900" for="globalCounter">Nombre de compteurs global:</label>
+                            <input id="globalCounter" class="w-20 rounded border border-indigo-300 px-2 py-1 text-right text-xs" type="number" min="0" value="1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="text-sm font-medium text-indigo-900" for="groupCount">Nombre de groupes:</label>
+                            <input id="groupCount" class="w-20 rounded border border-indigo-300 px-2 py-1 text-right text-xs" type="number" min="1" value="1">
+                        </div>
+                        <div id="groupsContainer" class="mb-3">
+                            <!-- Liste des DREN générée ici -->
+                        </div>
+                        <div class="mb-3">
+                            <label class="text-sm font-medium text-indigo-900" for="compteurNames">Noms des compteurs (un par ligne)</label>
+                            <textarea id="compteurNames" rows="3" class="w-full rounded border border-indigo-300 px-2 py-2 text-xs" placeholder="Compteur 1\nCompteur 2"></textarea>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full border-collapse text-sm">
                                 <thead>
                                 <tr class="bg-indigo-100 text-left">
-                                    <th class="border border-indigo-200 px-2 py-2">Groupe</th>
+                                    <th class="border border-indigo-200 px-2 py-2">DREN / Zone</th>
+                                    <th class="border border-indigo-200 px-2 py-2">Groupe assigné</th>
                                     <th class="border border-indigo-200 px-2 py-2 text-right">Total PE</th>
                                     <th class="border border-indigo-200 px-2 py-2 text-right">Nb compteurs</th>
                                     <th class="border border-indigo-200 px-2 py-2 text-right">PE / compteur</th>
-                                    <th class="border border-indigo-200 px-2 py-2">Répartition des plages PE</th>
+                                    <th class="border border-indigo-200 px-2 py-2">Qui fait quoi</th>
                                 </tr>
                                 </thead>
                                 <tbody id="compteurMatrixBody">
                                 <tr>
-                                    <td colspan="5" class="border border-indigo-200 px-2 py-4 text-center text-indigo-700">Chargement...</td>
+                                    <td colspan="6" class="border border-indigo-200 px-2 py-4 text-center text-indigo-700">Chargement...</td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white p-3">
+                            <div class="mb-2 text-sm font-semibold text-slate-900">Affectation automatique des compteurs par centre</div>
+                            <table class="min-w-full border-collapse text-sm">
+                                <thead>
+                                <tr class="bg-slate-100 text-left">
+                                    <th class="border border-slate-200 px-2 py-2">DREN</th>
+                                    <th class="border border-slate-200 px-2 py-2">Centre</th>
+                                    <th class="border border-slate-200 px-2 py-2">Compteur</th>
+                                    <th class="border border-slate-200 px-2 py-2">PE</th>
+                                </tr>
+                                </thead>
+                                <tbody id="compteurAssignmentBody">
+                                <tr>
+                                    <td colspan="4" class="border border-slate-200 px-2 py-4 text-center text-slate-500">Aucune donnée.</td>
                                 </tr>
                                 </tbody>
                             </table>
@@ -226,24 +254,29 @@
 
         const groupModeEl = document.getElementById('groupMode');
         const matrixBody = document.getElementById('compteurMatrixBody');
+        const assignmentBody = document.getElementById('compteurAssignmentBody');
+        const globalCounterDiv = document.getElementById('globalCounterDiv');
+        const globalCounterEl = document.getElementById('globalCounter');
+        const compteurNamesEl = document.getElementById('compteurNames');
+        const groupCountEl = document.getElementById('groupCount');
+        const groupsContainer = document.getElementById('groupsContainer');
         
 
         function buildGroups(mode) {
             const grouped = {};
             peRows.forEach((row) => {
-                //const key = mode === 'CISCO' ? `${row.dren} | ${row.cisco}` : row.dren;
                 const key = mode === 'CENTRE_ECRIT' 
             ? `${row.dren} | ${row.cisco} | ${row.centre_ecrit}` 
             : (mode === 'CISCO' ? `${row.dren} | ${row.cisco}` : row.dren);
                 if (!grouped[key]) {
-                    grouped[key] = { totalPe: 0 };
+                    grouped[key] = { totalPe: 0, regions: [key] };
                 }
                 grouped[key].totalPe += 1;
             });
             return grouped;
         }
 
-        function buildRanges(totalPe, compteurCount) {
+        function buildRanges(totalPe, compteurCount, names = []) {
             if (compteurCount <= 0 || totalPe <= 0) return '-';
             const base = Math.floor(totalPe / compteurCount);
             let extra = totalPe % compteurCount;
@@ -254,57 +287,239 @@
                 const count = base + (extra > 0 ? 1 : 0);
                 if (extra > 0) extra--;
                 if (count <= 0) {
-                    ranges.push(`C${i}: -`);
+                    const name = names[i-1] || `C${i}`;
+                    ranges.push(`${name}: -`);
                     continue;
                 }
                 const end = start + count - 1;
-                ranges.push(`C${i}: PE${start}${end > start ? '-PE' + end : ''}`);
+                const name = names[i-1] || `C${i}`;
+                ranges.push(`${name}: PE${start}${end > start ? '-PE' + end : ''}`);
                 start = end + 1;
             }
 
             return ranges.join(' | ');
         }
 
+        function getCompteurNames() {
+            const text = compteurNamesEl?.value || '';
+            return text.split('\n').map(name => name.trim()).filter(name => name !== '');
+        }
+
+        function getGroupCount() {
+            return Math.max(1, parseInt(groupCountEl?.value || '1', 10) || 1);
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getGroupData() {
+            const groupCount = getGroupCount();
+            const groups = buildGroups(groupModeEl?.value || 'DREN');
+            const mode = 'DREN';
+            const data = [];
+
+            for (let i = 1; i <= groupCount; i++) {
+                const legacyNames = (store[`group${i}|names`] || '').split('\n').map(n => n.trim()).filter(n => n !== '');
+                const name = (store[`group${i}|name`] || legacyNames[0] || `Groupe ${i}`).trim();
+                const names = legacyNames.length > 0 ? legacyNames : [`Compteur ${i}`];
+                data.push({ id: i, name, names, regions: [] });
+            }
+
+            Object.keys(groups).sort((a, b) => a.localeCompare(b)).forEach((key) => {
+                let groupId = parseInt(store[`assignment|${mode}|${key}`] || '1', 10) || 1;
+                if (groupId < 1 || groupId > groupCount) groupId = 1;
+                data[groupId - 1].regions.push(key);
+            });
+
+            return data;
+        }
+
+        function renderGroups() {
+            const groupCount = getGroupCount();
+            const mode = 'DREN';
+            const rawGroups = buildGroups(mode);
+            const keys = Object.keys(rawGroups).sort((a, b) => a.localeCompare(b));
+            const groups = getGroupData();
+            
+            if (!groupsContainer) return;
+            
+            const assignmentRows = keys.map((key) => {
+                let currentGroup = parseInt(store[`assignment|${mode}|${key}`] || '1', 10) || 1;
+                if (currentGroup < 1 || currentGroup > groupCount) currentGroup = 1;
+                const options = groups.map(group => `<option value="${group.id}" ${group.id === currentGroup ? 'selected' : ''}>Groupe ${group.id}</option>`).join('');
+                return `
+                    <tr>
+                        <td class="border border-indigo-200 px-2 py-2 font-semibold text-indigo-900">${escapeHtml(key)}</td>
+                        <td class="border border-indigo-200 px-2 py-2">
+                            <select class="w-full rounded border border-indigo-300 bg-white px-2 py-1 text-xs" data-assignment-key="${escapeHtml(key)}">${options}</select>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            groupsContainer.innerHTML = `
+                <div class="overflow-x-auto rounded-lg border border-indigo-200 bg-white">
+                    <div class="border-b border-indigo-200 bg-indigo-100 px-3 py-2 text-xs font-black uppercase tracking-widest text-indigo-900">Liste des DREN</div>
+                    <table class="min-w-full border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-indigo-100 text-left">
+                                <th class="border border-indigo-200 px-2 py-2">DREN</th>
+                                <th class="border border-indigo-200 px-2 py-2">Affilé au groupe</th>
+                            </tr>
+                        </thead>
+                        <tbody>${assignmentRows || '<tr><td colspan="2" class="px-3 py-4 text-center text-indigo-700">Aucune DREN disponible.</td></tr>'}</tbody>
+                    </table>
+                </div>
+            `;
+
+            groupsContainer.querySelectorAll('[data-assignment-key]').forEach(select => {
+                const key = select.getAttribute('data-assignment-key');
+                select.addEventListener('change', function() {
+                    store[`assignment|${mode}|${key}`] = this.value;
+                    localStorage.setItem(storageKey, JSON.stringify(store));
+                    renderGroups();
+                    renderMatrix();
+                    updateCompteurNamesInTable();
+                });
+            });
+        }
+
+        function getNamesForRegion(regionKey, groups) {
+            for (const group of groups) {
+                if (group.regions.includes(regionKey)) {
+                    return group.names;
+                }
+            }
+            return getCompteurNames(); // Fallback to global names
+        }
+
+        function formatPeRange(peNumbers) {
+            if (!peNumbers.length) return '';
+            const start = peNumbers[0];
+            const end = peNumbers[peNumbers.length - 1];
+            return start === end ? `PE${start}` : `PE${start}-${end}`;
+        }
+
+        function buildCounterTasks(regionRows, names) {
+            const counters = (names && names.length ? names : ['Compteur 1']).map(name => ({ name, tasks: [] }));
+            const centres = {};
+
+            regionRows.forEach((row) => {
+                const key = `${row.dren}|${row.cisco}|${row.centre_ecrit}`;
+                if (!centres[key]) {
+                    centres[key] = { label: row.centre_ecrit, pe: [] };
+                }
+                centres[key].pe.push(parseInt(row.pe_no, 10));
+            });
+
+            Object.values(centres)
+                .sort((a, b) => a.label.localeCompare(b.label))
+                .forEach((centre) => {
+                    const peNumbers = centre.pe.sort((a, b) => a - b);
+                    const base = Math.floor(peNumbers.length / counters.length);
+                    let extra = peNumbers.length % counters.length;
+                    let offset = 0;
+
+                    counters.forEach((counter) => {
+                        const count = base + (extra > 0 ? 1 : 0);
+                        if (extra > 0) extra--;
+                        const slice = peNumbers.slice(offset, offset + count);
+                        offset += count;
+                        if (slice.length) {
+                            counter.tasks.push(`${centre.label} ${formatPeRange(slice)}`);
+                        }
+                    });
+                });
+
+            return counters;
+        }
+
+        function buildCompteurAssignmentRows() {
+            const names = getCompteurNames();
+            const counterNames = names.length ? names : ['Compteur 1'];
+            const mode = 'DREN';
+            const groups = buildGroups(mode);
+            const rows = [];
+
+            Object.keys(groups).sort((a, b) => a.localeCompare(b)).forEach((key) => {
+                const regionRows = peRows.filter(row => row.dren === key);
+                const counters = buildCounterTasks(regionRows, counterNames);
+                counters.forEach((counter) => {
+                    counter.tasks.forEach((task) => {
+                        const lastSpace = task.lastIndexOf(' ');
+                        const centre = task.substring(0, lastSpace);
+                        const range = task.substring(lastSpace + 1);
+                        rows.push({ dren: key, centre, compteur: counter.name, pe: range });
+                    });
+                });
+            });
+
+            return rows;
+        }
+
+        function renderCompteurAssignments() {
+            if (!assignmentBody) return;
+            const rows = buildCompteurAssignmentRows();
+            if (!rows.length) {
+                assignmentBody.innerHTML = '<tr><td colspan="4" class="border border-slate-200 px-2 py-4 text-center text-slate-500">Aucune donnée.</td></tr>';
+                return;
+            }
+            assignmentBody.innerHTML = rows.map(row => `
+                <tr>
+                    <td class="border border-slate-200 px-2 py-2 text-xs">${escapeHtml(row.dren)}</td>
+                    <td class="border border-slate-200 px-2 py-2 text-xs">${escapeHtml(row.centre)}</td>
+                    <td class="border border-slate-200 px-2 py-2 text-xs">${escapeHtml(row.compteur)}</td>
+                    <td class="border border-slate-200 px-2 py-2 text-xs">${escapeHtml(row.pe)}</td>
+                </tr>
+            `).join('');
+        }
+
         function renderMatrix() {
-            const mode = (groupModeEl?.value || 'DREN');
+            const mode = 'DREN';
             const groups = buildGroups(mode);
             const keys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+            const groupData = getGroupData();
 
             if (!matrixBody) return;
 
             if (keys.length === 0) {
-                matrixBody.innerHTML = '<tr><td colspan="5" class="border border-indigo-200 px-2 py-4 text-center text-indigo-700">Aucune donnée.</td></tr>';
+                matrixBody.innerHTML = '<tr><td colspan="6" class="border border-indigo-200 px-2 py-4 text-center text-indigo-700">Aucune donnée.</td></tr>';
+                renderCompteurAssignments();
                 return;
             }
 
             matrixBody.innerHTML = keys.map((key) => {
                 const totalPe = groups[key].totalPe;
-                const countStoreKey = `matrix|${mode}|${key}|compteurs`;
-                const compteurCount = Math.max(1, parseInt(store[countStoreKey] || '1', 10) || 1);
-                const peParCompteur = (totalPe / compteurCount).toFixed(2);
-                const ranges = buildRanges(totalPe, compteurCount);
+                const regionRows = peRows.filter(row => row.dren === key);
+                const regionNames = getNamesForRegion(key, groupData);
+                const compteurCount = regionNames.length || 1;
+                const peParCompteur = compteurCount > 0 ? (totalPe / compteurCount).toFixed(2) : totalPe.toFixed(2);
+                const taskRows = buildCounterTasks(regionRows, regionNames)
+                    .map(counter => `<div><strong>${escapeHtml(counter.name)}:</strong> ${counter.tasks.length ? counter.tasks.map(escapeHtml).join('; ') : '-'}</div>`)
+                    .join('');
+
+                // Find which group this region belongs to
+                const groupForRegion = groupData.find(group => group.regions.includes(key));
+                const groupInfo = groupForRegion ? groupForRegion.name : '-';
 
                 return `
                     <tr>
                         <td class="border border-indigo-200 px-2 py-2 font-semibold text-indigo-900">${key}</td>
+                        <td class="border border-indigo-200 px-2 py-2 text-xs">${groupInfo}</td>
                         <td class="border border-indigo-200 px-2 py-2 text-right">${totalPe}</td>
-                        <td class="border border-indigo-200 px-2 py-2 text-right">
-                            <input data-matrix-key="${countStoreKey}" class="w-20 rounded border border-indigo-300 px-2 py-1 text-right text-xs" type="number" min="1" value="${compteurCount}">
-                        </td>
+                        <td class="border border-indigo-200 px-2 py-2 text-right">${compteurCount}</td>
                         <td class="border border-indigo-200 px-2 py-2 text-right">${peParCompteur}</td>
-                        <td class="border border-indigo-200 px-2 py-2 text-xs">${ranges}</td>
+                        <td class="border border-indigo-200 px-2 py-2 text-xs">${taskRows}</td>
                     </tr>
                 `;
             }).join('');
-
-            matrixBody.querySelectorAll('[data-matrix-key]').forEach((input) => {
-                input.addEventListener('input', function () {
-                    const key = this.getAttribute('data-matrix-key');
-                    store[key] = this.value;
-                    localStorage.setItem(storageKey, JSON.stringify(store));
-                    renderMatrix();
-                });
-            });
+            renderCompteurAssignments();
         }
 
         if (groupModeEl) {
@@ -313,7 +528,64 @@
             groupModeEl.addEventListener('change', function () {
                 store[groupModeStoreKey] = this.value;
                 localStorage.setItem(storageKey, JSON.stringify(store));
+                updateGlobalCounterVisibility();
                 renderMatrix();
+                updateCompteurNamesInTable();
+            });
+        }
+
+        function updateGlobalCounterVisibility() {
+            const mode = groupModeEl?.value || 'DREN';
+            if (globalCounterDiv) {
+                globalCounterDiv.style.display = mode === 'CENTRE_ECRIT' ? 'flex' : 'none';
+            }
+            if (globalCounterEl && mode === 'CENTRE_ECRIT') {
+                const globalCounterStoreKey = 'matrix|global|compteurs';
+                globalCounterEl.value = store[globalCounterStoreKey] || '1';
+            }
+            renderGroups();
+            updateCompteurNamesInTable();
+        }
+
+        if (globalCounterEl) {
+            globalCounterEl.addEventListener('input', function () {
+                const mode = groupModeEl?.value || 'DREN';
+                if (mode === 'CENTRE_ECRIT') {
+                    const value = this.value;
+                    const groups = buildGroups(mode);
+                    const keys = Object.keys(groups);
+                    keys.forEach(key => {
+                        const countStoreKey = `matrix|${mode}|${key}|compteurs`;
+                        store[countStoreKey] = value;
+                    });
+                    const globalCounterStoreKey = 'matrix|global|compteurs';
+                    store[globalCounterStoreKey] = value;
+                    localStorage.setItem(storageKey, JSON.stringify(store));
+                    renderMatrix();
+                    updateCompteurNamesInTable();
+                }
+            });
+        }
+
+        if (compteurNamesEl) {
+            const namesStoreKey = 'compteurNames';
+            compteurNamesEl.value = store[namesStoreKey] || '';
+            compteurNamesEl.addEventListener('input', function () {
+                store[namesStoreKey] = this.value;
+                localStorage.setItem(storageKey, JSON.stringify(store));
+                renderMatrix();
+            });
+        }
+
+        if (groupCountEl) {
+            const groupCountStoreKey = 'groupCount';
+            groupCountEl.value = store[groupCountStoreKey] || '1';
+            groupCountEl.addEventListener('input', function () {
+                store[groupCountStoreKey] = this.value;
+                localStorage.setItem(storageKey, JSON.stringify(store));
+                renderGroups();
+                renderMatrix();
+                updateCompteurNamesInTable();
             });
         }
 
@@ -326,6 +598,43 @@
         }
 
         renderMatrix();
+        updateGlobalCounterVisibility();
+        updateCompteurNamesInTable();
+
+        function updateCompteurNamesInTable() {
+            const mode = (groupModeEl?.value || 'DREN');
+            const groups = buildGroups(mode);
+            const keys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+            const groupData = getGroupData();
+
+            keys.forEach((key) => {
+                const totalPe = groups[key].totalPe;
+                const countStoreKey = `matrix|${mode}|${key}|compteurs`;
+                let compteurCount;
+                if (mode === 'CENTRE_ECRIT') {
+                    const globalCounterStoreKey = 'matrix|global|compteurs';
+                    compteurCount = Math.max(0, parseInt(store[globalCounterStoreKey] || store[countStoreKey] || '1', 10) || 1);
+                } else {
+                    compteurCount = Math.max(0, parseInt(store[countStoreKey] || '1', 10) || 1);
+                }
+
+                // Find which group this region belongs to
+                const groupForRegion = groupData.find(group => group.regions.includes(key));
+
+                if (groupForRegion && groupForRegion.names.length > 0) {
+                    // Use the names from the group, cycling through them if needed
+                    for (let i = 0; i < compteurCount; i++) {
+                        const nameIndex = i % groupForRegion.names.length;
+                        const compteurName = groupForRegion.names[nameIndex];
+                        const cellSelector = `td[data-region="${key}"][data-compteur="${i + 1}"]`;
+                        const cell = document.querySelector(cellSelector);
+                        if (cell) {
+                            cell.textContent = compteurName;
+                        }
+                    }
+                }
+            });
+        }
     })();
 </script>
 </body>

@@ -19,4 +19,9 @@ class Cisco extends Model
     {
         return $this->hasMany(CentreCorrection::class);
     }
+
+    public function examResults(): HasMany
+    {
+        return $this->hasMany(ExamResult::class);
+    }
 }

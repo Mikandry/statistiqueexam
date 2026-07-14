@@ -13,4 +13,9 @@ class Dren extends Model
     {
         return $this->hasMany(Cisco::class);
     }
+
+    public function examResults(): HasMany
+    {
+        return $this->hasMany(ExamResult::class);
+    }
 }

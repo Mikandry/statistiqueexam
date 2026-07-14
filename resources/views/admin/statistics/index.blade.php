@@ -212,8 +212,112 @@
                         $hasBulkStats = isset($bulkStats) && $bulkStats->isNotEmpty();
                         $bulkCentre = $hasBulkStats ? $bulkStats->first()?->centreEcrit : null;
                     @endphp
+                    <div id="dispatching-centres" class="mb-6 scroll-mt-24 rounded-xl border border-teal-200 bg-teal-50 p-5 shadow-sm">
+                        <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h2 class="text-lg font-semibold text-slate-900">Axes et points des centres déjà saisis</h2>
+                                <p class="text-sm text-slate-600">Corrige l’axe de dispatching ou le point de largage sur toutes les lignes d’un centre pour l’année et le type affichés.</p>
+                            </div>
+                            <span class="rounded-full bg-white px-3 py-2 text-xs font-black uppercase tracking-wide text-teal-700">
+                                {{ number_format(($dispatchingRows ?? collect())->count(), 0, ',', ' ') }} centre(s)
+                            </span>
+                        </div>
+
+                        @php
+                            $axisOptions = collect($dispatchingAxes ?? [])
+                                ->merge($allExistingDispatchingAxes ?? [])
+                                ->merge(($dispatchingRows ?? collect())->pluck('axe_dispatching'))
+                                ->filter()
+                                ->unique()
+                                ->sort()
+                                ->values();
+
+                            $dropPointOptions = collect($dispatchingDropPoints ?? [])
+                                ->merge($allExistingDispatchingDropPoints ?? [])
+                                ->merge(($dispatchingRows ?? collect())->pluck('point_largage'))
+                                ->filter()
+                                ->unique()
+                                ->sort()
+                                ->values();
+                        @endphp
+
+                        <div class="overflow-x-auto rounded-xl border border-teal-200 bg-white">
+                            <table class="min-w-full border-collapse text-sm">
+                                <thead>
+                                <tr class="bg-teal-50/80">
+                                    <th class="border border-teal-100 px-3 py-2 text-left font-semibold">Centre</th>
+                                    <th class="border border-teal-100 px-3 py-2 text-left font-semibold">Année / type</th>
+                                    <th class="border border-teal-100 px-3 py-2 text-right font-semibold">Candidats</th>
+                                    <th class="border border-teal-100 px-3 py-2 text-left font-semibold">Axe dispatching</th>
+                                    <th class="border border-teal-100 px-3 py-2 text-left font-semibold">Point largage</th>
+                                    <th class="border border-teal-100 px-3 py-2 text-left font-semibold">Action</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @forelse($dispatchingRows ?? [] as $dispatchRow)
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="border border-teal-100 px-3 py-2">
+                                            <div class="font-bold text-slate-900">{{ $dispatchRow->centre_ecrit }}</div>
+                                            <div class="text-xs text-slate-500">{{ $dispatchRow->dren }} / {{ $dispatchRow->cisco }} / {{ $dispatchRow->centre_correction }}</div>
+                                        </td>
+                                        <td class="border border-teal-100 px-3 py-2">
+                                            <div class="font-bold text-slate-900">{{ $dispatchRow->annee }}</div>
+                                            <div class="text-xs font-semibold text-teal-700">{{ $dispatchRow->type_examen }} · {{ number_format($dispatchRow->total_salles, 0, ',', ' ') }} salle(s)</div>
+                                        </td>
+                                        <td class="border border-teal-100 px-3 py-2 text-right font-black text-slate-900">{{ number_format((int) $dispatchRow->total_candidats, 0, ',', ' ') }}</td>
+                                        <td class="border border-teal-100 px-3 py-2">
+                                            <form id="dispatching-centre-{{ $loop->index }}" method="POST" action="{{ route('admin.statistics.dispatching.update') }}" class="contents">
+                                                @csrf
+                                                @method('PUT')
+                                                <input type="hidden" name="centre_ecrit_id" value="{{ $dispatchRow->centre_ecrit_id }}">
+                                                <input type="hidden" name="annee" value="{{ $dispatchRow->annee }}">
+                                                <input type="hidden" name="type_examen" value="{{ $dispatchRow->type_examen }}">
+                                                <input type="hidden" name="filter_annee" value="{{ $filters['annee'] ?? '' }}">
+                                                <input type="hidden" name="filter_type_examen" value="{{ $filters['type_examen'] ?? 'ALL' }}">
+                                                <input type="hidden" name="filter_dren_id" value="{{ $filters['dren_id'] ?? 0 }}">
+                                                <input type="hidden" name="filter_cisco_id" value="{{ $filters['cisco_id'] ?? 0 }}">
+                                                <input type="hidden" name="filter_centre_correction_id" value="{{ $filters['centre_correction_id'] ?? 0 }}">
+                                                <input type="hidden" name="filter_centre_ecrit_id" value="{{ $filters['centre_ecrit_id'] ?? 0 }}">
+                                                <input type="hidden" name="filter_centre_search" value="{{ $filters['centre_search'] ?? '' }}">
+                                                <select name="axe_dispatching" required class="w-64 rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+                                                    <option value="">Choisir un axe</option>
+                                                    @if($dispatchRow->axe_dispatching !== '' && ! $axisOptions->contains($dispatchRow->axe_dispatching))
+                                                        <option value="{{ $dispatchRow->axe_dispatching }}" selected>{{ $dispatchRow->axe_dispatching }}</option>
+                                                    @endif
+                                                    @foreach($axisOptions as $axis)
+                                                        <option value="{{ $axis }}" {{ $dispatchRow->axe_dispatching === $axis ? 'selected' : '' }}>{{ $axis }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </form>
+                                        </td>
+                                        <td class="border border-teal-100 px-3 py-2">
+                                            <select form="dispatching-centre-{{ $loop->index }}" name="point_largage" class="w-56 rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+                                                <option value="">Aucun point</option>
+                                                @if($dispatchRow->point_largage !== '' && ! $dropPointOptions->contains($dispatchRow->point_largage))
+                                                    <option value="{{ $dispatchRow->point_largage }}" selected>{{ $dispatchRow->point_largage }}</option>
+                                                @endif
+                                                @foreach($dropPointOptions as $point)
+                                                    <option value="{{ $point }}" {{ $dispatchRow->point_largage === $point ? 'selected' : '' }}>{{ $point }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td class="border border-teal-100 px-3 py-2">
+                                            <button form="dispatching-centre-{{ $loop->index }}" class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-black text-white shadow-sm ring-1 ring-slate-900/10 hover:bg-amber-600 hover:ring-amber-700" type="submit">Modifier</button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="border border-teal-100 px-3 py-6 text-center text-sm font-semibold text-slate-500">Aucun centre saisi pour les filtres actuels.</td>
+                                    </tr>
+                                @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="mt-3 text-xs font-medium text-teal-800">Astuce: les listes proposent les valeurs des référentiels, mais tu peux aussi taper une correction manuelle si un point manque encore.</p>
+                    </div>
+
                     @if($hasBulkStats)
-                        <div class="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm">
+                        <div id="modification-globale" class="mb-6 scroll-mt-24 rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm">
                             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                                 <div>
                                     <h2 class="text-lg font-semibold text-slate-900">Modification globale</h2>
@@ -223,11 +327,21 @@
                                         | DREN: <strong>{{ $bulkCentre->centreCorrection->cisco->dren->nom ?? '-' }}</strong>
                                     </p>
                                 </div>
+                                <div class="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-right">
+                                    <div class="text-[10px] font-black uppercase tracking-wide text-indigo-500">Lignes</div>
+                                    <div class="text-lg font-black text-slate-900">{{ number_format($bulkStats->count(), 0, ',', ' ') }}</div>
+                                </div>
                             </div>
 
                             <form method="POST" action="{{ route('admin.statistics.bulk-update') }}">
                                 @csrf
-                                <input type="hidden" name="centre_ecrit_id" value="{{ $filters['centre_ecrit_id'] }}">
+                                <input type="hidden" name="centre_ecrit_id" value="{{ $bulkCentreEcritId }}">
+                                <input type="hidden" name="annee" value="{{ $filters['annee'] ?? '' }}">
+                                <input type="hidden" name="type_examen" value="{{ $filters['type_examen'] ?? 'ALL' }}">
+                                <input type="hidden" name="dren_id" value="{{ $filters['dren_id'] ?? 0 }}">
+                                <input type="hidden" name="cisco_id" value="{{ $filters['cisco_id'] ?? 0 }}">
+                                <input type="hidden" name="centre_correction_id" value="{{ $filters['centre_correction_id'] ?? 0 }}">
+                                <input type="hidden" name="centre_search" value="{{ $filters['centre_search'] ?? '' }}">
                                 <div class="overflow-x-auto">
                                     <table class="min-w-full border-collapse text-sm">
                                         <thead>

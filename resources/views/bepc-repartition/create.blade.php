@@ -15,6 +15,19 @@
         .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .numeric-entry {
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a;
+            caret-color: #0f172a;
+            font-size: 16px;
+            line-height: 1.25;
+            min-width: 64px;
+        }
+        .numeric-entry:disabled {
+            color: #64748b !important;
+            -webkit-text-fill-color: #64748b;
+            opacity: 1;
+        }
     </style>
 </head>
 
@@ -101,7 +114,7 @@
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-bold text-slate-700 ml-1">Capacité (Salles)</label>
-                                <input type="number" name="nombre_salles" min="1" max="50" value="{{ old('nombre_salles', $nombreSalles) }}" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold shadow-sm transition-all focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none">
+                                <input type="number" name="nombre_salles" min="1" max="70" value="{{ old('nombre_salles', $nombreSalles) }}" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold shadow-sm transition-all focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none">
                             </div>
                             <div class="flex items-end">
                                 <button class="w-full rounded-xl bg-white border border-slate-200 py-3 text-sm font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:bg-slate-100 hover:border-slate-300 active:scale-95" type="submit">
@@ -188,7 +201,7 @@
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-bold text-slate-700">Candidats à besoins spécifiques</label>
-                                    <textarea name="candidats_specifiques" placeholder="Salle, Type Handicap" class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none"></textarea>
+                                    <textarea name="candidats_specifiques" placeholder="Salle, Type Handicap" class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none">{{ old('candidats_specifiques') }}</textarea>
                                 </div>
                             </div>
                         </div>
@@ -252,7 +265,7 @@
                                                     <td class="sticky-col px-6 py-4 font-black text-slate-700 text-sm whitespace-nowrap">{{ $langue }}</td>
                                                     @for($salle = 1; $salle <= $nombreSalles; $salle++)
                                                         <td class="px-3 py-3 border-l border-slate-50">
-                                                            <input type="number" min="0" name="effectifs[{{ $langue }}][{{ $salle }}]" value="{{ old("effectifs.$langue.$salle", 0) }}" required data-salle="{{ $salle }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-sm font-bold shadow-sm input-focus-ring input-effectif">
+                                                            <input type="number" min="0" name="effectifs[{{ $langue }}][{{ $salle }}]" value="{{ old("effectifs.$langue.$salle", 0) }}" required data-salle="{{ $salle }}" class="numeric-entry w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-center font-bold shadow-sm input-focus-ring input-effectif">
                                                         </td>
                                                     @endfor
                                                 </tr>
@@ -262,7 +275,7 @@
                                                 <td class="sticky-col px-6 py-8 font-black text-indigo-600 text-sm whitespace-nowrap uppercase tracking-wider">Total CEPE</td>
                                                 @for($salle = 1; $salle <= $nombreSalles; $salle++)
                                                     <td class="px-3 py-3 border-l border-slate-50">
-                                                        <input type="number" min="0" name="effectifs_total[{{ $salle }}]" value="{{ old("effectifs_total.$salle", 0) }}" required data-salle="{{ $salle }}" class="w-full rounded-xl border border-indigo-100 bg-white px-3 py-4 text-center text-lg font-black text-indigo-600 shadow-sm input-focus-ring input-effectif">
+                                                        <input type="number" min="0" name="effectifs_total[{{ $salle }}]" value="{{ old("effectifs_total.$salle", 0) }}" required data-salle="{{ $salle }}" class="numeric-entry w-full rounded-xl border border-indigo-100 bg-white px-3 py-4 text-center font-black shadow-sm input-focus-ring input-effectif">
                                                     </td>
                                                 @endfor
                                             </tr>
@@ -282,7 +295,7 @@
                                                 <td class="sticky-col px-6 py-4 font-bold text-amber-700 text-xs uppercase bg-amber-50 border-r-amber-100">Option A</td>
                                                 @for($salle = 1; $salle <= $nombreSalles; $salle++)
                                                     <td class="px-3 py-3 border-l border-amber-50">
-                                                        <input type="number" min="0" name="foreign_effectifs[option_a][{{ $salle }}]" value="{{ old("foreign_effectifs.option_a.$salle", 0) }}" data-salle="{{ $salle }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:ring-4 focus:ring-amber-500/20 input-effectif">
+                                                        <input type="number" min="0" name="foreign_effectifs[option_a][{{ $salle }}]" value="{{ old("foreign_effectifs.option_a.$salle", 0) }}" data-salle="{{ $salle }}" class="numeric-entry w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center font-bold outline-none focus:ring-4 focus:ring-amber-500/20 input-effectif">
                                                     </td>
                                                 @endfor
                                             </tr>
@@ -290,7 +303,7 @@
                                                 <td class="sticky-col px-6 py-4 font-bold text-amber-700 text-xs uppercase bg-amber-50 border-r-amber-100">Option B</td>
                                                 @for($salle = 1; $salle <= $nombreSalles; $salle++)
                                                     <td class="px-3 py-3 border-l border-amber-50">
-                                                        <input type="number" min="0" name="foreign_effectifs[option_b][{{ $salle }}]" value="{{ old("foreign_effectifs.option_b.$salle", 0) }}" data-salle="{{ $salle }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:ring-4 focus:ring-amber-500/20 input-effectif">
+                                                        <input type="number" min="0" name="foreign_effectifs[option_b][{{ $salle }}]" value="{{ old("foreign_effectifs.option_b.$salle", 0) }}" data-salle="{{ $salle }}" class="numeric-entry w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center font-bold outline-none focus:ring-4 focus:ring-amber-500/20 input-effectif">
                                                     </td>
                                                 @endfor
                                             </tr>
