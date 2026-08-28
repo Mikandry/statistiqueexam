@@ -1,0 +1,109 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\HrAgent;
+use App\Models\User;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\View\View;
+
+class UserManagementController extends Controller
+{
+    private const AVAILABLE_ROLES = [
+        User::ROLE_ADMIN,
+        User::ROLE_USER,
+        User::ROLE_LOGISTIQUE,
+    ];
+
+    public function index(Request $request): View
+    {
+        $users = User::query()->orderBy('name')->paginate(20)->withQueryString();
+
+        return view('admin.users.index', [
+            'users' => $users,
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8'],
+            'role' => ['required', 'in:'.implode(',', self::AVAILABLE_ROLES)],
+        ]);
+
+        $email = strtolower(trim((string) $validated['email']));
+
+        User::create([
+            'name' => trim((string) $validated['name']),
+            'email' => $email,
+            'password' => Hash::make((string) $validated['password']),
+            'role' => $validated['role'],
+            'hr_agent_id' => $this->matchingAgentId($email),
+        ]);
+
+        return back()->with('status', 'Utilisateur ajouté.');
+    }
+
+    public function update(Request $request, User $user): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
+            'password' => ['nullable', 'string', 'min:8'],
+            'role' => ['required', 'in:'.implode(',', self::AVAILABLE_ROLES)],
+        ]);
+
+        $data = [
+            'name' => trim((string) $validated['name']),
+            'email' => strtolower(trim((string) $validated['email'])),
+            'role' => $validated['role'],
+            'hr_agent_id' => $this->matchingAgentId(
+                strtolower(trim((string) $validated['email'])),
+                $user
+            ),
+        ];
+
+        if (! empty($validated['password'])) {
+            $data['password'] = Hash::make((string) $validated['password']);
+        }
+
+        $user->update($data);
+
+        return back()->with('status', 'Utilisateur modifié.');
+    }
+
+    public function destroy(Request $request, User $user): RedirectResponse
+    {
+        if ((int) $request->user()->id === (int) $user->id) {
+            return back()->withErrors(['user' => 'Vous ne pouvez pas supprimer votre propre compte.']);
+        }
+
+        $user->delete();
+
+        return back()->with('status', 'Utilisateur supprimé.');
+    }
+
+    private function matchingAgentId(string $email, ?User $currentUser = null): ?int
+    {
+        $agent = HrAgent::query()
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->first();
+
+        if (! $agent) {
+            return null;
+        }
+
+        $linkedUser = $agent->user;
+
+        if ($linkedUser && (! $currentUser || $linkedUser->id !== $currentUser->id)) {
+            return null;
+        }
+
+        return $agent->id;
+    }
+}

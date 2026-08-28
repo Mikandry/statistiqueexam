@@ -1,0 +1,109 @@
+@extends('layouts.app')
+
+@section('title', 'Attestations et documents — ' . $agent->full_name)
+@section('subtitle', 'Génération des documents administratifs')
+
+@section('content')
+
+<div class="space-y-8 rounded-3xl bg-gradient-to-br from-slate-50 via-white to-teal-50/40 p-6 shadow-lg shadow-slate-200/50">
+
+    {{-- EN-TÊTE --}}
+    <div class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white/90 p-6 shadow-md backdrop-blur-sm">
+        <div class="flex items-center gap-4">
+            <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-3xl shadow-lg shadow-teal-200/50">
+                📄
+            </div>
+            <div>
+                <h1 class="text-2xl font-black tracking-tight text-slate-900">
+                    Documents administratifs
+                </h1>
+                <p class="mt-1 text-sm text-slate-500">
+                    Génération d'attestations pour
+                    <strong class="text-slate-700">{{ $agent->full_name }}</strong>
+                    <span class="mx-1 text-slate-300">•</span>
+                    <span class="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded">{{ $agent->matricule ?: 'Sans matricule' }}</span>
+                </p>
+            </div>
+        </div>
+        <a href="{{ route('hr.agents.show', $agent->id) }}"
+           class="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:shadow-md active:scale-95">
+            ← Retour au dossier
+        </a>
+    </div>
+
+    @if(session('success'))
+        <div class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 px-5 py-4 text-sm font-semibold text-emerald-800 shadow-sm backdrop-blur-sm">
+            <span class="text-xl">✅</span>
+            {{ session('success') }}
+        </div>
+    @endif
+
+    @if($errors->any())
+        <div class="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50/80 px-5 py-4 text-sm font-semibold text-red-800 shadow-sm backdrop-blur-sm">
+            <span class="text-xl">⚠️</span>
+            {{ $errors->first() }}
+        </div>
+    @endif
+
+    {{-- GRILLE DES DOCUMENTS --}}
+    <section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+
+        @foreach($documents as $slug => $doc)
+
+            <article class="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-slate-300/40">
+
+                {{-- Bandeau supérieur coloré --}}
+                <div class="h-2.5 w-full bg-gradient-to-r {{ $doc['color'] }}"></div>
+
+                <div class="flex flex-1 flex-col p-6">
+
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-2xl shadow-sm ring-1 ring-slate-100">
+                            {{ $doc['icon'] }}
+                        </div>
+
+                        @if(($doc['requires_event'] ?? false) && ($events[$slug] ?? collect())->isEmpty())
+                            <span class="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-amber-700 ring-1 ring-amber-200">
+                                En attente
+                            </span>
+                        @endif
+                    </div>
+
+                    <h2 class="mt-4 text-lg font-black leading-snug text-slate-900">
+                        {{ $doc['title'] }}
+                    </h2>
+
+                    <p class="mt-1.5 flex-1 text-sm leading-relaxed text-slate-500">
+                        {{ $doc['description'] }}
+                    </p>
+
+                    {{-- Sélection d'événement si nécessaire --}}
+                    @if($doc['requires_event'] ?? false)
+
+                        @php($docEvents = $events[$slug] ?? collect())
+
+                        @if($docEvents->isEmpty())
+
+                            <div class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-3 text-xs font-medium text-slate-500">
+                                Aucune demande validée pour ce document.
+                            </div>
+
+                        @else
+
+                            <label class="mt-4 block text-xs font-bold uppercase tracking-wider text-slate-400">
+                                Événement concerné
+                            </label>
+
+                            <select
+                                id="event-{{ $slug }}"
+                                data-document="{{ $slug }}"
+                                data-agent="{{ $agent->id }}"
+                                class="event-select mt-1.5 w-full rounded-xl border-slate-300 bg-slate-50/50 px-3 py-2 text-sm shadow-sm transition-all focus:border-teal-400 focus:ring-2 focus:ring-teal-200 focus:outline-none"
+                            >
+                                @foreach($docEvents as $event)
+                                    <option value="{{ $event->id }}">
+                                        {{ $event->date_debut?->format('d/m/Y') }}
+                                        @if($event->date_fin)
+                                            → {{ $event->date_fin->format('d/m/Y') }}
+                                        @endif
+                                        @if($event->title)

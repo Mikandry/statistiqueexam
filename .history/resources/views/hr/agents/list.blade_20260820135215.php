@@ -1,0 +1,120 @@
+@extends('layouts.app')
+
+@section('title', 'Personnel')
+@section('subtitle', 'Agents, situations et documents administratifs')
+
+@section('content')
+<div class="space-y-6">
+    @if(session('success'))<div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{{ session('success') }}</div>@endif
+    @if(($errors ?? null)?->any())<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{{ $errors->first() }}</div>@endif
+
+    <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="font-black">Ajouter un agent</h2>
+        <form method="POST" action="{{ route('hr.agents.store') }}" class="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+            @csrf
+            <input name="matricule" placeholder="Matricule" class="rounded-lg border-slate-300 text-sm">
+            <input name="nom" placeholder="Nom" class="rounded-lg border-slate-300 text-sm" required>
+            <input name="prenoms" placeholder="Prénoms" class="rounded-lg border-slate-300 text-sm">
+            <input name="fonction" placeholder="Fonction" class="rounded-lg border-slate-300 text-sm">
+            <input name="service" placeholder="Service" class="rounded-lg border-slate-300 text-sm">
+            <input name="statut" placeholder="Statut" class="rounded-lg border-slate-300 text-sm">
+            <input name="corps" placeholder="Corps" class="rounded-lg border-slate-300 text-sm">
+            <input name="grade" placeholder="Grade" class="rounded-lg border-slate-300 text-sm">
+            <input name="indice" placeholder="Indice" class="rounded-lg border-slate-300 text-sm">
+            <input name="date_recrutement" type="date" title="Entrée dans l'administration" class="rounded-lg border-slate-300 text-sm">
+            <input name="date_prise_service" type="date" title="Prise de service" class="rounded-lg border-slate-300 text-sm">
+            <input name="telephone" placeholder="Téléphone" class="rounded-lg border-slate-300 text-sm">
+            <input name="email" type="email" placeholder="Email" class="rounded-lg border-slate-300 text-sm">
+            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">Ajouter</button>
+        </form>
+    </section>
+
+    <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <form method="GET" class="mb-4 flex flex-wrap gap-2">
+            <input name="q" value="{{ $search }}" placeholder="Nom, matricule, fonction, service" class="rounded-lg border-slate-300 text-sm">
+            <button class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white">Rechercher</button>
+        </form>
+        <div class="space-y-4">
+            @forelse($agents as $agent)
+                <article class="rounded-lg border border-slate-200 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h2 class="font-black">{{ $agent->full_name }}</h2>
+                            <p class="text-sm text-slate-500">{{ $agent->matricule ?: 'Sans matricule' }} · {{ $agent->corps ?: 'Corps non renseigné' }} · {{ $agent->grade ?: 'Grade non renseigné' }} · indice {{ $agent->indice ?: '—' }}</p>
+                            <p class="text-xs text-slate-500">Entrée administration : {{ $agent->date_recrutement?->format('d/m/Y') ?: '—' }} · {{ $agent->fonction ?: 'Fonction non renseignée' }} · {{ $agent->service ?: 'Service non renseigné' }}</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <a href="{{ route('hr.documents.non-leave', $agent->id) }}" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white">Imprimer non-jouissance</a>
+                            <span class="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">{{ $agent->events->count() }} situation(s)</span>
+                        </div>
+                    </div>
+
+                    @if($agent->events->isNotEmpty())
+                        <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <p class="text-xs font-black uppercase text-slate-500">Documents liés aux situations</p>
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                @foreach($agent->events as $event)
+                                    @if($event->type === 'conge')
+                                        <a href="{{ route('hr.documents.leave', [$agent->id, $event->id]) }}" class="rounded bg-blue-600 px-2 py-1 text-xs font-bold text-white">Fiche congé</a>
+                                    @elseif($event->type === 'autorisation_absence')
+                                        <a href="{{ route('hr.documents.absence', [$agent->id, $event->id]) }}" class="rounded bg-orange-600 px-2 py-1 text-xs font-bold text-white">Autorisation absence</a>
+                                    @elseif($event->type === 'mission')
+                                        <a href="{{ route('hr.documents.mission', [$agent->id, $event->id]) }}" class="rounded bg-amber-600 px-2 py-1 text-xs font-bold text-white">Ordre mission</a>
+                                    @elseif($event->type === 'formation')
+                                        <a href="{{ route('hr.documents.training', [$agent->id, $event->id]) }}" class="rounded bg-violet-600 px-2 py-1 text-xs font-bold text-white">Autorisation formation</a>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    <details class="mt-4">
+                        <summary class="cursor-pointer font-bold text-blue-700">Modifier, affecter ou enregistrer une situation</summary>
+                        <form method="POST" action="{{ route('hr.agents.update', $agent->id) }}" class="mt-3 grid gap-2 md:grid-cols-3">
+                            @csrf @method('PUT')
+                            <input name="matricule" value="{{ $agent->matricule }}" placeholder="Matricule" class="rounded border-slate-300 text-sm">
+                            <input name="nom" value="{{ $agent->nom }}" required placeholder="Nom" class="rounded border-slate-300 text-sm">
+                            <input name="prenoms" value="{{ $agent->prenoms }}" placeholder="Prénoms" class="rounded border-slate-300 text-sm">
+                            <input name="fonction" value="{{ $agent->fonction }}" placeholder="Fonction" class="rounded border-slate-300 text-sm">
+                            <input name="service" value="{{ $agent->service }}" placeholder="Service" class="rounded border-slate-300 text-sm">
+                            <input name="statut" value="{{ $agent->statut }}" placeholder="Statut" class="rounded border-slate-300 text-sm">
+                            <input name="corps" value="{{ $agent->corps }}" placeholder="Corps" class="rounded border-slate-300 text-sm">
+                            <input name="grade" value="{{ $agent->grade }}" placeholder="Grade" class="rounded border-slate-300 text-sm">
+                            <input name="indice" value="{{ $agent->indice }}" placeholder="Indice" class="rounded border-slate-300 text-sm">
+                            <label class="text-xs font-semibold text-slate-500">Entrée administration<input name="date_recrutement" type="date" value="{{ $agent->date_recrutement?->format('Y-m-d') }}" class="mt-1 w-full rounded border-slate-300 text-sm"></label>
+                            <label class="text-xs font-semibold text-slate-500">Prise de service<input name="date_prise_service" type="date" value="{{ $agent->date_prise_service?->format('Y-m-d') }}" class="mt-1 w-full rounded border-slate-300 text-sm"></label>
+                            <button class="rounded bg-slate-900 px-3 py-2 text-xs font-bold text-white">Enregistrer</button>
+                        </form>
+                        <form method="POST" action="{{ route('hr.agents.assignments.store', $agent->id) }}" class="mt-3 grid gap-2 md:grid-cols-4">
+                            @csrf
+                            <input name="direction" placeholder="Direction accueil" class="rounded border-slate-300 text-sm">
+                            <input name="service" placeholder="Service accueil" class="rounded border-slate-300 text-sm">
+                            <input name="fonction" placeholder="Fonction" class="rounded border-slate-300 text-sm">
+                            <input name="date_debut" type="date" required class="rounded border-slate-300 text-sm">
+                            <input name="date_fin" type="date" class="rounded border-slate-300 text-sm">
+                            <input name="motif" placeholder="Motif" class="rounded border-slate-300 text-sm">
+                            <input name="reference" placeholder="Référence" class="rounded border-slate-300 text-sm">
+                            <button class="rounded bg-amber-600 px-3 py-2 text-xs font-bold text-white">Ajouter affectation</button>
+                        </form>
+                        <form method="POST" action="{{ route('hr.agents.events.store', $agent->id) }}" class="mt-3 grid gap-2 md:grid-cols-4">
+                            @csrf
+                            <select name="type" class="rounded border-slate-300 text-sm">@foreach(\App\Models\HrEvent::TYPES as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>
+                            <select name="status" class="rounded border-slate-300 text-sm"><option value="valide">Validé</option><option value="demande">Demandé</option><option value="brouillon">Brouillon</option></select>
+                            <input name="title" placeholder="Intitulé / destination / organisme" class="rounded border-slate-300 text-sm">
+                            <input name="date_debut" type="date" required class="rounded border-slate-300 text-sm">
+                            <input name="date_fin" type="date" class="rounded border-slate-300 text-sm">
+                            <input name="motif" placeholder="Motif" class="rounded border-slate-300 text-sm">
+                            <input name="reference" placeholder="Référence" class="rounded border-slate-300 text-sm">
+                            <input name="autorite" placeholder="Autorité" class="rounded border-slate-300 text-sm">
+                            <button class="rounded bg-blue-600 px-3 py-2 text-xs font-bold text-white">Enregistrer la situation</button>
+                        </form>
+                    </details>
+                </article>
+            @empty
+                <p class="px-4 py-10 text-center font-semibold text-slate-500">Aucun agent enregistré.</p>
+            @endforelse
+        </div>
+        <div class="mt-4">{{ $agents->links() }}</div>
+    </section>
+</div>
+@endsection

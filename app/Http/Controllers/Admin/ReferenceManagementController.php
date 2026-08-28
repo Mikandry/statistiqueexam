@@ -8,11 +8,8 @@ use App\Models\CentreEcrit;
 use App\Models\Cisco;
 use App\Models\Dren;
 use App\Models\GlobalSetting;
-use App\Models\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -33,23 +30,10 @@ class ReferenceManagementController extends Controller
             $selectedTypeExamen = self::TYPE_BEPC;
         }
         $centreTypeForForms = $selectedTypeExamen === 'ALL' ? self::TYPE_BEPC : $selectedTypeExamen;
-        $specialTypeExamen = strtoupper((string) request()->query('special_type_examen', $centreTypeForForms));
-        if (! in_array($specialTypeExamen, [self::TYPE_BEPC, self::TYPE_CEPE], true)) {
-            $specialTypeExamen = self::TYPE_BEPC;
-        }
-        $specialAnnee = trim((string) request()->query('special_annee', ''));
 
         $drens = Dren::query()->orderBy('nom')->get();
         $allCiscos = Cisco::query()->with('dren')->orderBy('nom')->get();
         $allCentresCorrection = CentreCorrection::query()->with('cisco.dren')->orderBy('nom')->get();
-        $repartitionAnnees = DB::table('repartition_salles')
-            ->select('annee')
-            ->distinct()
-            ->orderByDesc('annee')
-            ->pluck('annee');
-        if ($specialAnnee === '') {
-            $specialAnnee = (string) ($repartitionAnnees->first() ?? '');
-        }
 
         $selectedCisco = $allCiscos->firstWhere('id', $selectedCiscoId);
         if ($selectedCiscoId > 0 && ! $selectedCisco) {
@@ -127,8 +111,6 @@ class ReferenceManagementController extends Controller
         if ($selectedTypeExamen !== 'ALL') {
             $centresEcritQuery->where('type_examen', $selectedTypeExamen);
         }
-        $duplicateCentreCorrectionGroups = $this->buildDuplicateCentreCorrectionGroups();
-        $duplicateCentreEcritGroups = $this->buildDuplicateCentreEcritGroups();
 
         $formCiscos = $allCiscos
             ->filter(fn (Cisco $cisco) => $selectedDrenId <= 0 || (int) $cisco->dren_id === $selectedDrenId)
@@ -143,55 +125,6 @@ class ReferenceManagementController extends Controller
             })
             ->values();
         $settings = $this->getGlobalSettings();
-        $centresWithRepartition = DB::table('repartition_salles as rs')
-            ->join('centre_ecrits as ce', 'ce.id', '=', 'rs.centre_ecrit_id')
-            ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
-            ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
-            ->join('drens as d', 'd.id', '=', 'cs.dren_id')
-            ->select([
-                'ce.id',
-                'ce.nom as centre_ecrit',
-                'cc.nom as centre_correction',
-                'cs.nom as cisco',
-                'd.nom as dren',
-            ])
-            ->when($specialAnnee !== '', fn ($query) => $query->where('rs.annee', $specialAnnee))
-            ->when($specialTypeExamen === self::TYPE_BEPC, fn ($query) => $query->where('rs.langue', '!=', 'TOTAL'))
-            ->when($specialTypeExamen === self::TYPE_CEPE, fn ($query) => $query->where('rs.langue', 'TOTAL'))
-            ->where('ce.type_examen', $specialTypeExamen)
-            ->groupBy('ce.id', 'ce.nom', 'cc.nom', 'cs.nom', 'd.nom')
-            ->orderBy('d.nom')
-            ->orderBy('cs.nom')
-            ->orderBy('cc.nom')
-            ->orderBy('ce.nom')
-            ->get();
-
-        $specialCandidatesPage = DB::table('repartition_salles_specifiques as rss')
-            ->join('centre_ecrits as ce', 'ce.id', '=', 'rss.centre_ecrit_id')
-            ->join('centre_corrections as cc', 'cc.id', '=', 'ce.centre_correction_id')
-            ->join('ciscos as cs', 'cs.id', '=', 'cc.cisco_id')
-            ->join('drens as d', 'd.id', '=', 'cs.dren_id')
-            ->select([
-                'rss.id',
-                'rss.centre_ecrit_id',
-                'rss.annee',
-                'rss.type_examen',
-                'rss.numero_salle',
-                'rss.type_handicap',
-                'rss.saisi_par',
-                'ce.nom as centre_ecrit',
-                'cc.nom as centre_correction',
-                'cs.nom as cisco',
-                'd.nom as dren',
-            ])
-            ->when($specialAnnee !== '', fn ($query) => $query->where('rss.annee', $specialAnnee))
-            ->when($specialTypeExamen !== '', fn ($query) => $query->where('rss.type_examen', $specialTypeExamen))
-            ->orderByDesc('rss.created_at')
-            ->orderBy('d.nom')
-            ->orderBy('cs.nom')
-            ->orderBy('ce.nom')
-            ->paginate(15, ['*'], 'page_special_candidates')
-            ->withQueryString();
 
         return view('admin.references.index', [
             'drens' => $drens,
@@ -205,10 +138,6 @@ class ReferenceManagementController extends Controller
             'ciscosPage' => $ciscosQuery->paginate($perPage, ['*'], 'page_ciscos')->withQueryString(),
             'centresCorrectionPage' => $centresCorrectionQuery->paginate($perPage, ['*'], 'page_centres_correction')->withQueryString(),
             'centresEcritPage' => $centresEcritQuery->paginate($perPage, ['*'], 'page_centres_ecrit')->withQueryString(),
-            'duplicateCentreCorrectionGroups' => $duplicateCentreCorrectionGroups,
-            'duplicateCentreCorrectionRowsCount' => $duplicateCentreCorrectionGroups->sum(fn (array $group) => $group['count']),
-            'duplicateCentreEcritGroups' => $duplicateCentreEcritGroups,
-            'duplicateCentreEcritRowsCount' => $duplicateCentreEcritGroups->sum(fn (array $group) => $group['count']),
             'selectedDrenId' => $selectedDrenId,
             'selectedCiscoId' => $selectedCiscoId,
             'selectedCentreCorrectionId' => $selectedCentreCorrectionId,
@@ -216,11 +145,6 @@ class ReferenceManagementController extends Controller
             'centreTypeForForms' => $centreTypeForForms,
             'dispatchingAxes' => $this->parseConfiguredList((string) ($settings->dispatching_axes ?? '')),
             'dispatchingDropPoints' => $this->parseConfiguredList((string) ($settings->dispatching_drop_points ?? '')),
-            'repartitionAnnees' => $repartitionAnnees,
-            'specialTypeExamen' => $specialTypeExamen,
-            'specialAnnee' => $specialAnnee,
-            'centresWithRepartition' => $centresWithRepartition,
-            'specialCandidatesPage' => $specialCandidatesPage,
         ]);
     }
 
@@ -330,39 +254,6 @@ class ReferenceManagementController extends Controller
         return back()->with('status', 'Centre de correction modifié.');
     }
 
-    public function updateDuplicateCentreCorrectionName(Request $request, CentreCorrection $centreCorrection): RedirectResponse
-    {
-        $validated = $request->validate([
-            'nom' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('centre_corrections', 'nom')
-                    ->where(fn ($query) => $query
-                        ->where('cisco_id', $centreCorrection->cisco_id)
-                        ->where('type_examen', $centreCorrection->type_examen))
-                    ->ignore($centreCorrection->id),
-            ],
-        ]);
-
-        $previousName = $centreCorrection->nom;
-        $centreCorrection->update([
-            'nom' => trim((string) $validated['nom']),
-        ]);
-
-        AuditLog::record($request, 'admin_renommage_doublon_centre_correction', [
-            'centre_correction_id' => (int) $centreCorrection->id,
-            'ancien_nom' => $previousName,
-            'nouveau_nom' => $centreCorrection->nom,
-            'type_examen' => $centreCorrection->type_examen,
-        ]);
-
-        return redirect()
-            ->route('admin.references.index', $request->query())
-            ->withFragment('zone-doublons-centres')
-            ->with('status', 'Nom du centre de correction modifié.');
-    }
-
     public function destroyCentreCorrection(CentreCorrection $centreCorrection): RedirectResponse
     {
         $centreName = $centreCorrection->nom;
@@ -460,102 +351,6 @@ class ReferenceManagementController extends Controller
         return back()->with('status', 'Point de largage supprimé.');
     }
 
-    public function storeSpecialCandidates(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'annee' => ['required', 'regex:/^\d{4}-\d{4}$/'],
-            'type_examen' => ['required', 'in:'.self::TYPE_BEPC.','.self::TYPE_CEPE],
-            'centre_ecrit_id' => ['required', 'integer', 'exists:centre_ecrits,id'],
-            'candidats_specifiques' => ['required', 'string', 'max:2000'],
-        ]);
-
-        $centreEcrit = CentreEcrit::query()
-            ->with('centreCorrection.cisco.dren')
-            ->findOrFail((int) $validated['centre_ecrit_id']);
-        if ($centreEcrit->type_examen !== $validated['type_examen']) {
-            return back()->withErrors([
-                'centre_ecrit_id' => 'Le centre sélectionné ne correspond pas au type d\'examen.',
-            ])->withInput();
-        }
-
-        $sallesDisponibles = DB::table('repartition_salles')
-            ->where('centre_ecrit_id', $centreEcrit->id)
-            ->where('annee', $validated['annee'])
-            ->when($validated['type_examen'] === self::TYPE_BEPC, fn ($query) => $query->where('langue', '!=', 'TOTAL'))
-            ->when($validated['type_examen'] === self::TYPE_CEPE, fn ($query) => $query->where('langue', 'TOTAL'))
-            ->select('numero_salle')
-            ->distinct()
-            ->orderBy('numero_salle')
-            ->pluck('numero_salle')
-            ->map(fn ($value) => (int) $value)
-            ->all();
-
-        if ($sallesDisponibles === []) {
-            return back()->withErrors([
-                'centre_ecrit_id' => 'Ce centre n\'a pas encore de répartition par salle pour cette année et ce type.',
-            ])->withInput();
-        }
-
-        $candidatsSpecifiques = $this->parseSpecialCandidates(
-            (string) $validated['candidats_specifiques'],
-            $sallesDisponibles
-        );
-
-        if ($candidatsSpecifiques === []) {
-            return back()->withErrors([
-                'candidats_specifiques' => 'Aucune ligne valide. Format attendu: Salle, Type handicap.',
-            ])->withInput();
-        }
-
-        $nomSaisie = trim((string) ($request->user()?->name ?? 'Admin'));
-        $now = now();
-        $inserted = 0;
-
-        DB::transaction(function () use ($candidatsSpecifiques, $centreEcrit, $validated, $nomSaisie, $now, &$inserted) {
-            foreach ($candidatsSpecifiques as $item) {
-                $exists = DB::table('repartition_salles_specifiques')
-                    ->where('centre_ecrit_id', $centreEcrit->id)
-                    ->where('annee', $validated['annee'])
-                    ->where('type_examen', $validated['type_examen'])
-                    ->where('numero_salle', $item['numero_salle'])
-                    ->where('type_handicap', $item['type_handicap'])
-                    ->exists();
-
-                if ($exists) {
-                    continue;
-                }
-
-                DB::table('repartition_salles_specifiques')->insert([
-                    'centre_ecrit_id' => $centreEcrit->id,
-                    'annee' => $validated['annee'],
-                    'type_examen' => $validated['type_examen'],
-                    'numero_salle' => $item['numero_salle'],
-                    'type_handicap' => $item['type_handicap'],
-                    'saisi_par' => $nomSaisie,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-                $inserted++;
-            }
-        });
-
-        AuditLog::record($request, 'admin_ajout_besoins_specifiques', [
-            'annee' => $validated['annee'],
-            'type_examen' => $validated['type_examen'],
-            'centre_ecrit_id' => (int) $centreEcrit->id,
-            'centre_ecrit' => $centreEcrit->nom,
-            'inserted' => $inserted,
-        ]);
-
-        return redirect()
-            ->route('admin.references.index', [
-                'special_annee' => $validated['annee'],
-                'special_type_examen' => $validated['type_examen'],
-            ])
-            ->withFragment('zone-besoins-specifiques')
-            ->with('status', "{$inserted} candidat(s) à besoins spécifiques ajouté(s).");
-    }
-
     public function storeCentreEcrit(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -604,39 +399,6 @@ class ReferenceManagementController extends Controller
         return back()->with('status', 'Centre d\'écrit modifié.');
     }
 
-    public function updateDuplicateCentreEcritName(Request $request, CentreEcrit $centreEcrit): RedirectResponse
-    {
-        $validated = $request->validate([
-            'nom' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('centre_ecrits', 'nom')
-                    ->where(fn ($query) => $query
-                        ->where('centre_correction_id', $centreEcrit->centre_correction_id)
-                        ->where('type_examen', $centreEcrit->type_examen))
-                    ->ignore($centreEcrit->id),
-            ],
-        ]);
-
-        $previousName = $centreEcrit->nom;
-        $centreEcrit->update([
-            'nom' => trim((string) $validated['nom']),
-        ]);
-
-        AuditLog::record($request, 'admin_renommage_doublon_centre_ecrit', [
-            'centre_ecrit_id' => (int) $centreEcrit->id,
-            'ancien_nom' => $previousName,
-            'nouveau_nom' => $centreEcrit->nom,
-            'type_examen' => $centreEcrit->type_examen,
-        ]);
-
-        return redirect()
-            ->route('admin.references.index', $request->query())
-            ->withFragment('zone-doublons-centres')
-            ->with('status', 'Nom du centre d\'écrit modifié.');
-    }
-
     public function destroyCentreEcrit(CentreEcrit $centreEcrit): RedirectResponse
     {
         $centreName = $centreEcrit->nom;
@@ -681,118 +443,5 @@ class ReferenceManagementController extends Controller
         $this->getGlobalSettings()->update([
             $field => $normalized,
         ]);
-    }
-
-    private function buildDuplicateCentreEcritGroups(): Collection
-    {
-        return CentreEcrit::query()
-            ->with('centreCorrection.cisco.dren')
-            ->orderBy('type_examen')
-            ->orderBy('nom')
-            ->get()
-            ->groupBy(fn (CentreEcrit $centre) => ($centre->type_examen ?? '').'|'.$this->normalizeCentreEcritName($centre->nom))
-            ->filter(fn (Collection $centres) => $centres->count() > 1)
-            ->map(function (Collection $centres) {
-                $first = $centres->first();
-
-                return [
-                    'nom' => (string) $first->nom,
-                    'type_examen' => (string) ($first->type_examen ?? ''),
-                    'count' => $centres->count(),
-                    'centres' => $centres
-                        ->sortBy([
-                            fn (CentreEcrit $centre) => $centre->centreCorrection->cisco->dren->nom ?? '',
-                            fn (CentreEcrit $centre) => $centre->centreCorrection->cisco->nom ?? '',
-                            fn (CentreEcrit $centre) => $centre->centreCorrection->nom ?? '',
-                        ])
-                        ->values(),
-                ];
-            })
-            ->sortBy([
-                fn (array $group) => $group['type_examen'],
-                fn (array $group) => $this->normalizeCentreEcritName($group['nom']),
-            ])
-            ->values();
-    }
-
-    private function buildDuplicateCentreCorrectionGroups(): Collection
-    {
-        return CentreCorrection::query()
-            ->with('cisco.dren')
-            ->orderBy('type_examen')
-            ->orderBy('nom')
-            ->get()
-            ->groupBy(fn (CentreCorrection $centre) => ($centre->type_examen ?? '').'|'.$this->normalizeCentreName($centre->nom))
-            ->filter(fn (Collection $centres) => $centres->count() > 1)
-            ->map(function (Collection $centres) {
-                $first = $centres->first();
-
-                return [
-                    'nom' => (string) $first->nom,
-                    'type_examen' => (string) ($first->type_examen ?? ''),
-                    'count' => $centres->count(),
-                    'centres' => $centres
-                        ->sortBy([
-                            fn (CentreCorrection $centre) => $centre->cisco->dren->nom ?? '',
-                            fn (CentreCorrection $centre) => $centre->cisco->nom ?? '',
-                        ])
-                        ->values(),
-                ];
-            })
-            ->sortBy([
-                fn (array $group) => $group['type_examen'],
-                fn (array $group) => $this->normalizeCentreName($group['nom']),
-            ])
-            ->values();
-    }
-
-    private function normalizeCentreEcritName(string $name): string
-    {
-        return $this->normalizeCentreName($name);
-    }
-
-    private function normalizeCentreName(string $name): string
-    {
-        $normalized = preg_replace('/\s+/', ' ', trim($name)) ?? trim($name);
-
-        return function_exists('mb_strtolower')
-            ? mb_strtolower($normalized)
-            : strtolower($normalized);
-    }
-
-    private function parseSpecialCandidates(string $value, array $sallesDisponibles): array
-    {
-        if (trim($value) === '') {
-            return [];
-        }
-
-        $sallesDisponibles = array_flip($sallesDisponibles);
-
-        return collect(preg_split('/\r\n|\r|\n|;/', $value) ?: [])
-            ->map(fn (string $line) => trim($line))
-            ->filter(fn (string $line) => $line !== '')
-            ->map(function (string $line) {
-                $delimiter = str_contains($line, ',') ? ',' : (str_contains($line, '-') ? '-' : null);
-                if ($delimiter === null) {
-                    return null;
-                }
-
-                [$salleRaw, $handicapRaw] = array_pad(explode($delimiter, $line, 2), 2, '');
-                $salle = (int) trim($salleRaw);
-                $handicap = trim($handicapRaw);
-
-                if ($salle <= 0 || $handicap === '') {
-                    return null;
-                }
-
-                return [
-                    'numero_salle' => $salle,
-                    'type_handicap' => $handicap,
-                ];
-            })
-            ->filter(fn ($item) => $item !== null && isset($sallesDisponibles[$item['numero_salle']]))
-            ->unique(fn (array $item) => $item['numero_salle'].'|'.$item['type_handicap'])
-            ->values()
-            ->all();
     }
 }

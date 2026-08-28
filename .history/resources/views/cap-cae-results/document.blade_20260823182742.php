@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+
+    <style>
+        @page {
+            margin: 1.4cm 1.1cm;
+        }
+
+        body {
+            font-family: DejaVu Sans, sans-serif;
+            font-size: 9px;
+            color: #111827;
+        }
+
+        .institution {
+            text-align: center;
+            line-height: 1.35;
+            font-weight: bold;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 15px;
+            margin: 16px 0;
+        }
+
+        .centre {
+            page-break-before: auto;
+            page-break-inside: avoid;
+            margin-top: 12px;
+        }
+
+        .centre-title {
+            font-weight: bold;
+            font-size: 11px;
+            margin: 8px 0 5px;
+        }
+
+        table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+            page-break-inside: auto;
+        }
+
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        th,
+        td {
+            border: 1px solid #374151;
+            padding: 4px;
+            vertical-align: middle;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+        }
+
+        th {
+            background: #e5e7eb;
+            text-align: center;
+        }
+
+        th:nth-child(1),
+        th:nth-child(2) {
+            width: 8%;
+        }
+
+        th:nth-child(3) {
+            width: 14%;
+        }
+
+        th:nth-child(4) {
+            width: 28%;
+        }
+
+        th:nth-child(5) {
+            width: 15%;
+        }
+
+        th:nth-child(6) {
+            width: 27%;
+        }
+
+        th:nth-child(7) {
+            width: 14%;
+        }
+
+        td:nth-child(1),
+        td:nth-child(2),
+        td:nth-child(3),
+        td:nth-child(5),
+        td:nth-child(7) {
+            text-align: center;
+        }
+
+        .closing {
+            page-break-inside: avoid;
+            margin-top: 22px;
+        }
+
+        .signature {
+            margin-top: 30px;
+            text-align: center;
+            float: right;
+            width: 42%;
+        }
+
+        .clear {
+            clear: both;
+        }
+    </style>
+</head>
+
+<body>
+
+    {{-- ENTÊTE --}}
+    <div class="institution">
+
+        @foreach($batch->institution_lines ?? [] as $line)
+
+            <div>
+                {{ $line }}
+            </div>
+
+        @endforeach
+
+    </div>
+
+
+    {{-- TITRE --}}
+    <h1>
+        LISTE DES CANDIDATS
+
+        {{ $batch->list_status === 'definitive'
+            ? 'DÉFINITIVEMENT ADMIS'
+            : 'ADMISSIBLES'
+        }}
+
+        AU {{ $batch->exam_type }}
+
+        <br>
+
+        {{ $batch->year }}
+    </h1>
+
+
+    {{-- LISTES PAR CENTRE --}}
+    @foreach($groups as $centre => $candidates)
+
+        <section class="centre">
+
+            <div class="centre-title">
+                CENTRE : {{ $centre }}
+            </div>
+
+            <table>
+
+                <thead>
+                    <tr>
+
+                        <th>
+                            N° d'ordre général
+                        </th>
+
+                        <th>
+                            N° d'ordre du centre
+                        </th>
+
+                        <th>
+                            N° d'inscription
+                        </th>
+
+                        <th>
+                            Nom et prénoms
+                        </th>
+
+                        <th>
+                            Date de naissance
+                        </th>
+
+                        <th>
+                            Lieu de naissance
+                        </th>
+
+                        @if($batch->list_status === 'definitive')
+
+                            <th>
+                                Date du PV
+                            </th>
+
+                        @endif
+
+                    </tr>
+                </thead>
+
+
+                <tbody>
+
+                    @foreach($candidates as $candidate)
+
+                        <tr>
+
+                            <td>
+                                {{ $candidate->general_order }}
+                            </td>
+
+                            <td>
+                                {{ $candidate->centre_order }}
+                            </td>
+
+                            <td>
+                                {{ $candidate->registration_number }}
+                            </td>
+
+                            <td>
+                                {{ $candidate->name }}
+                            </td>
+
+                            <td>
+                                {{ $candidate->birth_date?->format('d/m/Y') }}
+                            </td>
+
+                            <td>
+                                {{ $candidate->birth_place }}
+                            </td>
+
+                            @if($batch->list_status === 'definitive')
+
+                                <td>
+                                    {{ $batch->pv_date?->format('d/m/Y') }}
+                                </td>
+
+                            @endif
+
+                        </tr>
+
+                    @endforeach
+
+                </tbody>
+
+            </table>
+
+        </section>
+
+    @endforeach
+
+
+    {{-- CONCLUSION --}}
+    <div class="closing">
+
+        <p>
+            La présente liste est arrêtée à
+
+            <strong>
+                {{ $totalInWords }}
+            </strong>
+
+            ({{ $batch->total_candidates }})
+
+            candidat(s)
+
+            {{ $batch->list_status === 'definitive'
+                ? 'définitivement admis'
+                : 'admissibles'
+            }}.
+        </p>
+
+
+        {{-- SIGNATURE --}}
+        <div class="signature">
+
+            {{ $batch->signer_place }}
+
+            @if($batch->signature_date)
+
+                , le {{ $batch->signature_date->format('d/m/Y') }}
+
+            @endif
+
+            <br>
+            <br>
+
+            {{ $batch->signer_function }}
+
+            <br>
+            <br>
+
+            {{ $batch->signer_name }}
+
+            <br>
+            <br>
+
+            Signature
+
+        </div>
+
+
+        <div class="clear"></div>
+
+    </div>
+
+</body>
+
+</html>

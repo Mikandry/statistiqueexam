@@ -9,17 +9,24 @@ use App\Models\ExamResult;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExamResultController extends Controller
 {
+    private const EXAM_OPTIONS = [
+        'BEPC' => 'BEPC',
+        'CEPE' => 'CEPE',
+    ];
+
     public function index(Request $request)
     {
         $this->authorize('viewAny', ExamResult::class);
 
         $filters = $request->only(['year', 'exam_name', 'dren_id', 'cisco_id', 'status', 'published_at', 'search']);
+        $filters['exam_name'] = $this->normalizeExamName($filters['exam_name'] ?? null);
         $query = ExamResult::query()->with(['dren', 'cisco'])->filtered($filters);
         $allResults = (clone $query)->get();
         $results = $query->orderBy('year', 'desc')->orderBy('exam_name')->paginate(20)->withQueryString();
@@ -37,6 +44,7 @@ class ExamResultController extends Controller
             'drens' => Dren::query()->orderBy('nom')->get(),
             'ciscos' => Cisco::query()->with('dren')->orderBy('nom')->get(),
             'filters' => $filters,
+            'examOptions' => self::EXAM_OPTIONS,
             'statuses' => [
                 ExamResult::STATUS_PENDING => 'En attente',
                 ExamResult::STATUS_IN_PROGRESS => 'En cours',
@@ -50,6 +58,7 @@ class ExamResultController extends Controller
         $this->authorize('create', ExamResult::class);
 
         $data = $this->validatedData($request);
+        $data['exam_name'] = $this->normalizeExamName($data['exam_name']);
         $cisco = Cisco::query()->with('dren')->findOrFail($data['cisco_id']);
         $data['dren_id'] = $cisco->dren_id;
         $data['created_by'] = $request->user()->id;
@@ -65,6 +74,7 @@ class ExamResultController extends Controller
         $this->authorize('update', $examResult);
 
         $data = $this->validatedData($request);
+        $data['exam_name'] = $this->normalizeExamName($data['exam_name']);
         $cisco = Cisco::query()->findOrFail($data['cisco_id']);
         $data['dren_id'] = $cisco->dren_id;
 
@@ -154,7 +164,7 @@ class ExamResultController extends Controller
     {
         return $request->validate([
             'year' => ['required', 'integer', 'between:2000,2100'],
-            'exam_name' => ['required', 'string', 'max:120'],
+            'exam_name' => ['required', 'string', Rule::in(array_keys(self::EXAM_OPTIONS))],
             'cisco_id' => ['required', 'exists:ciscos,id'],
             'total_candidates' => ['required', 'integer', 'min:0'],
             'absent_candidates' => ['nullable', 'integer', 'min:0', 'lte:total_candidates'],
@@ -241,5 +251,14 @@ class ExamResultController extends Controller
             ExamResult::STATUS_IN_PROGRESS => 'En cours',
             ExamResult::STATUS_PUBLISHED => 'Publié',
         ][$status] ?? $status;
+    }
+
+    private function normalizeExamName(?string $examName): ?string
+    {
+        if ($examName === null || trim($examName) === '') {
+            return null;
+        }
+
+        return strtoupper(trim($examName));
     }
 }

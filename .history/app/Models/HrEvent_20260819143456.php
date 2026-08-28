@@ -1,0 +1,40 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class HrEvent extends Model
+{
+    public const TYPES = [
+        'conge' => 'Congé',
+        'autorisation_absence' => 'Autorisation d’absence',
+        'mission' => 'Mission',
+        'formation' => 'Formation',
+        'mise_disposition' => 'Mise à disposition',
+        'autre' => 'Autre indisponibilité',
+    ];
+
+    protected $table = 'hr_events';
+
+    protected $fillable = [
+        'agent_id', 'type', 'status', 'title', 'motif', 'date_debut', 'date_fin',
+        'reference', 'autorite', 'observation', 'created_by',
+    ];
+
+    protected function casts(): array
+    {
+        return ['date_debut' => 'date', 'date_fin' => 'date'];
+    }
+
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(HrAgent::class, 'agent_id');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+}

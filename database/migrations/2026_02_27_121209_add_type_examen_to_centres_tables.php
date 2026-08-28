@@ -105,23 +105,10 @@ return new class extends Migration
 
     private function indexExists(string $table, string $indexName): bool
     {
-        $driver = DB::getDriverName();
-
-        if ($driver === 'sqlite') {
-            try {
-                // SQLite: vérifier si l'index existe via pragma
-                $indexes = DB::select("PRAGMA index_list({$table})");
-                return collect($indexes)->some(fn ($idx) => $idx->name === $indexName);
-            } catch (\Exception $e) {
-                return false;
-            }
-        } else {
-            // MySQL: utiliser information_schema
-            return DB::table('information_schema.statistics')
-                ->whereRaw('table_schema = DATABASE()')
-                ->where('table_name', $table)
-                ->where('index_name', $indexName)
-                ->exists();
-        }
+        return DB::table('information_schema.statistics')
+            ->whereRaw('table_schema = DATABASE()')
+            ->where('table_name', $table)
+            ->where('index_name', $indexName)
+            ->exists();
     }
 };

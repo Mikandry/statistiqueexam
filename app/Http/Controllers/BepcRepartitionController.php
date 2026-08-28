@@ -55,22 +55,6 @@ class BepcRepartitionController extends Controller
                 'cc.cisco_id',
             ]);
 
-        $specialCandidates = DB::table('repartition_salles_specifiques as rss')
-            ->join('centre_ecrits as ce', 'ce.id', '=', 'rss.centre_ecrit_id')
-            ->when($typeExamen, fn ($query) => $query->where('rss.type_examen', $typeExamen))
-            ->when($request->query('annee', $stickyContext['annee'] ?? ''), fn ($query, $annee) => $query->where('rss.annee', $annee))
-            ->orderBy('rss.annee')
-            ->orderBy('ce.nom')
-            ->orderBy('rss.numero_salle')
-            ->get([
-                'rss.centre_ecrit_id',
-                'ce.nom as centre_ecrit_nom',
-                'rss.annee',
-                'rss.type_examen',
-                'rss.numero_salle',
-                'rss.type_handicap',
-            ]);
-
         return view('bepc-repartition.create', [
             'langues' => RepartitionSalle::LANGUES,
             'nombreSalles' => $nombreSalles,
@@ -85,7 +69,6 @@ class BepcRepartitionController extends Controller
             'dispatchingAxes' => $dispatchingAxes,
             'dispatchingDropPoints' => $dispatchingDropPoints,
             'stickyContext' => $stickyContext,
-            'specialCandidates' => $specialCandidates,
         ]);
     }
 
@@ -102,7 +85,7 @@ class BepcRepartitionController extends Controller
             'point_largage' => ['nullable', 'string', 'max:255'],
             'point_largage_other' => ['nullable', 'string', 'max:255'],
             'annee' => ['required', 'regex:/^\d{4}-\d{4}$/'],
-            'nombre_salles' => ['required', 'integer', 'min:1', 'max:70'],
+            'nombre_salles' => ['required', 'integer', 'min:1', 'max:50'],
             'salles_inutilisables' => ['nullable', 'string', 'max:255'],
             'candidats_specifiques' => ['nullable', 'string', 'max:2000'],
             'has_foreign_candidates' => ['nullable', 'boolean'],

@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><style>
+@page{margin:2cm 2cm 2cm 2.2cm}body{font-family:DejaVu Sans,sans-serif;font-size:11px;color:#111827;line-height:1.5}.institution{text-align:center;font-weight:bold;line-height:1.45}.title{text-align:center;font-size:16px;font-weight:bold;text-transform:uppercase;margin:35px 0}.meta{margin:18px 0}.meta p{margin:5px 0}.text{text-align:justify}.signature{margin-top:55px;margin-left:58%;text-align:center}.line{border-bottom:1px solid #111827;display:inline-block;min-width:180px;height:18px}.box{border:1px solid #374151;padding:12px;margin:18px 0}.label{font-weight:bold}.footer{margin-top:35px;font-size:10px;color:#4b5563}
+</style></head>
+<body>
+<div class="institution"><div>MINISTÈRE DE L’ÉDUCATION NATIONALE</div><div>Direction</div><div>Service des Ressources Humaines</div></div>
+<h1 class="title">{{ $title }}</h1>
+<div class="meta"><p><span class="label">Agent :</span> {{ $agent->full_name }}</p><p><span class="label">Matricule :</span> {{ $agent->matricule ?: '—' }}</p><p><span class="label">Fonction :</span> {{ $agent->fonction ?: '—' }}</p><p><span class="label">Direction / Service :</span> {{ $agent->direction ?: '—' }} / {{ $agent->service ?: '—' }}</p></div>
+@if($event)
+<div class="box"><p><span class="label">Objet :</span> {{ $event->title ?: \App\Models\HrEvent::TYPES[$event->type] }}</p><p><span class="label">Période :</span> du {{ $event->date_debut?->format('d/m/Y') }} @if($event->date_fin) au {{ $event->date_fin->format('d/m/Y') }} @endif</p>@if($event->motif)<p><span class="label">Motif :</span> {{ $event->motif }}</p>@endif @if($event->reference)<p><span class="label">Référence :</span> {{ $event->reference }}</p>@endif @if($event->autorite)<p><span class="label">Autorité :</span> {{ $event->autorite }}</p>@endif</div>
+@endif
+@if($title === 'Fiche de congé')<p class="text">La présente fiche constate l’autorisation de congé accordée à l’agent désigné ci-dessus, sous réserve des règles administratives applicables.</p>@elseif($title === 'Attestation de non-jouissance de congé')<p class="text">Il est attesté que l’agent désigné ci-dessus n’a pas bénéficié de congé durant la période indiquée, sous réserve des pièces et registres administratifs disponibles.</p><p><span class="label">Période concernée :</span> {{ $period }}</p>@elseif($title === 'Autorisation d’absence')<p class="text">L’autorisation d’absence est accordée pour la période indiquée, conformément aux informations enregistrées et sous l’autorité du signataire.</p>@elseif($title === 'Ordre de mission')<p class="text">L’agent est chargé d’effectuer la mission décrite ci-dessus pendant la période indiquée. Il rendra compte de l’exécution de la mission conformément aux règles en vigueur.</p>@else<p class="text">La présente autorisation permet à l’agent de participer à l’activité de formation indiquée pendant la période enregistrée.</p>@endif
+<div class="signature">Fait à <span class="line"></span><br>Le {{ $today->format('d/m/Y') }}<br><br><strong>Le responsable</strong><br><br><br><span class="line"></span></div>
+<div class="footer">Document généré à partir des informations enregistrées dans le module Ressources humaines.</div>
+</body></html>

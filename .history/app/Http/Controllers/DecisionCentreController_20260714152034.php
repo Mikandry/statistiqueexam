@@ -1,0 +1,167 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\Dren;
+use App\Models\CISCO;
+use App\Models\CentreCorrection;
+use App\Models\CentreEcrit;
+use App\Models\RepartitionSalle;
+
+class DecisionCentreController extends Controller
+{
+    public function index(Request $request)
+    {
+        $typeExamen = $request->get('type_examen');
+        $drenId = $request->get('dren');
+        $ciscoId = $request->get('cisco');
+        $selectedAnnee = trim((string) $request->get('annee', ''));
+
+        $annees = RepartitionSalle::query()
+            ->select('annee')
+            ->whereNotNull('annee')
+            ->where('annee', '<>', '')
+            ->distinct()
+            ->orderByDesc('annee')
+            ->pluck('annee')
+            ->filter(fn ($annee) => filled($annee))
+            ->values();
+
+        // Suggested next year (simple heuristic: next calendar year)
+        $suggestedNextYear = (string) ((int) date('Y') + 1);
+
+        // remember original years set for comparison
+        $existingAnnees = $annees->values();
+
+        if ($selectedAnnee === '' && $annees->isNotEmpty()) {
+            $selectedAnnee = (string) $annees->first();
+        }
+
+        // If user supplied a year not present in existing data, include it so UI can select and create saisies
+        $isNewSession = false;
+        if (filled($selectedAnnee) && ! $annees->contains($selectedAnnee)) {
+            $isNewSession = true;
+            $annees->prepend($selectedAnnee);
+        }
+
+        // Fetch DRENs and CISCOs (filter CISCOs by DREN when selected)
+        $drens = Dren::all();
+        $ciscosQuery = CISCO::query();
+        if ($drenId) {
+            $ciscosQuery->where('dren_id', $drenId);
+        }
+        $ciscos = $ciscosQuery->get();
+        if ($drenId && $ciscoId && ! $ciscos->pluck('id')->contains((int) $ciscoId)) {
+            $ciscoId = null;
+        }
+
+        // Query correction and written centres
+        $centresCorrection = CentreCorrection::query()->with('cisco.dren');
+        $centresEcrit = CentreEcrit::query()->with([
+            'centreCorrection.cisco.dren',
+            'repartitions' => function ($query) use ($selectedAnnee) {
+                $query->when($selectedAnnee !== '', fn ($subQuery) => $subQuery->where('annee', $selectedAnnee));
+            },
+        ]);
+
+        if ($typeExamen) {
+            $centresCorrection->where('type_examen', $typeExamen);
+            $centresEcrit->where('type_examen', $typeExamen);
+        }
+
+        if ($drenId) {
+            $centresCorrection->whereHas('cisco', function ($query) use ($drenId) {
+                $query->where('dren_id', $drenId);
+            });
+            $centresEcrit->whereHas('centreCorrection.cisco', function ($query) use ($drenId) {
+                $query->where('dren_id', $drenId);
+            });
+        }
+
+        if ($ciscoId) {
+            $centresCorrection->where('cisco_id', $ciscoId);
+            $centresEcrit->whereHas('centreCorrection', function ($query) use ($ciscoId) {
+                $query->where('cisco_id', $ciscoId);
+            });
+        }
+
+        $centresCorrection = $centresCorrection->get();
+        $centresEcrit = $centresEcrit->get()->unique('id')->values();
+
+        // Build written centres with their actual entry status.
+        $centresSaisis = $centresEcrit
+            ->filter(fn (CentreEcrit $centre) => $centre->hasRepartitionsForSession($selectedAnnee))
+            ->map(function (CentreEcrit $centre) {
+                return [
+                    'nom' => $centre->nom,
+                    'region' => $centre->centreCorrection?->cisco?->dren?->nom ?? '-',
+                ];
+            })
+            ->values();
+
+        $centresNonSaisis = $centresEcrit
+            ->filter(fn (CentreEcrit $centre) => ! $centre->hasRepartitionsForSession($selectedAnnee))
+            ->map(function (CentreEcrit $centre) {
+                return [
+                    'nom' => $centre->nom,
+                    'region' => $centre->centreCorrection?->cisco?->dren?->nom ?? '-',
+                ];
+            })
+            ->values();
+
+        // Build table data with imported centres
+        $tableData = [];
+        $ecritsByCorrection = $centresEcrit->groupBy('centre_correction_id');
+        foreach ($centresCorrection as $centreCorrection) {
+            $drenNom = $centreCorrection->cisco->dren->nom ?? '-';
+            $ciscoNom = $centreCorrection->cisco->nom ?? '-';
+            $ecrits = $ecritsByCorrection->get($centreCorrection->id, collect())->unique('id');
+
+            if ($ecrits->isEmpty()) {
+                $tableData[] = [
+                    'correction_id' => $centreCorrection->id,
+                    'ecrit_id' => null,
+                    'dren' => $drenNom,
+                    'cisco' => $ciscoNom,
+                    'correction' => $centreCorrection->nom,
+                    'ecrit' => '-',
+                ];
+                continue;
+            }
+
+            foreach ($ecrits as $centreEcrit) {
+                $tableData[] = [
+                    'correction_id' => $centreCorrection->id,
+                    'ecrit_id' => $centreEcrit->id,
+                    'dren' => $drenNom,
+                    'cisco' => $ciscoNom,
+                    'correction' => $centreCorrection->nom,
+                    'ecrit' => $centreEcrit->nom,
+                ];
+            }
+        }
+
+        $tableData = collect($tableData)
+            ->unique(fn ($row) => implode('|', [$row['correction_id'], $row['ecrit_id'] ?? 'none']))
+            ->values()
+            ->all();
+
+        // Totals based on filtered data
+        $totalDren = $centresCorrection
+            ->map(fn ($cc) => $cc->cisco->dren->id ?? null)
+            ->filter()
+            ->unique()
+            ->count();
+        $totalCisco = $centresCorrection->pluck('cisco_id')->unique()->count();
+        $totalCorrection = $centresCorrection->count();
+        $totalEcrit = $centresEcrit->count();
+
+        return view('decision.centre', compact(
+            'drens', 'ciscos', 'tableData',
+            'totalDren', 'totalCisco', 'totalCorrection', 'totalEcrit',
+            'typeExamen', 'drenId', 'ciscoId', 'annees', 'selectedAnnee',
+            'centresSaisis', 'centresNonSaisis', 'isNewSession', 'suggestedNextYear'
+        ));
+    }
+}
