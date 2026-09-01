@@ -70,3 +70,4 @@ ENV APP_ENV=production
 ENV APP_DEBUG=false
 
 EXPOSE 80
+CMD ["sh", "-c", "php artisan migrate --force && apache2-foreground"]
