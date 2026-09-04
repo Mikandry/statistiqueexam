@@ -18,6 +18,72 @@
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h1 class="text-2xl font-bold tracking-tight text-slate-900">Traitement de vacation pour 2026</h1>
+                            <!-- Dashboards Navigation -->
+                            <div class="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 p-5 shadow-sm">
+                                <div class="mb-4 flex items-center gap-2">
+                                    <svg class="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                    </svg>
+                                    <h2 class="text-lg font-semibold text-slate-900">📊 Dashboards de Vacation 2026</h2>
+                                </div>
+                                <p class="mb-4 text-sm text-slate-600">Consultez les statistiques et analyses de vacation pour 2026 par niveau administratif.</p>
+                                <div class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+                                    <a href="{{ route('vacation2026.dashboard.global') }}" class="flex items-center gap-3 rounded-lg border border-blue-300 bg-white p-3 text-left transition hover:border-blue-500 hover:bg-blue-50">
+                                        <div class="rounded-lg bg-blue-100 p-2 text-blue-600">
+                                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4z"></path><path fill-rule="evenodd" d="M3 10a1 1 0 011-1h6v6H4a1 1 0 01-1-1v-4zm7 0a1 1 0 011-1h6v6h-6v-6zM4 15a1 1 0 00-1 1v2a1 1 0 001 1h4v-4H4z" clip-rule="evenodd"></path></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium text-slate-900">Dashboard Global</p>
+                                            <p class="text-xs text-slate-500">Vue d'ensemble tous niveaux</p>
+                                        </div>
+                                    </a>
+                                    <a href="{{ route('vacation2026.dashboard.men-central') }}" class="flex items-center gap-3 rounded-lg border border-amber-300 bg-white p-3 text-left transition hover:border-amber-500 hover:bg-amber-50">
+                                        <div class="rounded-lg bg-amber-100 p-2 text-amber-600">
+                                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path d="M13 7H7v6h6V7z"></path><path fill-rule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2V2a1 1 0 112 0v1a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2v1a1 1 0 11-2 0v-1h-2v1a1 1 0 11-2 0v-1H9a2 2 0 01-2-2v-2H6a1 1 0 110-2h1V9H6a1 1 0 010-2h1V5a2 2 0 012-2V2a1 1 0 010-2z" clip-rule="evenodd"></path></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium text-slate-900">MEN Central</p>
+                                            <p class="text-xs text-slate-500">Activités au niveau central</p>
+                                        </div>
+                                    </a>
+                                    <a href="{{ route('vacation2026.dren') }}" class="flex items-center gap-3 rounded-lg border border-green-300 bg-white p-3 text-left transition hover:border-green-500 hover:bg-green-50">
+                                        <div class="rounded-lg bg-green-100 p-2 text-green-600">
+                                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.5 1.5H5.75A2.25 2.25 0 003.5 3.75v12.5A2.25 2.25 0 005.75 18.5h8.5a2.25 2.25 0 002.25-2.25V6.5m-9-5v5m6-5v5"></path></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium text-slate-900">DREN</p>
+                                            <p class="text-xs text-slate-500">Régions éducatives</p>
+                                        </div>
+                                    </a>
+                                    <a href="{{ route('vacation2026.cisco') }}" class="flex items-center gap-3 rounded-lg border border-red-300 bg-white p-3 text-left transition hover:border-red-500 hover:bg-red-50">
+                                        <div class="rounded-lg bg-red-100 p-2 text-red-600">
+                                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a1 1 0 001 1h12a1 1 0 001-1V6a2 2 0 00-2-2H4zm12 12H4a2 2 0 01-2-2v-4a1 1 0 00-1-1H.5a1.5 1.5 0 011.5 1.5v4a4 4 0 004 4h12a1.5 1.5 0 001.5-1.5v-4a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium text-slate-900">CISCO</p>
+                                            <p class="text-xs text-slate-500">Circonscriptions scolaires</p>
+                                        </div>
+                                    </a>
+                                    <a href="{{ route('vacation2026.centre') }}" class="flex items-center gap-3 rounded-lg border border-indigo-300 bg-white p-3 text-left transition hover:border-indigo-500 hover:bg-indigo-50">
+                                        <div class="rounded-lg bg-indigo-100 p-2 text-indigo-600">
+                                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium text-slate-900">Centre d'examen</p>
+                                            <p class="text-xs text-slate-500">Centres d'écriture</p>
+                                        </div>
+                                    </a>
+                                    <a href="{{ route('vacation2026.dashboard.eps') }}" class="flex items-center gap-3 rounded-lg border border-pink-300 bg-white p-3 text-left transition hover:border-pink-500 hover:bg-pink-50">
+                                        <div class="rounded-lg bg-pink-100 p-2 text-pink-600">
+                                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium text-slate-900">EPS / Gymnase</p>
+                                            <p class="text-xs text-slate-500">Centres EPS et gymnastiques</p>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
                             <p class="mt-1 text-sm text-slate-600">Import de la base centrale, affectation CEPE/BEPC/CAP, et génération des documents (note, décompte, décision, présence).</p>
                         </div>
                         <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2">
@@ -153,7 +219,23 @@
             </div>
 
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 class="text-lg font-semibold text-slate-900">3) Plafonds décret et jours par activité (niveau central)</h2>
+                <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-900">3) Plafonds décret et jours par activité</h2>
+                        <p class="mt-1 text-sm text-slate-600">Filtrez par niveau administratif pour afficher les activités correspondantes.</p>
+                    </div>
+                    <form method="GET" class="flex items-center gap-2">
+                        <input type="hidden" name="tab" value="main">
+                        <select name="filter_level" onchange="this.form.submit()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                            @foreach($availableLevels as $levelValue => $levelLabel)
+                                <option value="{{ $levelValue }}" {{ (string) $filterLevel === (string) $levelValue ? 'selected' : '' }}>{{ $levelLabel }}</option>
+                            @endforeach
+                        </select>
+                        @if($filterLevel !== '')
+                            <a href="{{ route('vacation2026.index', ['tab' => 'main']) }}" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">Réinitialiser</a>
+                        @endif
+                    </form>
+                </div>
                 <div class="mt-4 overflow-x-auto">
                     <table class="min-w-full border-collapse text-sm">
                         <thead>

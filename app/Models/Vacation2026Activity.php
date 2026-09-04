@@ -14,22 +14,36 @@ class Vacation2026Activity extends Model
 
     protected $fillable = [
         'examen',
+        'level',
+        'phase',
         'libelle',
         'max_agents',
         'nb_jours',
         'taux_activite',
         'ordre',
+        'year',
+        'activity_code',
+        'rule_key',
+        'source_rule',
+        'is_special_rule',
+        'applicable_year',
     ];
 
     protected function casts(): array
     {
         return [
             'taux_activite' => 'decimal:2',
+            'is_special_rule' => 'boolean',
         ];
     }
 
     public function assignments(): HasMany
     {
         return $this->hasMany(Vacation2026Assignment::class, 'activity_id');
+    }
+
+    public function groups(): HasMany
+    {
+        return $this->hasMany(Vacation2026ActivityGroup::class, 'activity_id');
     }
 }

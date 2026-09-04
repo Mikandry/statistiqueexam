@@ -24,4 +24,9 @@ class RepartitionSalle extends Model
     {
         return $this->belongsTo(CentreEcrit::class);
     }
+
+    public function vacationAssignments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Vacation2026Assignment::class, 'salle_id');
+    }
 }

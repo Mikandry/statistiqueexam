@@ -24,4 +24,9 @@ class Cisco extends Model
     {
         return $this->hasMany(ExamResult::class);
     }
+
+    public function vacationAssignments(): HasMany
+    {
+        return $this->hasMany(Vacation2026Assignment::class, 'cisco_id');
+    }
 }

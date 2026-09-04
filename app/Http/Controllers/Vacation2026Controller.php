@@ -30,10 +30,14 @@ class Vacation2026Controller extends Controller
         $tab = (string) $request->query('tab', 'main');
         $filterExamen = trim((string) $request->query('filter_examen', ''));
         $filterActivity = $request->query('filter_activity');
+        $filterLevel = trim((string) $request->query('filter_level', ''));
         $balanceLocalite = trim((string) $request->query('balance_localite', ''));
 
         $activities = Vacation2026Activity::query()
             ->withCount('assignments')
+            ->when($filterLevel !== '', fn ($q) => $q->where('level', $filterLevel))
+            ->when($filterExamen !== '', fn ($q) => $q->where('examen', $filterExamen))
+            ->orderBy('level')
             ->orderBy('examen')
             ->orderBy('ordre')
             ->orderBy('libelle')
@@ -89,6 +93,7 @@ class Vacation2026Controller extends Controller
             'tab' => $tab,
             'filterExamen' => $filterExamen,
             'filterActivity' => $filterActivity,
+            'filterLevel' => $filterLevel,
             'balanceLocalite' => $balanceLocalite,
             'activities' => $activities,
             'agents' => $agents,
@@ -97,6 +102,14 @@ class Vacation2026Controller extends Controller
             'assignmentRatesByActivity' => $assignmentRatesByActivity,
             'participantEquilibre' => $participantEquilibre,
             'setting' => $setting,
+            'availableLevels' => [
+                '' => 'Tous les niveaux',
+                'CENTRAL' => 'MEN Central',
+                'DREN' => 'DREN',
+                'CISCO' => 'CISCO',
+                'CENTRE' => 'Centre d\'examen',
+                'EPS' => 'EPS / GYM',
+            ],
             'stats' => [
                 'agents_total' => Vacation2026Agent::count(),
                 'agents_affectes' => Vacation2026Agent::has('assignments')->count(),
@@ -292,7 +305,7 @@ class Vacation2026Controller extends Controller
     public function updateActivity(Request $request, Vacation2026Activity $activity): RedirectResponse
     {
         $payload = $request->validate([
-            'max_agents' => ['required', 'integer', 'min:1'],
+            'max_agents' => ['nullable', 'integer', 'min:0'],
             'nb_jours' => ['required', 'integer', 'min:1'],
             'taux_activite' => ['nullable', 'numeric', 'min:0'],
         ]);
@@ -303,7 +316,7 @@ class Vacation2026Controller extends Controller
             unset($payload['taux_activite']);
         }
 
-        if ($activity->assignments()->count() > (int) $payload['max_agents']) {
+        if ($payload['max_agents'] !== null && $activity->assignments()->count() > (int) $payload['max_agents']) {
             return back()->withErrors([
                 'max_agents' => "Impossible: {$activity->assignments()->count()} agent(s) déjà affecté(s).",
             ]);
@@ -349,6 +362,25 @@ class Vacation2026Controller extends Controller
         ]);
 
         return back()->with('status', 'Nouvelle activité ajoutée.');
+    }
+
+    public function updateActivityGroup(Request $request, \App\Models\Vacation2026ActivityGroup $group): RedirectResponse
+    {
+        abort_unless($group->activity?->level === 'CENTRAL', 404);
+        $payload = $request->validate([
+            'personnel' => ['required', 'integer', 'min:0'],
+            'nb_jours' => ['required', 'integer', 'min:1'],
+            'taux' => ['required', 'numeric', 'min:0'],
+        ]);
+        $group->update($payload);
+        return back()->with('status', "Groupe {$group->groupe} mis à jour.");
+    }
+
+    public function updateEpsCapacity(Request $request, \App\Models\CentreCorrection $centre): RedirectResponse
+    {
+        $payload = $request->validate(['eps_capacity' => ['required', 'integer', 'min:1', 'max:2']]);
+        $centre->update($payload);
+        return back()->with('status', "Capacité EPS mise à jour pour {$centre->nom}.");
     }
 
     public function removeAssignment(Vacation2026Assignment $assignment): RedirectResponse
@@ -408,6 +440,7 @@ class Vacation2026Controller extends Controller
             $activity = Vacation2026Activity::query()->find((int) $activityId);
         }
         $rows = $this->buildDocumentRows($activity?->id);
+        $setting = Vacation2026Setting::query()->first();
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle(strtoupper($document));

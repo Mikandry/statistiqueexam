@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CentreCorrection extends Model
 {
-    protected $fillable = ['cisco_id', 'nom', 'type_examen'];
+    protected $fillable = ['cisco_id', 'nom', 'type_examen', 'centre_type', 'is_eps_gym', 'eps_capacity'];
 
     public function cisco(): BelongsTo
     {
@@ -18,5 +18,10 @@ class CentreCorrection extends Model
     public function centresEcrit(): HasMany
     {
         return $this->hasMany(CentreEcrit::class);
+    }
+
+    public function vacationAssignments(): HasMany
+    {
+        return $this->hasMany(Vacation2026Assignment::class, 'centre_correction_id');
     }
 }

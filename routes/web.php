@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\HrSettingsController;
 use App\Http\Controllers\ReferenceImportController;
 use App\Http\Controllers\RepartitionReportController;
 use App\Http\Controllers\Vacation2026Controller;
+use App\Http\Controllers\Vacation2026DashboardController;
 use Illuminate\Support\Facades\Route;
 
 // Route::get('/', function () {
@@ -528,6 +529,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('vacation2026.assignments.destroy');
     Route::put('/vacation-2026/activities/{activity}', [Vacation2026Controller::class, 'updateActivity'])
         ->name('vacation2026.activities.update');
+    Route::put('/vacation-2026/activity-groups/{group}', [Vacation2026Controller::class, 'updateActivityGroup'])
+        ->name('vacation2026.activity-groups.update');
+    Route::put('/vacation-2026/centres/{centre}/eps-capacity', [Vacation2026Controller::class, 'updateEpsCapacity'])
+        ->name('vacation2026.centres.eps-capacity.update');
     Route::post('/vacation-2026/activities', [Vacation2026Controller::class, 'storeActivity'])
         ->name('vacation2026.activities.store');
     Route::get('/vacation-2026/exports/{document}/word', [Vacation2026Controller::class, 'exportWord'])
@@ -536,6 +541,20 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('vacation2026.exports.xlsx');
     Route::get('/vacation-2026/exports/{document}/pdf', [Vacation2026Controller::class, 'exportPdf'])
         ->name('vacation2026.exports.pdf');
+
+    // Vacation 2026 Dashboards
+    Route::get('/vacation-2026/dashboards/global', [Vacation2026DashboardController::class, 'global'])
+        ->name('vacation2026.dashboard.global');
+    Route::get('/vacation-2026/dashboards/men-central', [Vacation2026DashboardController::class, 'menCentral'])
+        ->name('vacation2026.dashboard.men-central');
+    Route::get('/vacation-2026/dashboards/dren', [Vacation2026DashboardController::class, 'dren'])
+        ->name('vacation2026.dren');
+    Route::get('/vacation-2026/dashboards/cisco', [Vacation2026DashboardController::class, 'cisco'])
+        ->name('vacation2026.cisco');
+    Route::get('/vacation-2026/dashboards/centre', [Vacation2026DashboardController::class, 'centre'])
+        ->name('vacation2026.centre');
+    Route::get('/vacation-2026/dashboards/eps', [Vacation2026DashboardController::class, 'eps'])
+        ->name('vacation2026.dashboard.eps');
 
     Route::get('/admin/users', [UserManagementController::class, 'index'])
         ->name('admin.users.index');
