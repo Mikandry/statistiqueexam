@@ -181,6 +181,44 @@
         </div>
         @endif
 
+        <!-- Activities detail (read-only) -->
+        @if(isset($activities_detail) && $activities_detail->isNotEmpty())
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 class="text-lg font-semibold text-slate-900 mb-1">Activités au niveau central</h2>
+            <p class="text-sm text-slate-600 mb-4">Détail des activités (lecture seule) : personnel estimé, affecté, restant, jours, taux et montant.</p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-slate-200">
+                            <th class="px-4 py-2 text-left">Activité</th>
+                            <th class="px-4 py-2 text-left">Phase</th>
+                            <th class="px-4 py-2 text-center">Estimé</th>
+                            <th class="px-4 py-2 text-center">Affecté</th>
+                            <th class="px-4 py-2 text-center">Restant</th>
+                            <th class="px-4 py-2 text-center">Jours</th>
+                            <th class="px-4 py-2 text-right">Taux</th>
+                            <th class="px-4 py-2 text-right">Montant</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach($activities_detail as $activity)
+                        <tr class="border-b border-slate-100 hover:bg-slate-50">
+                            <td class="px-4 py-2 font-medium text-slate-900">{{ $activity['examen'] }} - {{ $activity['libelle'] }}</td>
+                            <td class="px-4 py-2">{{ $activity['phase'] !== 'AVANT_SESSION' ? str_replace('_', ' ', $activity['phase']) : 'Avant session' }}</td>
+                            <td class="px-4 py-2 text-center font-semibold">{{ $activity['required'] }}</td>
+                            <td class="px-4 py-2 text-center text-emerald-600 font-semibold">{{ $activity['assigned'] }}</td>
+                            <td class="px-4 py-2 text-center text-orange-600">{{ $activity['remaining'] }}</td>
+                            <td class="px-4 py-2 text-center">{{ $activity['days'] }}</td>
+                            <td class="px-4 py-2 text-right">{{ number_format($activity['rate'], 2, ',', ' ') }}</td>
+                            <td class="px-4 py-2 text-right font-semibold">{{ number_format($activity['amount'], 0, ',', ' ') }}</td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @endif
+
         @if(isset($central_groups) && $central_groups->isNotEmpty())
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 class="mb-4 text-lg font-semibold text-slate-900">Ventilation centrale par groupe</h2>

@@ -244,6 +244,7 @@
                             <th class="border border-slate-200 px-3 py-2 text-left">Activité</th>
                             <th class="border border-slate-200 px-3 py-2 text-right">Affectés</th>
                             <th class="border border-slate-200 px-3 py-2 text-right">Max agents</th>
+                            <th class="border border-slate-200 px-3 py-2 text-left">Niveau</th>
                             <th class="border border-slate-200 px-3 py-2 text-right">Nb jours</th>
                             <th class="border border-slate-200 px-3 py-2 text-right">Taux activité</th>
                             <th class="border border-slate-200 px-3 py-2"></th>
@@ -260,6 +261,16 @@
                                         @csrf
                                         @method('PUT')
                                         <input type="number" min="1" name="max_agents" value="{{ $activity->max_agents }}" class="w-20 rounded-lg border border-slate-300 px-2 py-1 text-right">
+                                </td>
+                                <td class="border border-slate-200 px-3 py-2">
+                                        <select name="level" class="rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                                            <option value="">—</option>
+                                            @foreach($availableLevels as $levelValue => $levelLabel)
+                                                @if($levelValue !== '')
+                                                <option value="{{ $levelValue }}" @selected((string)($activity->level ?? '') === (string)$levelValue)>{{ $levelLabel }}</option>
+                                                @endif
+                                            @endforeach
+                                        </select>
                                 </td>
                                 <td class="border border-slate-200 px-3 py-2 text-right">
                                         <input type="number" min="1" name="nb_jours" value="{{ $activity->nb_jours }}" class="w-20 rounded-lg border border-slate-300 px-2 py-1 text-right">
@@ -280,6 +291,14 @@
                     @csrf
                     <input type="text" name="examen" placeholder="Examen" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" required>
                     <input type="text" name="libelle" placeholder="Libellé activité" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" required>
+                    <select name="level" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                        <option value="">Niveau (optionnel)</option>
+                        @foreach($availableLevels as $levelValue => $levelLabel)
+                            @if($levelValue !== '')
+                            <option value="{{ $levelValue }}">{{ $levelLabel }}</option>
+                            @endif
+                        @endforeach
+                    </select>
                     <input type="number" min="1" name="max_agents" placeholder="Max agents" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" required>
                     <input type="number" min="1" name="nb_jours" placeholder="Nb jours" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" required>
                     <input type="number" step="0.01" min="0" name="taux_activite" placeholder="Taux activité" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">

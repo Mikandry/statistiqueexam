@@ -308,12 +308,17 @@ class Vacation2026Controller extends Controller
             'max_agents' => ['nullable', 'integer', 'min:0'],
             'nb_jours' => ['required', 'integer', 'min:1'],
             'taux_activite' => ['nullable', 'numeric', 'min:0'],
+            'level' => ['nullable', 'string', 'max:30'],
         ]);
         $rateInput = array_key_exists('taux_activite', $payload) && $payload['taux_activite'] !== null
             ? (float) $payload['taux_activite']
             : null;
         if (! $this->supportsActivityRate()) {
             unset($payload['taux_activite']);
+        }
+        if (array_key_exists('level', $payload)) {
+            $level = trim((string) ($payload['level'] ?? ''));
+            $payload['level'] = $level !== '' ? $level : null;
         }
 
         if ($payload['max_agents'] !== null && $activity->assignments()->count() > (int) $payload['max_agents']) {
@@ -343,6 +348,7 @@ class Vacation2026Controller extends Controller
         $payload = $request->validate([
             'examen' => ['required', 'string', 'max:255'],
             'libelle' => ['required', 'string', 'max:255'],
+            'level' => ['nullable', 'string', 'max:30'],
             'max_agents' => ['required', 'integer', 'min:1'],
             'nb_jours' => ['required', 'integer', 'min:1'],
             'taux_activite' => ['nullable', 'numeric', 'min:0'],
@@ -351,10 +357,12 @@ class Vacation2026Controller extends Controller
         if (! $this->supportsActivityRate()) {
             unset($payload['taux_activite']);
         }
+        $level = trim((string) ($payload['level'] ?? ''));
 
         Vacation2026Activity::query()->create([
             'examen' => $payload['examen'],
             'libelle' => $payload['libelle'],
+            'level' => $level !== '' ? $level : null,
             'max_agents' => (int) $payload['max_agents'],
             'nb_jours' => (int) $payload['nb_jours'],
             'taux_activite' => $payload['taux_activite'] ?? null,

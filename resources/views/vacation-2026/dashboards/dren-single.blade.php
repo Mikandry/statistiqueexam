@@ -33,6 +33,76 @@
         @include('vacation-2026.dashboards._activity-details')
 
         @if($selectedDrenId)
+        <!-- Decree calculation context -->
+        <div class="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+            <h2 class="text-lg font-semibold text-slate-900 mb-1">Contexte du calcul selon le décret</h2>
+            <p class="text-sm text-slate-700">
+                Cette DREN compte <span class="font-semibold text-blue-900">{{ number_format($centre_count, 0, ',', ' ') }} centre(s) d'examen</span>
+                sous sa protection, répartis dans <span class="font-semibold text-blue-900">{{ $cisco_count }} CISCO</span>,
+                soit <span class="font-semibold text-blue-900">{{ number_format($salle_count ?? 0, 0, ',', ' ') }} salle(s)</span>
+                et <span class="font-semibold text-blue-900">{{ number_format($candidate_count ?? 0, 0, ',', ' ') }} candidat(s)</span>.
+                Le nombre d'agents est ensuite calculé par activité de la façon suivante :
+            </p>
+        </div>
+
+        <!-- Decree calculation breakdown per activity / role -->
+        @if(isset($activity_breakdown) && $activity_breakdown->isNotEmpty())
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 class="mb-1 text-lg font-semibold text-slate-900">Détail du personnel selon le décret</h2>
+            <p class="mb-4 text-sm text-slate-600">Pour chaque activité DREN : le rôle de chacun et le calcul expliqué du nombre de personnel requis.</p>
+
+            @foreach(['AVANT_SESSION', 'PENDANT_SESSION', 'APRES_SESSION'] as $ph)
+                @php($phaseActs = $activity_breakdown->where('phase', $ph)->values())
+                @if($phaseActs->isNotEmpty())
+                <div class="mb-5">
+                    <h3 class="mb-3 inline-flex items-center rounded-lg bg-slate-900 px-3 py-1 text-sm font-semibold text-white">
+                        {{ $ph === 'AVANT_SESSION' ? 'Avant session' : ($ph === 'PENDANT_SESSION' ? 'Pendant session' : 'Après session') }}
+                    </h3>
+                    <div class="space-y-3">
+                    @foreach($phaseActs as $act)
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <p class="font-semibold text-slate-900">{{ $act['examen'] }} — {{ $act['libelle'] }}</p>
+                                    <p class="text-xs text-slate-500">
+                                        Estimé : <span class="font-semibold">{{ $act['required'] }}</span> personnel •
+                                        Affecté : <span class="font-semibold text-emerald-700">{{ $act['assigned'] }}</span> •
+                                        Restant : <span class="font-semibold text-orange-700">{{ $act['remaining'] }}</span> •
+                                        {{ $act['days'] }} jour(s) •
+                                        Taux : {{ number_format($act['rate'], 2, ',', ' ') }} •
+                                        Montant : {{ number_format($act['amount'], 0, ',', ' ') }} Ar
+                                    </p>
+                                </div>
+                            </div>
+                            @if($act['roles']->isNotEmpty())
+                            <table class="mt-3 w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-slate-200 text-slate-600">
+                                        <th class="px-2 py-1.5 text-left">Rôle</th>
+                                        <th class="px-2 py-1.5 text-center">Nombre</th>
+                                        <th class="px-2 py-1.5 text-left">Calcul / explication</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach($act['roles'] as $role)
+                                    <tr class="border-b border-slate-100">
+                                        <td class="px-2 py-1.5 font-medium text-slate-800">{{ $role['role'] }}</td>
+                                        <td class="px-2 py-1.5 text-center text-lg font-bold text-slate-900">{{ $role['count'] }}</td>
+                                        <td class="px-2 py-1.5 text-slate-600">{{ $role['note'] }}</td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                            @endif
+                        </div>
+                    @endforeach
+                    </div>
+                </div>
+                @endif
+            @endforeach
+        </div>
+        @endif
+
         <!-- DREN Statistics -->
         <div class="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-6">
             <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">

@@ -91,6 +91,8 @@ class Vacation2026DashboardService
             }
         }
 
+        $activities->load('groups');
+
         return [
             'cepe' => array_merge($cepeStats, ['examen' => 'CEPE']),
             'bepc' => array_merge($bepcStats, ['examen' => 'BEPC']),
@@ -102,6 +104,7 @@ class Vacation2026DashboardService
             'completion_percentage' => $totalPlanned > 0 ? round(($totalAssigned / $totalPlanned) * 100, 2) : 0,
             'estimated_indemnity' => $estimatedIndemnity,
             'activities' => $activities,
+            'activities_detail' => $this->centralActivitiesDetail($activities),
             'central_groups' => $activities->load('groups')->flatMap(fn ($activity) => $activity->groups->map(fn ($group) => [
                 'activity' => $activity->libelle,
                 'examen' => $activity->examen,
@@ -141,6 +144,19 @@ class Vacation2026DashboardService
                 ->distinct('id')
                 ->count();
 
+            $centreIds = CentreCorrection::query()
+                ->whereIn('cisco_id', $ciscoIds)
+                ->pluck('id')
+                ->toArray();
+
+            $salles = RepartitionSalle::query()
+                ->whereHas('centreEcrit', function ($q) use ($centreIds) {
+                    $q->whereIn('centre_correction_id', $centreIds);
+                })
+                ->get();
+
+            $totalCandidates = $salles->sum('effectif');
+
             $assignments = Vacation2026Assignment::query()
                 ->where('dren_id', $dren->id)
                 ->when($ciscoId, fn ($query) => $query->where('cisco_id', $ciscoId))
@@ -149,7 +165,12 @@ class Vacation2026DashboardService
             $activities = $this->dashboardActivities('DREN', $examFilter, $phaseFilter, $activityId);
             $cepeActivities = $activities->where('examen', 'CEPE');
             $bepcActivities = $activities->where('examen', 'BEPC');
-            $context = ['centre_count' => $centresCount, 'cisco_count' => $ciscos->count()];
+            $context = [
+                'centre_count' => $centresCount,
+                'cisco_count' => $ciscos->count(),
+                'salles' => $salles->count(),
+                'candidates' => $totalCandidates,
+            ];
 
             $cepeStats = $this->scopedActivitiesStats($cepeActivities, $dren->id, null, 'DREN', $context);
             $bepcStats = $this->scopedActivitiesStats($bepcActivities, $dren->id, null, 'DREN', $context);
@@ -160,8 +181,8 @@ class Vacation2026DashboardService
                 $ctx = [
                     'centre_count' => $centresCount,
                     'cisco_count' => $ciscos->count(),
-                    'candidates' => 0,
-                    'salles' => 0,
+                    'candidates' => $totalCandidates,
+                    'salles' => $salles->count(),
                     'centre_type' => null,
                     'year' => 2026,
                     'has_special_needs' => false,
@@ -175,12 +196,15 @@ class Vacation2026DashboardService
             $phaseSummary = $this->phaseSummary($activities, $dren->id, null, 'DREN', $context);
             $estimatedIndemnity = $this->estimatedIndemnity($activities, $dren->id, null, 'DREN', $context);
             $activityDetails = $this->activityDetails($activities, $dren->id, null, 'DREN', $context);
+            $activityBreakdown = $this->drenActivityBreakdown($activities, $dren->id, $context);
 
             return [
                 'dren_id' => $dren->id,
                 'dren_name' => $dren->nom,
                 'cisco_count' => $ciscos->count(),
                 'centre_count' => $centresCount,
+                'salle_count' => $salles->count(),
+                'candidate_count' => $totalCandidates,
                 'cepe' => array_merge($cepeStats, ['examen' => 'CEPE']),
                 'bepc' => array_merge($bepcStats, ['examen' => 'BEPC']),
                 'total_planned' => $totalPlanned,
@@ -192,6 +216,7 @@ class Vacation2026DashboardService
                 'estimated_indemnity' => $estimatedIndemnity,
                 'activities' => $activities,
                 'activity_details' => $activityDetails,
+                'activity_breakdown' => $activityBreakdown,
             ];
         })->values()->all();
     }
@@ -800,6 +825,132 @@ class Vacation2026DashboardService
             'completion_percentage' => $totalPlanned > 0 ? round(($totalAssigned / $totalPlanned) * 100, 2) : 0,
             'estimated_indemnity' => $estimatedIndemnity,
         ];
+    }
+
+    /**
+     * Helper: Build a per-activity detail list (read-only) for the MEN Central
+     * dashboard, exposing estimated / assigned / remaining / days / rate / amount
+     * per central activity (mirrors the centre dashboard activity table).
+     */
+    private function centralActivitiesDetail(Collection $activities): Collection
+    {
+        $ids = $activities->pluck('id');
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        $assignmentsCounts = Vacation2026Assignment::query()
+            ->whereIn('activity_id', $ids)
+            ->where('level', 'CENTRAL')
+            ->groupBy('activity_id')
+            ->selectRaw('activity_id, COUNT(DISTINCT agent_id) as total')
+            ->pluck('total', 'activity_id');
+
+        return $activities
+            ->map(function ($activity) use ($assignmentsCounts) {
+                $required = (int) $activity->max_agents;
+                $assigned = (int) ($assignmentsCounts[$activity->id] ?? 0);
+                $days = (int) $activity->nb_jours;
+                $rate = (float) ($activity->taux_activite ?? 0);
+                $amount = 0.0;
+
+                $groups = $activity->groups;
+                if ($groups->isNotEmpty()) {
+                    $amount = $groups->sum(fn ($group) => (float) $group->taux * (int) $group->nb_jours * (int) $group->personnel);
+                } else {
+                    $amount = $rate * $days * $required;
+                }
+
+                return [
+                    'id' => $activity->id,
+                    'examen' => $activity->examen,
+                    'libelle' => $activity->libelle,
+                    'phase' => $activity->phase ?: 'AVANT_SESSION',
+                    'required' => $required,
+                    'assigned' => $assigned,
+                    'remaining' => max(0, $required - $assigned),
+                    'days' => $days,
+                    'rate' => $rate,
+                    'amount' => round($amount),
+                ];
+            })
+            ->values();
+    }
+
+    /**
+     * Helper: Build a rich per-activity breakdown for the DREN dashboard,
+     * exposing the role-by-role composition of the required personnel with a
+     * human-readable explanation of each computed number (centres / CISCOs /
+     * tranches) according to the decree.
+     */
+    private function drenActivityBreakdown(Collection $activities, ?int $drenId, array $context = []): Collection
+    {
+        $centres = max(0, (int) $context['centre_count']);
+        $ciscos = max(0, (int) $context['cisco_count']);
+        $candidates = max(0, (int) $context['candidates']);
+
+        return $activities->map(function ($activity) use ($drenId, $context, $centres, $ciscos, $candidates) {
+            $evaluation = $activity->max_agents === null
+                ? $this->decree->evaluate($activity, array_merge($context, ['year' => 2026]))
+                : [
+                    'required' => (int) $activity->max_agents,
+                    'days' => (int) $activity->nb_jours,
+                    'roles' => [['role' => $activity->libelle, 'count' => (int) $activity->max_agents]],
+                ];
+
+            $assigned = Vacation2026Assignment::query()
+                ->where('activity_id', $activity->id)
+                ->when($drenId, fn ($q) => $q->where('dren_id', $drenId))
+                ->where('level', 'DREN')
+                ->distinct('agent_id')
+                ->count('agent_id');
+
+            $roles = collect($evaluation['roles'])
+                ->map(function (array $role) use ($activity, $centres, $ciscos, $candidates) {
+                    return array_merge($role, [
+                        'note' => $this->explainDrenRole((string) ($activity->rule_key ?? ''), $role, $centres, $ciscos, $candidates),
+                    ]);
+                })
+                ->values();
+
+            return [
+                'examen' => $activity->examen,
+                'libelle' => $activity->libelle,
+                'phase' => $activity->phase ?: 'AVANT_SESSION',
+                'required' => (int) $evaluation['required'],
+                'assigned' => $assigned,
+                'remaining' => max(0, (int) $evaluation['required'] - $assigned),
+                'days' => (int) ($evaluation['days'] ?? $activity->nb_jours),
+                'rate' => (float) ($activity->taux_activite ?? 0),
+                'amount' => (int) $evaluation['required'] * (float) ($activity->taux_activite ?? 0) * (int) ($evaluation['days'] ?? $activity->nb_jours),
+                'roles' => $roles,
+            ];
+        })->values();
+    }
+
+    /**
+     * Build a short French explanation for a DREN role count according to the
+     * decree rules (tranches de 5 centres, 2 agents par CISCO, fixe, ...).
+     */
+    private function explainDrenRole(string $ruleKey, array $role, int $centres, int $ciscos, int $candidates): string
+    {
+        $label = strtolower((string) ($role['role'] ?? ''));
+        $count = max(0, (int) ($role['count'] ?? 0));
+
+        if (str_contains($label, 'tranche de 5 centres')) {
+            $tranches = $this->decree->ceilTranche($centres, 5);
+            return "{$centres} centre(s) sous protection ÷ 5 centres = {$tranches} tranche(s), soit {$count} agent(s) (toute tranche entamée compte pour 1).";
+        }
+        if (str_contains($label, 'par cisco')) {
+            return "{$ciscos} CISCO × 2 agents = {$count} agent(s).";
+        }
+        if (str_contains($label, 'candidats') && $candidates > 0) {
+            $tranches = $this->decree->ceilTranche($candidates, 1000);
+            return "{$candidates} candidat(s) ÷ 1000 = {$tranches} tranche(s), soit {$count} agent(s).";
+        }
+
+        return 'Nombre fixé par le décret N°2026-1257.';
     }
 
     /**
