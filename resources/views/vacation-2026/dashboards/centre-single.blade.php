@@ -55,7 +55,7 @@
         <!-- Centre Header -->
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 class="text-xl font-semibold text-slate-900 mb-1">{{ $centre_name }}</h2>
-            <p class="text-sm text-slate-600">Type: {{ $centre_type }} @if($is_eps_gym) • EPS/GYM @endif @if($has_special_needs) • Besoins spécifiques @endif</p>
+            <p class="text-sm text-slate-600">Type: {{ $centre_type }} @if($is_eps_gym) • EPS/GYM @endif @if($is_jumel) • <span class="font-semibold text-blue-700">Centre jumelé</span> @endif @if($has_special_needs) • Besoins spécifiques @endif</p>
             @if(($examFilter ?? '') !== '')
                 <p class="mt-2 text-sm font-medium {{ $total_candidates > 0 ? 'text-emerald-700' : 'text-orange-700' }}">Examen sélectionné : {{ $examFilter }} — {{ $total_candidates > 0 ? 'candidats rattachés' : 'aucun candidat rattaché à cet examen' }}</p>
             @endif

@@ -179,7 +179,7 @@
         </div>
 
         <!-- Assignment Status -->
-        @if(!$assignments_by_status->isEmpty())
+        @if(!empty($assignments_by_status))
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 class="text-lg font-semibold text-slate-900 mb-4">Statut des Affectations</h3>
             <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -189,6 +189,38 @@
                     <p class="text-2xl font-semibold text-slate-900">{{ $count }}</p>
                 </div>
                 @endforeach
+            </div>
+        </div>
+        @endif
+
+        @if(!empty($ciscos))
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 class="text-lg font-semibold text-slate-900 mb-4">CISCO de la DREN</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-slate-200">
+                            <th class="px-4 py-3 text-left font-semibold text-slate-900">CISCO</th>
+                            <th class="px-4 py-3 text-right font-semibold text-slate-900">Avant session</th>
+                            <th class="px-4 py-3 text-right font-semibold text-slate-900">Pendant session</th>
+                            <th class="px-4 py-3 text-right font-semibold text-slate-900">Après session</th>
+                            <th class="px-4 py-3 text-right font-semibold text-slate-900">Agents estimés</th>
+                            <th class="px-4 py-3 text-right font-semibold text-slate-900">Montant estimé</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($ciscos as $cisco)
+                        <tr class="border-b border-slate-100 hover:bg-slate-50">
+                            <td class="px-4 py-3 font-medium text-slate-900">{{ $cisco['cisco_name'] }}</td>
+                            <td class="px-4 py-3 text-right">{{ $cisco['agents_avant_session'] }}</td>
+                            <td class="px-4 py-3 text-right">{{ $cisco['agents_pendant_session'] }}</td>
+                            <td class="px-4 py-3 text-right">{{ $cisco['agents_apres_session'] }}</td>
+                            <td class="px-4 py-3 text-right font-semibold text-slate-900">{{ $cisco['agents_estimated'] }}</td>
+                            <td class="px-4 py-3 text-right font-semibold text-emerald-700">{{ number_format($cisco['montant_estimated'], 0, ',', ' ') }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         </div>
         @endif

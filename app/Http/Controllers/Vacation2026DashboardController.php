@@ -88,18 +88,22 @@ class Vacation2026DashboardController extends Controller
     {
         $ciscoId = $request->query('cisco_id');
         $centreId = $request->query('centre_id');
+        $manualEpsCandidates = $request->query('manual_eps_candidates');
         $filters = $this->dashboardFilters($request);
 
-        $dashboards = $this->dashboardService->ciscoDashboard($ciscoId ? (int)$ciscoId : null, $filters[0], $filters[1], $filters[2], $centreId ? (int)$centreId : null);
+        $dashboards = $this->dashboardService->ciscoDashboard($ciscoId ? (int)$ciscoId : null, $filters[0], $filters[1], $filters[2], $centreId ? (int)$centreId : null, $manualEpsCandidates !== null && $manualEpsCandidates !== '' ? (int) $manualEpsCandidates : null);
 
         // If specific CISCO requested, show single dashboard
         if ($ciscoId && ! empty($dashboards)) {
             $data = $dashboards[0];
+            $selectedCisco = Cisco::with('dren')->find($ciscoId);
             return view('vacation-2026.dashboards.cisco-single', array_merge($data, [
-                'allCiscos' => Cisco::with('dren')->get(['id', 'nom', 'dren_id']),
+                'allCiscos' => Cisco::with('dren')->get(['id', 'nom', 'dren_id', 'manual_eps_candidates']),
                 'allCentres' => \App\Models\CentreCorrection::where('cisco_id', $data['cisco_id'])->get(['id', 'nom']),
                 'selectedCiscoId' => $ciscoId,
                 'selectedCentreId' => $centreId,
+                'selectedCisco' => $selectedCisco,
+                'manualEpsCandidates' => $manualEpsCandidates,
                 ...$this->filterViewData($filters, 'CISCO'),
             ]));
         }
@@ -108,8 +112,9 @@ class Vacation2026DashboardController extends Controller
         return view('vacation-2026.dashboards.cisco-list', [
             'dashboards' => $dashboards,
             'selectedCiscoId' => $ciscoId,
-            'allCiscos' => Cisco::with('dren')->get(['id', 'nom', 'dren_id']),
+            'allCiscos' => Cisco::with('dren')->get(['id', 'nom', 'dren_id', 'manual_eps_candidates']),
             'allCentres' => \App\Models\CentreCorrection::all(['id', 'nom']),
+            'manualEpsCandidates' => $manualEpsCandidates,
             ...$this->filterViewData($filters, 'CISCO'),
         ]);
     }

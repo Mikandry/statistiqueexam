@@ -45,7 +45,7 @@
             color: #0f172a;
         }
 
-        .institution::before {
+        /* .institution::before {
             content: "SOE";
             display: inline-block;
             font-size: 14pt;
@@ -62,7 +62,7 @@
             top: 50%;
             transform: translateY(-50%);
             letter-spacing: 0;
-        }
+        } */
 
         .institution .stars {
             font-size: 10pt;
@@ -353,7 +353,7 @@
 
     <p class="body-text">
         Je, soussigné(e),
-        {{-- <strong>{{ $settings?->signataire }}</strong>, --}}
+        <strong>{{ $settings?->signataire }}</strong>,
         {{ $settings?->signataire_qualite }},
         autorise par la présente :
     </p>

@@ -130,6 +130,7 @@ class VacationDecreeService
             'cisco_selection' => $this->ciscoSelection($activity),
             'cisco_followup' => $this->ciscoOrganisation($candidates, 15, $activity),
             'cepe2026_enveloppes' => $this->cepe2026Enveloppes($candidates, $year, $activity),
+            'cisco_transcription' => $this->transcription($candidates, $activity->nb_jours, $activity),
             'eps_cisco_organisation' => $this->epsCiscoOrganisation($candidates, $activity->nb_jours, $activity),
             'eps_cisco_monitoring' => $this->epsCiscoMonitoring($candidates, $activity->nb_jours, $activity),
 

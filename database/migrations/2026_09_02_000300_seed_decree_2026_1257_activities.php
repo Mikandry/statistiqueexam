@@ -93,6 +93,7 @@ return new class extends Migration
         // -----------------------------------------------------------------
         $this->activity('BEPC', 'Organisation générale', null, 5, 10, 'CISCO', 'AVANT_SESSION', 'BEPC_CISCO_ORGANISATION', 'cisco_organisation', self::SOURCE . ' — Article 6');
         $this->activity('BEPC', 'Suivi et contrôle', null, 15, 20, 'CISCO', 'PENDANT_SESSION', 'BEPC_CISCO_SUIVI_CONTROLE', 'cisco_followup', self::SOURCE . ' — Article 6');
+        $this->activity('BEPC', 'Transcription des notes', null, 5, 25, 'CISCO', 'APRES_SESSION', 'BEPC_CISCO_TRANSCRIPTION', 'cisco_transcription', self::SOURCE . ' — Article 8');
         $this->activity('BEPC', 'Organisation épreuves EPS', null, 2, 30, 'CISCO', 'AVANT_EPREUVES_EPS', 'BEPC_EPS_CISCO_ORGANISATION', 'eps_cisco_organisation', self::SOURCE . ' — Article EPS');
         $this->activity('BEPC', 'Suivi épreuves EPS', null, 6, 40, 'CISCO', 'PENDANT_EPREUVES_EPS', 'BEPC_EPS_CISCO_SUIVI', 'eps_cisco_monitoring', self::SOURCE . ' — Article EPS');
 // -----------------------------------------------------------------

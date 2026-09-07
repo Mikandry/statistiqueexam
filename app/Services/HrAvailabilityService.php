@@ -9,105 +9,341 @@ use Illuminate\Support\Collection;
 
 class HrAvailabilityService
 {
-    public function dashboard(?Carbon $date = null, ?HrAgent $onlyAgent = null): array
-    {
-        $date ??= today();
+//     public function dashboard(?Carbon $date = null, ?HrAgent $onlyAgent = null): array
+//     {
+//         $date ??= today();
 
-        $query = HrAgent::query()
-            ->where('actif', true)
-            ->with([
-                'currentAssignment',
-                'assignments',
-                'events',
-            ])
-            ->orderBy('nom');
+//         $query = HrAgent::query()
+//             ->where('actif', true)
+//             ->with([
+//                 'currentAssignment',
+//                 'assignments',
+//                 'events',
+//             ])
+//             ->orderBy('nom');
 
-        if ($onlyAgent) {
-            $query->whereKey($onlyAgent->id);
-        }
+//         if ($onlyAgent) {
+//             $query->whereKey($onlyAgent->id);
+//         }
 
-        $agents = $query->get();
+//         $agents = $query->get();
 
-        $situations = $agents
-            ->map(fn (HrAgent $agent) => $this->situation($agent, $date))
-            ->values();
+//         $situations = $agents
+//             ->map(fn (HrAgent $agent) => $this->situation($agent, $date))
+//             ->values();
 
-        $trackedEvents = $agents->flatMap(
-            fn (HrAgent $agent) => $agent->events
-                ->filter(fn (HrEvent $event) => in_array($event->status, ['valide', 'demande'], true))
-        );
+//         $trackedEvents = $agents->flatMap(
+//             fn (HrAgent $agent) => $agent->events
+//                 ->filter(fn (HrEvent $event) => in_array($event->status, ['valide', 'demande'], true))
+//         );
 
-        $activeEvents = $trackedEvents->filter(fn (HrEvent $event) =>
+//         $activeEvents = $trackedEvents->filter(fn (HrEvent $event) =>
+//             $event->date_debut
+//             && $event->date_debut->lte($date)
+//             && (!$event->date_fin || $event->date_fin->gte($date))
+//         );
+// //total_day before
+//         // $eventSummary = $agents->map(function (HrAgent $agent) use ($trackedEvents) {
+//         //     $events = $trackedEvents->where('agent_id', $agent->id);
+//         //     $leaves = $events->where('type', 'conge');
+//         //     $absences = $events->where('type', 'autorisation_absence');
+
+//         //     return [
+//         //         'agent' => $agent,
+//         //         'leave_count' => $leaves->count(),
+//         //         'leave_days' => $leaves->sum(fn (HrEvent $event) => $this->eventDays($event)),
+//         //         'absence_count' => $absences->count(),
+//         //         'absence_days' => $absences->sum(fn (HrEvent $event) => $this->eventDays($event)),
+//         //         'total_days' => $events->sum(fn (HrEvent $event) => $this->eventDays($event)),
+//         //     ];
+//         // })->filter(fn (array $summary) => $summary['total_days'] > 0)->values();
+
+//         // return [
+//         //     'agents' => $agents,
+//         //     'situations' => $situations,
+
+//         //     'stats' => [
+//         //         'total' => $situations->count(),
+
+//         //         'present' => $situations
+//         //             ->where('code', 'present')
+//         //             ->count(),
+
+//         //         'conge' => $activeEvents
+//         //             ->where('type', 'conge')
+//         //             ->count(),
+
+//         //         'mission' => $activeEvents
+//         //             ->where('type', 'mission')
+//         //             ->count(),
+
+//         //         'formation' => $activeEvents
+//         //             ->where('type', 'formation')
+//         //             ->count(),
+
+//         //         'autorisation_absence' => $activeEvents
+//         //             ->where('type', 'autorisation_absence')
+//         //             ->count(),
+
+//         //         'mise_disposition' => $situations
+//         //             ->where('code', 'mise_disposition')
+//         //             ->count(),
+
+//         //         'autre_indisponibilite' => $situations
+//         //             ->where('code', 'autre')
+//         //             ->count(),
+
+//         //         'affectation_temporaire' => $situations
+//         //             ->where('code', 'affectation_temporaire')
+//         //             ->count(),
+
+//         //         'sans_affectation' => $situations
+//         //             ->where('code', 'sans_affectation')
+//         //             ->count(),
+
+//         //         'formation_partielle' => $activeEvents
+//         //             ->where('type', 'formation')
+//         //             ->count(),
+//         //     ],
+//         //     'eventSummary' => $eventSummary,
+//         // ];
+//         $eventSummary = $agents
+//     ->map(function (HrAgent $agent) use ($trackedEvents) {
+
+//         $events = $trackedEvents->where('agent_id', $agent->id);
+
+//         $leaves = $events->where('type', 'conge');
+
+//         $absences = $events->where('type', 'autorisation_absence');
+
+//         $leaveDays = $leaves->sum(
+//             fn (HrEvent $event) => $this->eventDays($event)
+//         );
+
+//         $absenceDays = $absences->sum(
+//             fn (HrEvent $event) => $this->eventDays($event)
+//         );
+
+//         return [
+//             'agent' => $agent,
+
+//             'leave_count' => $leaves->count(),
+
+//             'leave_days' => $leaveDays,
+
+//             'absence_count' => $absences->count(),
+
+//             'absence_days' => $absenceDays,
+
+//             'total_days' => $leaveDays + $absenceDays,
+//         ];
+
+//     })
+//     ->sortByDesc('total_days')
+//     ->values();
+   
+//     }
+public function dashboard(?Carbon $date = null, ?HrAgent $onlyAgent = null): array
+{
+    $date ??= today();
+
+    $query = HrAgent::query()
+        ->where('actif', true)
+        ->with([
+            'currentAssignment',
+            'assignments',
+            'events',
+        ])
+        ->orderBy('nom');
+
+    if ($onlyAgent) {
+        $query->whereKey($onlyAgent->id);
+    }
+
+    $agents = $query->get();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Situation actuelle des agents
+    |--------------------------------------------------------------------------
+    */
+    $situations = $agents
+        ->map(fn (HrAgent $agent) => $this->situation($agent, $date))
+        ->values();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Événements suivis
+    |--------------------------------------------------------------------------
+    */
+    $trackedEvents = $agents->flatMap(
+        fn (HrAgent $agent) => $agent->events
+            ->filter(
+                fn (HrEvent $event) =>
+                    in_array(
+                        $event->status,
+                        ['valide', 'demande'],
+                        true
+                    )
+            )
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Événements actifs à la date sélectionnée
+    |--------------------------------------------------------------------------
+    */
+    $activeEvents = $trackedEvents->filter(
+        fn (HrEvent $event) =>
             $event->date_debut
             && $event->date_debut->lte($date)
-            && (!$event->date_fin || $event->date_fin->gte($date))
-        );
+            && (
+                !$event->date_fin
+                || $event->date_fin->gte($date)
+            )
+    );
 
-        $eventSummary = $agents->map(function (HrAgent $agent) use ($trackedEvents) {
-            $events = $trackedEvents->where('agent_id', $agent->id);
-            $leaves = $events->where('type', 'conge');
-            $absences = $events->where('type', 'autorisation_absence');
+    /*
+    |--------------------------------------------------------------------------
+    | Récapitulatif congés + autorisations par agent
+    |--------------------------------------------------------------------------
+    |
+    | total_days = jours de congé + jours d'autorisation
+    |
+    */
+    $eventSummary = $agents
+        ->map(function (HrAgent $agent) use ($trackedEvents) {
+
+            $events = $trackedEvents->where(
+                'agent_id',
+                $agent->id
+            );
+
+            $leaves = $events->where(
+                'type',
+                'conge'
+            );
+
+            $absences = $events->where(
+                'type',
+                'autorisation_absence'
+            );
+
+            $leaveDays = $leaves->sum(
+                fn (HrEvent $event) =>
+                    $this->eventDays($event)
+            );
+
+            $absenceDays = $absences->sum(
+                fn (HrEvent $event) =>
+                    $this->eventDays($event)
+            );
 
             return [
                 'agent' => $agent,
+
                 'leave_count' => $leaves->count(),
-                'leave_days' => $leaves->sum(fn (HrEvent $event) => $this->eventDays($event)),
+
+                'leave_days' => $leaveDays,
+
                 'absence_count' => $absences->count(),
-                'absence_days' => $absences->sum(fn (HrEvent $event) => $this->eventDays($event)),
-                'total_days' => $events->sum(fn (HrEvent $event) => $this->eventDays($event)),
+
+                'absence_days' => $absenceDays,
+
+                /*
+                |--------------------------------------------------------------------------
+                | TOTAL
+                |--------------------------------------------------------------------------
+                */
+                'total_days' => $leaveDays + $absenceDays,
             ];
-        })->filter(fn (array $summary) => $summary['total_days'] > 0)->values();
+        })
 
-        return [
-            'agents' => $agents,
-            'situations' => $situations,
+        /*
+        |--------------------------------------------------------------------------
+        | Classement : plus grand nombre de jours en premier
+        |--------------------------------------------------------------------------
+        */
+        ->sortByDesc('total_days')
 
-            'stats' => [
-                'total' => $situations->count(),
+        /*
+        |--------------------------------------------------------------------------
+        | Réindexation après le tri
+        |--------------------------------------------------------------------------
+        */
+        ->values()
 
-                'present' => $situations
-                    ->where('code', 'present')
-                    ->count(),
+        /*
+        |--------------------------------------------------------------------------
+        | Ajout du rang
+        |--------------------------------------------------------------------------
+        */
+        ->map(function (array $summary, int $index) {
 
-                'conge' => $activeEvents
-                    ->where('type', 'conge')
-                    ->count(),
+            $summary['rank'] = $index + 1;
 
-                'mission' => $activeEvents
-                    ->where('type', 'mission')
-                    ->count(),
+            return $summary;
+        })
 
-                'formation' => $activeEvents
-                    ->where('type', 'formation')
-                    ->count(),
+        ->values();
 
-                'autorisation_absence' => $activeEvents
-                    ->where('type', 'autorisation_absence')
-                    ->count(),
+    /*
+    |--------------------------------------------------------------------------
+    | Retour du dashboard
+    |--------------------------------------------------------------------------
+    */
+    return [
+        'agents' => $agents,
 
-                'mise_disposition' => $situations
-                    ->where('code', 'mise_disposition')
-                    ->count(),
+        'situations' => $situations,
 
-                'autre_indisponibilite' => $situations
-                    ->where('code', 'autre')
-                    ->count(),
+        'stats' => [
+            'total' => $situations->count(),
 
-                'affectation_temporaire' => $situations
-                    ->where('code', 'affectation_temporaire')
-                    ->count(),
+            'present' => $situations
+                ->where('code', 'present')
+                ->count(),
 
-                'sans_affectation' => $situations
-                    ->where('code', 'sans_affectation')
-                    ->count(),
+            'conge' => $activeEvents
+                ->where('type', 'conge')
+                ->count(),
 
-                'formation_partielle' => $activeEvents
-                    ->where('type', 'formation')
-                    ->count(),
-            ],
-            'eventSummary' => $eventSummary,
-        ];
-    }
+            'mission' => $activeEvents
+                ->where('type', 'mission')
+                ->count(),
+
+            'formation' => $activeEvents
+                ->where('type', 'formation')
+                ->count(),
+
+            'autorisation_absence' => $activeEvents
+                ->where('type', 'autorisation_absence')
+                ->count(),
+
+            'mise_disposition' => $situations
+                ->where('code', 'mise_disposition')
+                ->count(),
+
+            'autre_indisponibilite' => $situations
+                ->where('code', 'autre')
+                ->count(),
+
+            'affectation_temporaire' => $situations
+                ->where('code', 'affectation_temporaire')
+                ->count(),
+
+            'sans_affectation' => $situations
+                ->where('code', 'sans_affectation')
+                ->count(),
+
+            'formation_partielle' => $activeEvents
+                ->where('type', 'formation')
+                ->count(),
+        ],
+
+        'eventSummary' => $eventSummary,
+    ];
+}
 
     public function situation(HrAgent $agent, Carbon $date): array
     {

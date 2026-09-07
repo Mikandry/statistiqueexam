@@ -62,7 +62,8 @@
                     <option value="M" @selected($agent->sexe === 'M')>Masculin</option>
                     <option value="F" @selected($agent->sexe === 'F')>Féminin</option>
                 </select>
-                <input name="date_naissance" type="date" value="{{ $agent->date_naissance?->format('Y-m-d') }}" class="rounded-lg border-slate-300 text-sm">
+                <input name="date_naissance" type="date" max="{{ now()->subYears(22)->format('Y-m-d') }}" value="{{ $agent->date_naissance?->format('Y-m-d') }}" class="rounded-lg border-slate-300 text-sm">
+                {{-- <input name="date_naissance" type="date" value="{{ $agent->date_naissance?->format('Y-m-d') }}" class="rounded-lg border-slate-300 text-sm"> --}}
                 <input name="cin" value="{{ $agent->cin }}" placeholder="CIN" class="rounded-lg border-slate-300 text-sm">
                 <input name="telephone" value="{{ $agent->telephone }}" placeholder="Téléphone" class="rounded-lg border-slate-300 text-sm">
                 <input name="email" type="email" value="{{ $agent->email }}" placeholder="Email" class="rounded-lg border-slate-300 text-sm">
@@ -143,8 +144,14 @@
                     <p class="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">La demande sera soumise à validation.</p>
                 @endif
                 <input name="title" placeholder="Intitulé" class="rounded-lg border-slate-300 text-sm md:col-span-2">
-                <label class="text-xs font-bold text-slate-500">Date de début<input id="event-date-start" name="date_debut" type="date" class="mt-1 w-full rounded-lg border-slate-300 text-sm"></label>
-                <label class="text-xs font-bold text-slate-500">Date de fin<input id="event-date-end" name="date_fin" type="date" class="mt-1 w-full rounded-lg border-slate-300 text-sm"></label>
+                {{-- <label class="text-xs font-bold text-slate-500">Date de début<input id="event-date-start" name="date_debut" type="date" class="mt-1 w-full rounded-lg border-slate-300 text-sm"></label>
+                <label class="text-xs font-bold text-slate-500">Date de fin<input id="event-date-end" name="date_fin" type="date" class="mt-1 w-full rounded-lg border-slate-300 text-sm"></label> --}}
+                <label class="text-xs font-bold text-slate-500">Date de début
+                    <input id="event-date-start" name="date_debut" type="date" min="{{ now()->addDay()->format('Y-m-d') }}" class="mt-1 w-full rounded-lg border-slate-300 text-sm">
+                </label>
+                <label class="text-xs font-bold text-slate-500">Date de fin
+                    <input id="event-date-end" name="date_fin" type="date" min="{{ now()->addDay()->format('Y-m-d') }}" class="mt-1 w-full rounded-lg border-slate-300 text-sm">
+                </label>
                 <label class="text-xs font-bold text-slate-500">Jours demandés<input id="event-days" type="text" value="0" readonly class="mt-1 w-full rounded-lg border-slate-300 bg-slate-50 text-sm"></label>
                 <input name="duree_heures" type="number" min="0.25" max="24" step="0.25" placeholder="Durée en heures" class="rounded-lg border-slate-300 text-sm">
                 <input name="heure_debut" type="time" class="rounded-lg border-slate-300 text-sm">

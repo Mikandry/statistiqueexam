@@ -622,9 +622,10 @@ class HrDocumentController extends Controller
     ): string {
 
         $year = $settings->reference_year ?: now()->year;
-        $number = $settings->next_reference_number ?: 1;
+        
         $prefix = trim((string) $settings->reference_prefix);
+        $number = $settings->next_reference_number ?: 1;
 
-        return ( ('N°') .$number . '/' . $year . ' ' .($prefix ? $prefix . ' ' : '')) ;
+        return ( ('N°') . $year . '/' .$number  . ' ' .($prefix ? $prefix . ' ' : '')) ;
     }
 }

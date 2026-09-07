@@ -7,6 +7,7 @@ use App\Models\Vacation2026Agent;
 use App\Models\Vacation2026Assignment;
 use App\Models\Vacation2026Setting;
 use App\Models\AuditLog;
+use App\Services\VacationDecreeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -23,6 +24,10 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 class Vacation2026Controller extends Controller
 {
     private ?bool $hasActivityRateColumn = null;
+
+    public function __construct(private readonly VacationDecreeService $decree)
+    {
+    }
 
     public function index(Request $request)
     {
@@ -88,6 +93,40 @@ class Vacation2026Controller extends Controller
         $setting = Vacation2026Setting::query()->first();
         $equilibreData = $this->buildEquilibreData($balanceLocalite);
         $participantEquilibre = $equilibreData['participant_equilibre'];
+
+        $decreeContext = [
+            'candidates' => \App\Models\RepartitionSalle::query()->sum('effectif'),
+            'salles' => \App\Models\RepartitionSalle::query()->count(),
+            'cisco_count' => \App\Models\Cisco::query()->count(),
+            'centre_count' => \App\Models\CentreCorrection::query()->count(),
+            'centre_type' => null,
+            'year' => (int) date('Y'),
+            'has_special_needs' => false,
+        ];
+
+        $activities = $activities->map(function ($activity) use ($decreeContext) {
+            $computed = $this->decree->evaluate($activity, $decreeContext);
+            $rate = $activity->taux_activite ?? $assignmentRatesByActivity[$activity->id] ?? 0;
+            $days = (int) ($activity->nb_jours ?? 0);
+            $required = max((int) $activity->max_agents, $computed['required']);
+
+            return [
+                'id' => $activity->id,
+                'examen' => $activity->examen,
+                'libelle' => $activity->libelle,
+                'level' => $activity->level,
+                'phase' => $activity->phase,
+                'assignments_count' => $activity->assignments_count,
+                'max_agents' => $activity->max_agents,
+                'nb_jours' => $days,
+                'taux_activite' => $rate,
+                'computed_required' => $required,
+                'computed_days' => $computed['days'] ?: $days,
+                'estimated_amount' => $rate * $computed['days'] * $computed['required'],
+                'source_rule' => $activity->source_rule,
+                'is_special_rule' => $activity->is_special_rule,
+            ];
+        });
 
         return view('repartition.vacation-2026', [
             'tab' => $tab,

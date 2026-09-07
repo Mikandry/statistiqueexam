@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Cisco extends Model
 {
-    protected $fillable = ['dren_id', 'nom'];
+    protected $fillable = ['dren_id', 'nom', 'manual_eps_candidates'];
 
     public function dren(): BelongsTo
     {

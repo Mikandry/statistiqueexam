@@ -95,6 +95,11 @@
                 <p class="mt-2 text-2xl font-semibold text-indigo-900">{{ $completion_percentage }}%</p>
                 <p class="mt-1 text-xs text-indigo-600">D'avancement</p>
             </div>
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <p class="text-xs uppercase tracking-wider text-emerald-700">Montant estimé</p>
+                <p class="mt-2 text-2xl font-semibold text-emerald-900">{{ number_format($estimated_indemnity ?? 0, 0, ',', ' ') }}</p>
+                <p class="mt-1 text-xs text-emerald-600">Ar</p>
+            </div>
         </div>
 
         <!-- Detailed Statistics -->

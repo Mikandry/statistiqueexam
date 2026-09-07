@@ -158,8 +158,8 @@
                             <select name="activity_id" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" required>
                                 <option value="">Choisir une activité</option>
                                 @foreach($activities as $activity)
-                                    <option value="{{ $activity->id }}" {{ (string) old('activity_id') === (string) $activity->id ? 'selected' : '' }}>
-                                        {{ $activity->examen }} - {{ $activity->libelle }} ({{ $activity->assignments_count }}/{{ $activity->max_agents }})
+                                    <option value="{{ $activity['id'] }}" {{ (string) old('activity_id') === (string) $activity['id'] ? 'selected' : '' }}>
+                                        {{ $activity['examen'] }} - {{ $activity['libelle'] }} ({{ $activity['assignments_count'] }}/{{ $activity['max_agents'] }})
                                     </option>
                                 @endforeach
                             </select>
@@ -245,39 +245,43 @@
                             <th class="border border-slate-200 px-3 py-2 text-right">Affectés</th>
                             <th class="border border-slate-200 px-3 py-2 text-right">Max agents</th>
                             <th class="border border-slate-200 px-3 py-2 text-left">Niveau</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Plafond décret</th>
                             <th class="border border-slate-200 px-3 py-2 text-right">Nb jours</th>
                             <th class="border border-slate-200 px-3 py-2 text-right">Taux activité</th>
+                            <th class="border border-slate-200 px-3 py-2 text-right">Montant estimé</th>
                             <th class="border border-slate-200 px-3 py-2"></th>
                         </tr>
                         </thead>
                         <tbody>
                         @foreach($activities as $activity)
                             <tr>
-                                <td class="border border-slate-200 px-3 py-2">{{ $activity->examen }}</td>
-                                <td class="border border-slate-200 px-3 py-2">{{ $activity->libelle }}</td>
-                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold">{{ $activity->assignments_count }}</td>
+                                <td class="border border-slate-200 px-3 py-2">{{ $activity['examen'] }}</td>
+                                <td class="border border-slate-200 px-3 py-2">{{ $activity['libelle'] }}</td>
+                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold">{{ $activity['assignments_count'] }}</td>
                                 <td class="border border-slate-200 px-3 py-2">
-                                    <form method="POST" action="{{ route('vacation2026.activities.update', $activity) }}" class="flex items-center gap-2 justify-end">
+                                    <form method="POST" action="{{ route('vacation2026.activities.update', $activity['id']) }}" class="flex items-center gap-2 justify-end">
                                         @csrf
                                         @method('PUT')
-                                        <input type="number" min="1" name="max_agents" value="{{ $activity->max_agents }}" class="w-20 rounded-lg border border-slate-300 px-2 py-1 text-right">
+                                        <input type="number" min="1" name="max_agents" value="{{ $activity['max_agents'] }}" class="w-20 rounded-lg border border-slate-300 px-2 py-1 text-right">
                                 </td>
                                 <td class="border border-slate-200 px-3 py-2">
                                         <select name="level" class="rounded-lg border border-slate-300 px-2 py-1 text-sm">
                                             <option value="">—</option>
                                             @foreach($availableLevels as $levelValue => $levelLabel)
                                                 @if($levelValue !== '')
-                                                <option value="{{ $levelValue }}" @selected((string)($activity->level ?? '') === (string)$levelValue)>{{ $levelLabel }}</option>
+                                                <option value="{{ $levelValue }}" @selected((string)($activity['level'] ?? '') === (string)$levelValue)>{{ $levelLabel }}</option>
                                                 @endif
                                             @endforeach
                                         </select>
                                 </td>
+                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold text-slate-900">{{ $activity['computed_required'] }}</td>
                                 <td class="border border-slate-200 px-3 py-2 text-right">
-                                        <input type="number" min="1" name="nb_jours" value="{{ $activity->nb_jours }}" class="w-20 rounded-lg border border-slate-300 px-2 py-1 text-right">
+                                        <input type="number" min="1" name="nb_jours" value="{{ $activity['nb_jours'] }}" class="w-20 rounded-lg border border-slate-300 px-2 py-1 text-right">
                                 </td>
                                 <td class="border border-slate-200 px-3 py-2 text-right">
-                                        <input type="number" step="0.01" min="0" name="taux_activite" value="{{ $activity->taux_activite ?? ($assignmentRatesByActivity[$activity->id] ?? '') }}" class="w-24 rounded-lg border border-slate-300 px-2 py-1 text-right">
+                                        <input type="number" step="0.01" min="0" name="taux_activite" value="{{ $activity['taux_activite'] ?? '' }}" class="w-24 rounded-lg border border-slate-300 px-2 py-1 text-right">
                                 </td>
+                                <td class="border border-slate-200 px-3 py-2 text-right font-semibold text-emerald-700">{{ number_format($activity['estimated_amount'], 0, ',', ' ') }}</td>
                                 <td class="border border-slate-200 px-3 py-2 text-right">
                                         <button class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700" type="submit">Mettre à jour</button>
                                     </form>
@@ -317,7 +321,7 @@
                                 <select name="activity_id" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
                                     <option value="">Toutes activités</option>
                                     @foreach($activities as $activity)
-                                        <option value="{{ $activity->id }}">{{ $activity->examen }} - {{ $activity->libelle }}</option>
+                                        <option value="{{ $activity['id'] }}">{{ $activity['examen'] }} - {{ $activity['libelle'] }}</option>
                                     @endforeach
                                 </select>
                                 <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700">Note de service (Word)</button>
@@ -333,7 +337,7 @@
                                 <select name="activity_id" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
                                     <option value="">Toutes activités</option>
                                     @foreach($activities as $activity)
-                                        <option value="{{ $activity->id }}">{{ $activity->examen }} - {{ $activity->libelle }}</option>
+                                        <option value="{{ $activity['id'] }}">{{ $activity['examen'] }} - {{ $activity['libelle'] }}</option>
                                     @endforeach
                                 </select>
                                 <input type="number" step="0.01" min="0" name="irsa_percent" value="{{ request('irsa_percent', 0) }}" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="IRSA %">
@@ -357,7 +361,7 @@
                                 <select name="activity_id" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
                                     <option value="">Toutes activités</option>
                                     @foreach($activities as $activity)
-                                        <option value="{{ $activity->id }}">{{ $activity->examen }} - {{ $activity->libelle }}</option>
+                                        <option value="{{ $activity['id'] }}">{{ $activity['examen'] }} - {{ $activity['libelle'] }}</option>
                                     @endforeach
                                 </select>
                                 <button type="submit" class="rounded-lg bg-blue-700 px-3 py-2 text-xs font-medium text-white hover:bg-blue-600">Présence (Excel)</button>
@@ -389,8 +393,8 @@
                     <select name="filter_activity" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
                         <option value="">Toutes activités</option>
                         @foreach($activities as $activity)
-                            <option value="{{ $activity->id }}" {{ (string) $filterActivity === (string) $activity->id ? 'selected' : '' }}>
-                                {{ $activity->examen }} - {{ $activity->libelle }}
+                            <option value="{{ $activity['id'] }}" {{ (string) $filterActivity === (string) $activity['id'] ? 'selected' : '' }}>
+                                {{ $activity['examen'] }} - {{ $activity['libelle'] }}
                             </option>
                         @endforeach
                     </select>

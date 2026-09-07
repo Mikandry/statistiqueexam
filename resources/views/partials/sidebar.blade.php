@@ -3,9 +3,10 @@
     
     // Core Tailwind styling state classes
     $baseItem = 'group relative flex items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50';
-    
-    $activeItem = $baseItem . ' bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-white/20';
-    $idleItem   = $baseItem . ' text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 hover:shadow-sm hover:translate-x-0.5';
+    $activeItem = $baseItem . ' bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-lg shadow-amber-500/25 ...';
+    // $activeItem = $baseItem . ' bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-white/20';
+    // $idleItem   = $baseItem . ' text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 hover:shadow-sm hover:translate-x-0.5';
+    $idleItem = $baseItem . ' text-stone-400 hover:text-stone-100 hover:bg-stone-800/50 ...';
 @endphp
 
 <div class="app-sidebar-shell" id="appSidebarShell" data-sidebar-state="collapsed">
@@ -364,8 +365,8 @@
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 24px;
         background: 
-            radial-gradient(circle at top right, rgba(37, 99, 235, 0.15), transparent 45%),
-            linear-gradient(180deg, #0f172a 0%, #090d16 100%);
+            radial-gradient(circle at top left, rgba(245, 158, 11, 0.08), transparent 50%),
+            linear-gradient(180deg, #1e1b2e 0%, #16131f 100%);
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         backdrop-filter: blur(20px);
     }

@@ -71,6 +71,7 @@
             <table class="mt-4 min-w-full text-sm">
                 <thead class="border-b border-slate-200 text-left text-xs font-black uppercase text-slate-500">
                     <tr>
+                         <th class="px-3 py-3">Rang</th>
                         <th class="px-3 py-3">Agent</th>
                         <th class="px-3 py-3">Congés</th>
                         <th class="px-3 py-3">Jours de congé</th>
@@ -82,6 +83,7 @@
                 <tbody class="divide-y divide-slate-100">
                     @forelse($eventSummary as $summary)
                         <tr>
+                            <td> <strong>{{ $summary['rank'] }} </strong> </td>
                             <td class="px-3 py-3 font-semibold">{{ $summary['agent']->full_name }}</td>
                             <td class="px-3 py-3">{{ $summary['leave_count'] }}</td>
                             <td class="px-3 py-3">{{ $summary['leave_days'] }}</td>
@@ -90,7 +92,11 @@
                             <td class="px-3 py-3 font-bold">{{ $summary['total_days'] }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="px-3 py-5 text-center text-slate-400">Aucune demande enregistrée.</td></tr>
+                        <tr>
+                            <td colspan="7" class="text-center">
+                                Aucun congé ou autorisation enregistré.
+                            </td>
+                        </tr>
                     @endforelse
                 </tbody>
             </table>
