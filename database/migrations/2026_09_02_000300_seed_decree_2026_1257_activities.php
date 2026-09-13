@@ -86,7 +86,6 @@ return new class extends Migration
         $this->activity('CEPE', 'Organisation générale', null, 5, 10, 'CISCO', 'AVANT_SESSION', 'CEPE_CISCO_ORGANISATION', 'cisco_organisation', self::SOURCE . ' — Article 6');
         $this->activity('CEPE', 'Sélection et élaboration des sujets', null, 5, 20, 'CISCO', 'AVANT_SESSION', 'CEPE_CISCO_SELECTION_ELABORATION', 'cisco_selection', self::SOURCE . ' — Article 6');
         $this->activity('CEPE', 'Suivi et contrôle', null, 15, 30, 'CISCO', 'PENDANT_SESSION', 'CEPE_CISCO_SUIVI_CONTROLE', 'cisco_followup', self::SOURCE . ' — Article 6');
-        $this->activity('CEPE', "Préparation des enveloppes et mise en sous-pli", null, 3, 40, 'CISCO', 'AVANT_SESSION', 'CEPE_CISCO_PREP_ENVELOPPES_2026', 'cepe2026_enveloppes', self::SOURCE . ' — Article 13 (règle exceptionnelle CEPE 2026)', true, 2026);
 
         // -----------------------------------------------------------------
         // 6. CISCO — BEPC
@@ -99,14 +98,12 @@ return new class extends Migration
 // -----------------------------------------------------------------
         // 7. CENTRE — CEPE et BEPC (calculées par règle depuis salles/candidats)
         // -----------------------------------------------------------------
-        $this->activity('CEPE', 'Préparation avant session', null, 5, 10, 'CENTRE', 'AVANT_SESSION', 'CEPE_CENTRE_AVANT_SESSION', 'centre_before_session', self::SOURCE . ' — Article 7');
-        $this->activity('CEPE', 'Encadrement session écrite', null, 3, 20, 'CENTRE', 'PENDANT_SESSION', 'CEPE_CENTRE_ENCADREMENT', 'centre_session_staff', self::SOURCE . ' — Article 7');
+        $this->activity('CEPE', "Réception des dossiers d'inscription", null, 5, 10, 'CENTRE', 'AVANT_SESSION', 'CEPE_CENTRE_AVANT_SESSION', 'centre_before_session', self::SOURCE . ' — Article 7');
         $this->activity('CEPE', 'Surveillants de salle', null, 3, 30, 'CENTRE', 'PENDANT_SESSION', 'CEPE_CENTRE_SURVEILLANCE_SALLE', 'centre_room_supervisors', self::SOURCE . ' — Article 7');
         $this->activity('CEPE', 'Surveillants de cour', null, 3, 40, 'CENTRE', 'PENDANT_SESSION', 'CEPE_CENTRE_SURVEILLANCE_COUR', 'centre_yard_supervisors', self::SOURCE . ' — Article 7');
         $this->activity('CEPE', 'Correction des copies', null, 5, 50, 'CENTRE', 'APRES_SESSION', 'CEPE_CENTRE_CORRECTION', 'centre_correction', self::SOURCE . ' — Article 8');
         $this->activity('CEPE', 'Transcription des notes', null, 5, 60, 'CENTRE', 'APRES_SESSION', 'CEPE_CENTRE_TRANSCRIPTION', 'centre_transcription', self::SOURCE . ' — Article 8');
-        $this->activity('BEPC', 'Préparation avant session', null, 5, 10, 'CENTRE', 'AVANT_SESSION', 'BEPC_CENTRE_AVANT_SESSION', 'centre_before_session', self::SOURCE . ' — Article 7');
-        $this->activity('BEPC', 'Encadrement session écrite', null, 3, 20, 'CENTRE', 'PENDANT_SESSION', 'BEPC_CENTRE_ENCADREMENT', 'centre_session_staff', self::SOURCE . ' — Article 7');
+        $this->activity('BEPC', "Réception des dossiers d'inscription", null, 5, 10, 'CENTRE', 'AVANT_SESSION', 'BEPC_CENTRE_AVANT_SESSION', 'centre_before_session', self::SOURCE . ' — Article 7');
         $this->activity('BEPC', 'Surveillants de salle', null, 3, 30, 'CENTRE', 'PENDANT_SESSION', 'BEPC_CENTRE_SURVEILLANCE_SALLE', 'centre_room_supervisors', self::SOURCE . ' — Article 7');
         $this->activity('BEPC', 'Surveillants de cour', null, 3, 40, 'CENTRE', 'PENDANT_SESSION', 'BEPC_CENTRE_SURVEILLANCE_COUR', 'centre_yard_supervisors', self::SOURCE . ' — Article 7');
         $this->activity('BEPC', 'Correction des copies', null, 5, 50, 'CENTRE', 'APRES_SESSION', 'BEPC_CENTRE_CORRECTION', 'centre_correction', self::SOURCE . ' — Article 8');

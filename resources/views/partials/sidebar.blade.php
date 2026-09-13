@@ -1,18 +1,38 @@
 @php
     $user = auth()->user();
     
-    // Core Tailwind styling state classes
-    $baseItem = 'group relative flex items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50';
-    $activeItem = $baseItem . ' bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-lg shadow-amber-500/25 ...';
-    // $activeItem = $baseItem . ' bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-white/20';
-    // $idleItem   = $baseItem . ' text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 hover:shadow-sm hover:translate-x-0.5';
-    $idleItem = $baseItem . ' text-stone-400 hover:text-stone-100 hover:bg-stone-800/50 ...';
+    // Classes de style Tailwind
+    $baseItem   = 'group relative flex items-center gap-3.5 rounded-xl px-3.5 py-3 text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50';
+    $activeItem = $baseItem . ' bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-lg shadow-amber-500/25';
+    $idleItem   = $baseItem . ' text-stone-400 hover:text-stone-100 hover:bg-stone-800/50';
+
+    // L'espace affiché dépend de l'accès choisi depuis l'accueil, et non du
+    // seul rôle de l'utilisateur. Ainsi un administrateur ne voit pas les
+    // onglets des autres espaces pendant son travail courant.
+    $isVacationWorkspace = request()->routeIs('vacation2026.*');
+    $isRhWorkspace = request()->routeIs('hr.*') || request()->routeIs('admin.hr.*');
+    $isStatisticsWorkspace = request()->routeIs(
+        'bepc.*',
+        'repartition.stats.*',
+        'repartition.options.langues.stats',
+        'repartition.simulation.*',
+        'repartition.tirage',
+        'repartition.groupes',
+        'decision.centre',
+        'exam-results.*',
+        'cap-cae-results.*',
+        'repartition.livre.*',
+        'repartition.saisie.*',
+        'imports.*'
+    );
+    $isLogisticsWorkspace = request()->routeIs('inventory.*', 'repartition.logistique.*', 'repartition.livraison.*', 'repartition.export.dispatching.*');
+    $hasWorkspace = $isVacationWorkspace || $isRhWorkspace || $isStatisticsWorkspace || $isLogisticsWorkspace;
 @endphp
 
-<div class="app-sidebar-shell" id="appSidebarShell" data-sidebar-state="collapsed">
+<div class="app-sidebar-shell" id="appSidebarShell" data-sidebar-state="expanded">
     <aside class="app-sidebar-panel">
         
-        {{-- Header & Brand --}}
+        {{-- En-tête & Marque --}}
         <div class="app-sidebar-header">
             <div class="app-sidebar-brand">
                 <div class="app-sidebar-logo">
@@ -26,23 +46,46 @@
                 </div>
             </div>
 
-            <button type="button" class="app-sidebar-toggle" id="appSidebarToggle" aria-label="Toggle sidebar" aria-expanded="false">
+            <button type="button" class="app-sidebar-toggle" id="appSidebarToggle" aria-label="Toggle sidebar" aria-expanded="true">
                 <svg xmlns="http://www.w3.org/2000/svg" class="app-sidebar-toggle-icon h-4 w-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
             </button>
         </div>
 
-        {{-- Hint Banner --}}
+        {{-- Bannière d'indication --}}
         <div class="app-sidebar-hint">
             <span class="app-sidebar-hint-dot"></span>
-            <span class="app-sidebar-label">Navigation Rapide</span>
+            <span class="app-sidebar-label">
+                @if($isVacationWorkspace)
+                    Espace Vacation 2026
+                @elseif($isRhWorkspace)
+                    Espace Ressources Humaines
+                @elseif($isStatisticsWorkspace)
+                    Espace Statistiques & Répartition
+                @elseif($isLogisticsWorkspace)
+                    Espace Logistique
+                @else
+                    Navigation Principale
+                @endif
+            </span>
         </div>
 
-        {{-- Main Navigation Links --}}
+        {{-- Liens de navigation principale --}}
         <nav class="app-sidebar-nav">
-            
+
+            <a class="{{ request()->routeIs('home') ? $activeItem : $idleItem }}" href="{{ route('home') }}">
+                <span class="app-sidebar-icon-wrap bg-slate-700 text-slate-200 group-hover:scale-110">
+                    <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                </span>
+                <span class="app-sidebar-copy-block">
+                    <span class="app-sidebar-link-title">Accueil</span>
+                    <span class="app-sidebar-link-meta">Changer d'espace</span>
+                </span>
+            </a>
+
             {{-- Dashboard --}}
+            @if(! $hasWorkspace)
             <a class="{{ request()->routeIs('repartition.dashboard') ? $activeItem : $idleItem }}" href="{{ route('repartition.dashboard') }}">
                 <span class="app-sidebar-icon-wrap bg-blue-500/10 text-blue-400 group-hover:scale-110 group-hover:bg-blue-500/20">
                     <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
@@ -52,90 +95,10 @@
                     <span class="app-sidebar-link-meta">Vue d'ensemble</span>
                 </span>
             </a>
-
-            @if(! $user?->isLogistique())
-                {{-- HR --}}
-                <a class="{{ request()->routeIs('hr.*') ? $activeItem : $idleItem }}" href="{{ route('hr.dashboard') }}">
-                    <span class="app-sidebar-icon-wrap bg-cyan-500/10 text-cyan-400 group-hover:scale-110 group-hover:bg-cyan-500/20">
-                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m6-6a4 4 0 100-8 4 4 0 000 8zm8-4h6m-3-3v6"/></svg>
-                    </span>
-                    <span class="app-sidebar-copy-block">
-                        <span class="app-sidebar-link-title">Ressources humaines</span>
-                        <span class="app-sidebar-link-meta">Personnel & disponibilité</span>
-                    </span>
-                </a>
             @endif
 
-            {{-- Stats Report --}}
-            <a class="{{ request()->routeIs('repartition.stats.report*') ? $activeItem : $idleItem }}" href="{{ route('repartition.stats.report') }}">
-                <span class="app-sidebar-icon-wrap bg-indigo-500/10 text-indigo-400 group-hover:scale-110 group-hover:bg-indigo-500/20">
-                    <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-5 4h6m2 0a2 2 0 002-2V7a2 2 0 00-2-2h-3m-4 0H7a2 2 0 00-2 2v12a2 2 0 002 2h2"/></svg>
-                </span>
-                <span class="app-sidebar-copy-block">
-                    <span class="app-sidebar-link-title">Rapport statistique</span>
-                    <span class="app-sidebar-link-meta">Comparatif N / N-1</span>
-                </span>
-            </a>
-
-            @if(! $user?->isLogistique())
-                {{-- Exam Results --}}
-                <a class="{{ request()->routeIs('exam-results.*') ? $activeItem : $idleItem }}" href="{{ route('exam-results.index') }}">
-                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/20">
-                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
-                    </span>
-                    <span class="app-sidebar-copy-block">
-                        <span class="app-sidebar-link-title">Résultats examens</span>
-                        <span class="app-sidebar-link-meta">Publication officielle</span>
-                    </span>
-                </a>
-            @endif
-
-            {{-- Stats by Language --}}
-            <a class="{{ request()->routeIs('repartition.options.langues.stats') ? $activeItem : $idleItem }}" href="{{ route('repartition.options.langues.stats') }}">
-                <span class="app-sidebar-icon-wrap bg-fuchsia-500/10 text-fuchsia-400 group-hover:scale-110 group-hover:bg-fuchsia-500/20">
-                    <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747S17.5 6.253 12 6.253z"/></svg>
-                </span>
-                <span class="app-sidebar-copy-block">
-                    <span class="app-sidebar-link-title">Stats par langue</span>
-                    <span class="app-sidebar-link-meta">PE/GE par option</span>
-                </span>
-            </a>
-
-            {{-- Simulation Soubique --}}
-            <a class="{{ request()->routeIs('repartition.simulation.soubique') ? $activeItem : $idleItem }}" href="{{ route('repartition.simulation.soubique') }}">
-                <span class="app-sidebar-icon-wrap bg-amber-500/10 text-amber-400 group-hover:scale-110 group-hover:bg-amber-500/20">
-                    <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m-8 5h10m-7 5h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
-                </span>
-                <span class="app-sidebar-copy-block">
-                    <span class="app-sidebar-link-title">Simulation soubique</span>
-                    <span class="app-sidebar-link-meta">Sujets par centre</span>
-                </span>
-            </a>
-
-            {{-- Dispatching --}}
-            <a class="{{ request()->routeIs('repartition.export.dispatching.preview') ? $activeItem : $idleItem }}" href="{{ route('repartition.export.dispatching.preview') }}">
-                <span class="app-sidebar-icon-wrap bg-amber-500/10 text-amber-400 group-hover:scale-110 group-hover:bg-amber-500/20">
-                    <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-                </span>
-                <span class="app-sidebar-copy-block">
-                    <span class="app-sidebar-link-title">Dispatching</span>
-                    <span class="app-sidebar-link-meta">Dispatching par axe</span>
-                </span>
-            </a>
-
-            {{-- Tirage --}}
-            <a class="{{ request()->routeIs('repartition.tirage') ? $activeItem : $idleItem }}" href="{{ route('repartition.tirage') }}">
-                <span class="app-sidebar-icon-wrap bg-teal-500/10 text-teal-400 group-hover:scale-110 group-hover:bg-teal-500/20">
-                    <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2m12 7V2M4 13h16M6 22h12a2 2 0 002-2V9a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"/></svg>
-                </span>
-                <span class="app-sidebar-copy-block">
-                    <span class="app-sidebar-link-title">Tirage</span>
-                    <span class="app-sidebar-link-meta">Simulation par matière</span>
-                </span>
-            </a>
-
-            @if($user?->canAccessLogistics())
-                {{-- Logistics Section --}}
+            {{-- SECTION : LOGISTIQUE --}}
+            @if((! $hasWorkspace || $isLogisticsWorkspace) && ($user?->canAccessLogistics() || $user?->isLogistique() || $user?->isAdmin()))
                 <div class="app-sidebar-section-label app-sidebar-label">Logistique</div>
 
                 <a class="{{ request()->routeIs('inventory.*') ? $activeItem : $idleItem }}" href="{{ route('inventory.index') }}">
@@ -167,10 +130,37 @@
                         <span class="app-sidebar-link-meta">Bordereaux et suivi</span>
                     </span>
                 </a>
+
+                <a class="{{ request()->routeIs('repartition.export.dispatching.preview') ? $activeItem : $idleItem }}" href="{{ route('repartition.export.dispatching.preview') }}">
+                    <span class="app-sidebar-icon-wrap bg-amber-500/10 text-amber-400 group-hover:scale-110 group-hover:bg-amber-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Dispatching</span>
+                        <span class="app-sidebar-link-meta">Dispatching par axe</span>
+                    </span>
+                </a>
             @endif
 
-            @if(! $user?->isLogistique())
-                {{-- General Entry Section --}}
+            {{-- SECTION : RESSOURCES HUMAINES --}}
+            @if((! $hasWorkspace || $isRhWorkspace) && ($user?->isRh() || $user?->canAccessRh() || $user?->isAdmin()))
+                <div class="app-sidebar-section-label app-sidebar-label">Ressources Humaines</div>
+
+                <a class="{{ request()->routeIs('hr.*') ? $activeItem : $idleItem }}" href="{{ route('hr.dashboard') }}">
+                    <span class="app-sidebar-icon-wrap bg-cyan-500/10 text-cyan-400 group-hover:scale-110 group-hover:bg-cyan-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m6-6a4 4 0 100-8 4 4 0 000 8zm8-4h6m-3-3v6"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Ressources humaines</span>
+                        <span class="app-sidebar-link-meta">Personnel & disponibilité</span>
+                    </span>
+                </a>
+            @endif
+
+            {{-- SECTION : SAISIE & EXAMENS --}}
+            @if((! $hasWorkspace || $isStatisticsWorkspace) && ($user?->canAccessExams() || (! $user?->isLogistique() && ! $user?->isRh() && ! $user?->isStats()) || $user?->isAdmin()))
+                <div class="app-sidebar-section-label app-sidebar-label">Examens & Saisie</div>
+
                 <a class="{{ request()->routeIs('bepc.repartition.create') ? $activeItem : $idleItem }}" href="{{ route('bepc.repartition.create') }}">
                     <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/20">
                         <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
@@ -190,9 +180,17 @@
                         <span class="app-sidebar-link-meta">DREN complètes</span>
                     </span>
                 </a>
-            @endif
 
-            @if(! $user?->isLogistique())
+                <a class="{{ request()->routeIs('exam-results.*') ? $activeItem : $idleItem }}" href="{{ route('exam-results.index') }}">
+                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Résultats examens</span>
+                        <span class="app-sidebar-link-meta">Publication officielle</span>
+                    </span>
+                </a>
+
                 <a class="{{ request()->routeIs('cap-cae-results.*') ? $activeItem : $idleItem }}" href="{{ route('cap-cae-results.index') }}">
                     <span class="app-sidebar-icon-wrap bg-rose-500/10 text-rose-400 group-hover:scale-110 group-hover:bg-rose-500/20">
                         <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5h6m-9 4h12M6 13h12M6 17h8M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
@@ -224,28 +222,105 @@
                 </a>
             @endif
 
-            <a class="{{ request()->routeIs('decision.centre') ? $activeItem : $idleItem }}" href="{{ route('decision.centre') }}">
-                <span class="app-sidebar-icon-wrap bg-sky-500/10 text-sky-400 group-hover:scale-110 group-hover:bg-sky-500/20">
-                    <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h11M9 21V3m0 0L5 7m4-4l4 4"/></svg>
-                </span>
-                <span class="app-sidebar-copy-block">
-                    <span class="app-sidebar-link-title">Décision de centre</span>
-                    <span class="app-sidebar-link-meta">Édition centralisée</span>
-                </span>
-            </a>
+            {{-- SECTION : ANALYSES & STATISTIQUES --}}
+            @if((! $hasWorkspace || $isStatisticsWorkspace) && ($user?->isStats() || $user?->canAccessStats() || $user?->isAdmin()))
+                <div class="app-sidebar-section-label app-sidebar-label">Analyses & Tirages</div>
 
-            <a class="{{ request()->routeIs('repartition.groupes') ? $activeItem : $idleItem }}" href="{{ route('repartition.groupes') }}">
-                <span class="app-sidebar-icon-wrap bg-orange-500/10 text-orange-400 group-hover:scale-110 group-hover:bg-orange-500/20">
-                    <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5V4H2v16h5m10 0v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4m10 0H7m10-12h.01M7 8h8m-8 4h8"/></svg>
-                </span>
-                <span class="app-sidebar-copy-block">
-                    <span class="app-sidebar-link-title">Répartition groupes</span>
-                    <span class="app-sidebar-link-meta">Équilibrage DREN / CISCO</span>
-                </span>
-            </a>
+                <a class="{{ request()->routeIs('repartition.stats.report*') ? $activeItem : $idleItem }}" href="{{ route('repartition.stats.report') }}">
+                    <span class="app-sidebar-icon-wrap bg-indigo-500/10 text-indigo-400 group-hover:scale-110 group-hover:bg-indigo-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-5 4h6m2 0a2 2 0 002-2V7a2 2 0 00-2-2h-3m-4 0H7a2 2 0 00-2 2v12a2 2 0 002 2h2"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Rapport statistique</span>
+                        <span class="app-sidebar-link-meta">Comparatif N / N-1</span>
+                    </span>
+                </a>
 
-            @if($user?->isAdmin())
-                {{-- Administration Section --}}
+                <a class="{{ request()->routeIs('repartition.options.langues.stats') ? $activeItem : $idleItem }}" href="{{ route('repartition.options.langues.stats') }}">
+                    <span class="app-sidebar-icon-wrap bg-fuchsia-500/10 text-fuchsia-400 group-hover:scale-110 group-hover:bg-fuchsia-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747S17.5 6.253 12 6.253z"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Stats par langue</span>
+                        <span class="app-sidebar-link-meta">PE/GE par option</span>
+                    </span>
+                </a>
+
+                <a class="{{ request()->routeIs('repartition.simulation.soubique') ? $activeItem : $idleItem }}" href="{{ route('repartition.simulation.soubique') }}">
+                    <span class="app-sidebar-icon-wrap bg-amber-500/10 text-amber-400 group-hover:scale-110 group-hover:bg-amber-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m-8 5h10m-7 5h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 01-2-2z"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Simulation soubique</span>
+                        <span class="app-sidebar-link-meta">Sujets par centre</span>
+                    </span>
+                </a>
+
+                <a class="{{ request()->routeIs('repartition.tirage') ? $activeItem : $idleItem }}" href="{{ route('repartition.tirage') }}">
+                    <span class="app-sidebar-icon-wrap bg-teal-500/10 text-teal-400 group-hover:scale-110 group-hover:bg-teal-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2m12 7V2M4 13h16M6 22h12a2 2 0 002-2V9a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Tirage</span>
+                        <span class="app-sidebar-link-meta">Simulation par matière</span>
+                    </span>
+                </a>
+
+                <a class="{{ request()->routeIs('decision.centre') ? $activeItem : $idleItem }}" href="{{ route('decision.centre') }}">
+                    <span class="app-sidebar-icon-wrap bg-sky-500/10 text-sky-400 group-hover:scale-110 group-hover:bg-sky-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h11M9 21V3m0 0L5 7m4-4l4 4"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Décision de centre</span>
+                        <span class="app-sidebar-link-meta">Édition centralisée</span>
+                    </span>
+                </a>
+
+                <a class="{{ request()->routeIs('repartition.groupes') ? $activeItem : $idleItem }}" href="{{ route('repartition.groupes') }}">
+                    <span class="app-sidebar-icon-wrap bg-orange-500/10 text-orange-400 group-hover:scale-110 group-hover:bg-orange-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5V4H2v16h5m10 0v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4m10 0H7m10-12h.01M7 8h8m-8 4h8"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Répartition groupes</span>
+                        <span class="app-sidebar-link-meta">Équilibrage DREN / CISCO</span>
+                    </span>
+                </a>
+            @endif
+
+            {{-- ESPACE VACATION 2026 --}}
+            @if($user?->isAdmin() && $isVacationWorkspace)
+                <div class="app-sidebar-section-label app-sidebar-label">Vacation 2026</div>
+
+                <a class="{{ request()->routeIs('vacation2026.*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.index') }}">
+                    <span class="app-sidebar-icon-wrap bg-fuchsia-500/10 text-fuchsia-400 group-hover:scale-110 group-hover:bg-fuchsia-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h2"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Vacation 2026</span>
+                        <span class="app-sidebar-link-meta">Traitement central</span>
+                    </span>
+                </a>
+
+                <a class="{{ request('tab') === 'settings' ? $activeItem : $idleItem }}" href="{{ route('vacation2026.index', ['tab' => 'settings']) }}">
+                    <span class="app-sidebar-icon-wrap bg-slate-700 text-slate-200 group-hover:scale-110">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6.364.364l-1.414 1.414M18.364 5.636l1.414-1.414M6.343 6.343L4.929 4.929M18.364 18.364l1.414 1.414M4 12H2m20 0h-2M12 4V2m0 20v-2m0-4a4 4 0 100-8 4 4 0 000 8z"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Paramétrage</span>
+                        <span class="app-sidebar-link-meta">Activités et documents</span>
+                    </span>
+                </a>
+
+                <a class="{{ request()->routeIs('vacation2026.calendar*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.calendar') }}">
+                    <span class="app-sidebar-icon-wrap bg-indigo-500/10 text-indigo-400 group-hover:scale-110">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Calendrier de vacation</span><span class="app-sidebar-link-meta">Niveau central</span></span>
+                </a>
+            @endif
+
+            {{-- SECTION : ADMINISTRATION --}}
+            @if($user?->isAdmin() && ! $hasWorkspace)
                 <div class="app-sidebar-section-label app-sidebar-label">Administration</div>
 
                 <a class="{{ request()->routeIs('admin.hr.*') ? $activeItem : $idleItem }}" href="{{ route('admin.hr.settings') }}">
@@ -320,7 +395,7 @@
             @endif
         </nav>
 
-        {{-- Footer User Controls --}}
+        {{-- Pied de page Utilisateur --}}
         <div class="app-sidebar-footer">
             <div class="app-sidebar-user">
                 <div class="app-sidebar-avatar">{{ strtoupper(substr($user?->name ?? 'U', 0, 1)) }}</div>
@@ -349,10 +424,14 @@
 </div>
 
 <style>
+    /* Structure de base de la Sidebar */
     .app-sidebar-shell {
-        width: 100%;
+        width: 280px;
         flex-shrink: 0;
-        max-height: 100vh;
+        height: 100vh;
+        position: sticky;
+        top: 0;
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .app-sidebar-panel {
@@ -362,8 +441,7 @@
         height: 100%;
         overflow: hidden;
         flex-direction: column;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 24px;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
         background: 
             radial-gradient(circle at top left, rgba(245, 158, 11, 0.08), transparent 50%),
             linear-gradient(180deg, #1e1b2e 0%, #16131f 100%);
@@ -437,6 +515,7 @@
 
     .app-sidebar-copy {
         min-width: 0;
+        white-space: nowrap;
     }
 
     .app-sidebar-kicker {
@@ -454,12 +533,9 @@
         font-size: 0.95rem;
         font-weight: 700;
         color: #f8fafc;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        line-height: 1.25;
     }
 
-    .app-sidebar-subtitle,
     .app-sidebar-link-meta {
         margin: 0.15rem 0 0;
         font-size: 0.73rem;
@@ -479,11 +555,16 @@
         color: #94a3b8;
         cursor: pointer;
         transition: all 0.2s ease;
+        flex-shrink: 0;
     }
 
     .app-sidebar-toggle:hover {
         background: rgba(255, 255, 255, 0.1);
         color: #fff;
+    }
+
+    .app-sidebar-toggle-icon {
+        transition: transform 0.3s ease;
     }
 
     .app-sidebar-hint {
@@ -499,6 +580,8 @@
         font-size: 0.7rem;
         font-weight: 700;
         color: #38bdf8;
+        white-space: nowrap;
+        overflow: hidden;
     }
 
     .app-sidebar-hint-dot {
@@ -541,7 +624,9 @@
         min-width: 0;
         flex: 1;
         flex-direction: column;
-        transition: opacity 0.2s ease, width 0.2s ease;
+        transition: opacity 0.2s ease;
+        white-space: nowrap;
+        overflow: hidden;
     }
 
     .app-sidebar-link-title {
@@ -559,6 +644,8 @@
         letter-spacing: 0.16em;
         text-transform: uppercase;
         color: #475569;
+        white-space: nowrap;
+        overflow: hidden;
     }
 
     .app-sidebar-footer {
@@ -578,7 +665,9 @@
 
     .app-sidebar-logout {
         width: 100%;
-        justify-content: flex-start;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
         padding: 0.65rem 0.75rem;
         border: 1px solid rgba(244, 63, 94, 0.15);
         border-radius: 12px;
@@ -588,6 +677,7 @@
         color: #fb7185;
         cursor: pointer;
         transition: all 0.2s ease;
+        white-space: nowrap;
     }
 
     .app-sidebar-logout:hover {
@@ -596,67 +686,84 @@
         color: #fff;
     }
 
-    /* Desktop Collapsible Sidebar Animations */
-    @media (min-width: 1024px) {
+    /* --- MODE RÉTRACTÉ / COLLAPSÉ --- */
+    .app-sidebar-shell[data-sidebar-state="collapsed"] {
+        width: 80px;
+    }
+
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-copy,
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-copy-block,
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-hint-label,
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-section-label,
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-label {
+        display: none !important;
+    }
+
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-header {
+        justify-content: center;
+        padding: 1.25rem 0.5rem;
+    }
+
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-brand {
+        display: none;
+    }
+
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-toggle-icon {
+        transform: rotate(180deg);
+    }
+
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-hint {
+        justify-content: center;
+        padding: 0.5rem;
+        margin: 0.85rem 0.5rem 0.4rem;
+    }
+
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-nav a {
+        justify-content: center;
+        padding: 0.75rem;
+    }
+
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-user {
+        justify-content: center;
+        padding: 0.4rem;
+    }
+
+    .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-logout {
+        justify-content: center;
+        padding: 0.65rem;
+    }
+
+    /* Responsive Mobile */
+    @media (max-width: 1023px) {
         .app-sidebar-shell {
-            position: sticky;
-            top: 1rem;
-            height: calc(100vh - 2rem);
-            width: var(--sidebar-width, 18.5rem);
-            transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            align-self: flex-start;
-            z-index: 30;
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
         }
 
-        .app-sidebar-shell[data-sidebar-state="collapsed"] {
-            --sidebar-width: 5.5rem;
-        }
-
-        .app-sidebar-shell[data-sidebar-state="expanded"],
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:hover,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:focus-within {
-            --sidebar-width: 18.5rem;
-        }
-
-        .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-kicker,
-        .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-title,
-        .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-subtitle,
-        .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-label,
-        .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-copy-block,
-        .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-section-label {
-            opacity: 0;
-            width: 0;
-            max-width: 0;
-            overflow: hidden;
-            pointer-events: none;
-            white-space: nowrap;
-        }
-
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:hover .app-sidebar-kicker,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:hover .app-sidebar-title,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:hover .app-sidebar-subtitle,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:hover .app-sidebar-label,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:hover .app-sidebar-copy-block,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:hover .app-sidebar-section-label,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:focus-within .app-sidebar-kicker,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:focus-within .app-sidebar-title,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:focus-within .app-sidebar-subtitle,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:focus-within .app-sidebar-label,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:focus-within .app-sidebar-copy-block,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:focus-within .app-sidebar-section-label {
-            opacity: 1;
-            width: auto;
-            max-width: 100%;
-            pointer-events: auto;
-        }
-
-        .app-sidebar-shell[data-sidebar-state="collapsed"] .app-sidebar-toggle-icon {
-            transform: rotate(180deg);
-        }
-
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:hover .app-sidebar-toggle-icon,
-        .app-sidebar-shell[data-sidebar-state="collapsed"]:focus-within .app-sidebar-toggle-icon {
-            transform: rotate(0deg);
+        .app-sidebar-shell[data-mobile-open="true"] {
+            transform: translateX(0);
         }
     }
 </style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const shell = document.getElementById('appSidebarShell');
+        const toggleBtn = document.getElementById('appSidebarToggle');
+
+        if (toggleBtn && shell) {
+            toggleBtn.addEventListener('click', () => {
+                const currentState = shell.getAttribute('data-sidebar-state');
+                const newState = currentState === 'collapsed' ? 'expanded' : 'collapsed';
+
+                shell.setAttribute('data-sidebar-state', newState);
+                toggleBtn.setAttribute('aria-expanded', newState === 'expanded');
+            });
+        }
+    });
+</script>

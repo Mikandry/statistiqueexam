@@ -121,9 +121,13 @@
                    class="rounded-full border px-4 py-2 text-sm font-medium {{ $activeTab === 'balance' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700' }}">
                     Equilibre
                 </a>
+                <a href="{{ route('vacation2026.index', ['tab' => 'settings']) }}"
+                   class="rounded-full border px-4 py-2 text-sm font-medium {{ $activeTab === 'settings' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700' }}">
+                    Paramétrage
+                </a>
             </div>
 
-            @if($activeTab !== 'balance')
+            @if($activeTab === 'main')
             @if(session('status'))
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>
             @endif
@@ -169,6 +173,7 @@
                     </form>
                 </section>
 
+                @if(false) {{-- déplacé dans l'onglet Paramétrage --}}
                 <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h2 class="text-lg font-semibold text-slate-900">2) Paramètres des documents</h2>
                     <form method="POST" action="{{ route('vacation2026.settings.update') }}" class="mt-4 space-y-3">
@@ -216,8 +221,10 @@
                         <button class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600" type="submit">Enregistrer</button>
                     </form>
                 </section>
+                @endif
             </div>
 
+            @if(false) {{-- déplacé dans l'onglet Paramétrage --}}
             <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -310,6 +317,7 @@
                     <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 md:col-span-6">Ajouter activité</button>
                 </form>
             </section>
+            @endif
 
             <div class="grid grid-cols-1 gap-4">
                 <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -445,6 +453,10 @@
                 </div>
             </section>
 
+            @endif
+
+            @if($activeTab === 'settings')
+                @include('repartition.vacation-2026-settings')
             @endif
 
             @if($activeTab === 'balance')

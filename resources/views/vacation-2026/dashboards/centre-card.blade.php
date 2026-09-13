@@ -68,8 +68,8 @@
             </div>
         @endif
 
-        @if($dashboard['centre_id'])
-            <a href="{{ route('vacation2026.centre', ['centre_id' => $dashboard['centre_id']]) }}" class="self-start rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        @if($dashboard['centre_id'] || $dashboard['centre_ecrit_id'])
+            <a href="{{ route('vacation2026.centre', array_filter(['centre_id' => $dashboard['centre_ecrit_id'] ? null : $dashboard['centre_id'], 'centre_ecrit_id' => $dashboard['centre_ecrit_id'], 'exam' => $dashboard['examFilter'] ?? null], fn ($value) => $value !== null && $value !== '')) }}" class="self-start rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                 Voir le détail
             </a>
         @endif

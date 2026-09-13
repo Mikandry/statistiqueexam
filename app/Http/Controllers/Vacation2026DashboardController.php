@@ -7,6 +7,7 @@ use App\Models\Cisco;
 use App\Services\Vacation2026DashboardService;
 use App\Services\VacationDecreeService;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
  * Vacation2026DashboardController
@@ -88,10 +89,9 @@ class Vacation2026DashboardController extends Controller
     {
         $ciscoId = $request->query('cisco_id');
         $centreId = $request->query('centre_id');
-        $manualEpsCandidates = $request->query('manual_eps_candidates');
         $filters = $this->dashboardFilters($request);
 
-        $dashboards = $this->dashboardService->ciscoDashboard($ciscoId ? (int)$ciscoId : null, $filters[0], $filters[1], $filters[2], $centreId ? (int)$centreId : null, $manualEpsCandidates !== null && $manualEpsCandidates !== '' ? (int) $manualEpsCandidates : null);
+        $dashboards = $this->dashboardService->ciscoDashboard($ciscoId ? (int)$ciscoId : null, $filters[0], $filters[1], $filters[2], $centreId ? (int)$centreId : null);
 
         // If specific CISCO requested, show single dashboard
         if ($ciscoId && ! empty($dashboards)) {
@@ -103,7 +103,6 @@ class Vacation2026DashboardController extends Controller
                 'selectedCiscoId' => $ciscoId,
                 'selectedCentreId' => $centreId,
                 'selectedCisco' => $selectedCisco,
-                'manualEpsCandidates' => $manualEpsCandidates,
                 ...$this->filterViewData($filters, 'CISCO'),
             ]));
         }
@@ -114,7 +113,6 @@ class Vacation2026DashboardController extends Controller
             'selectedCiscoId' => $ciscoId,
             'allCiscos' => Cisco::with('dren')->get(['id', 'nom', 'dren_id', 'manual_eps_candidates']),
             'allCentres' => \App\Models\CentreCorrection::all(['id', 'nom']),
-            'manualEpsCandidates' => $manualEpsCandidates,
             ...$this->filterViewData($filters, 'CISCO'),
         ]);
     }
@@ -146,6 +144,7 @@ class Vacation2026DashboardController extends Controller
     public function centre(Request $request)
 {
     $centreId = $request->query('centre_id');
+    $centreEcritId = $request->query('centre_ecrit_id');
     $filters = $this->dashboardFilters($request);
 
     $dashboards = $this->dashboardService->centreDashboard(
@@ -153,21 +152,24 @@ class Vacation2026DashboardController extends Controller
         null,
         $filters[0],
         $filters[1],
-        $filters[2]
+        $filters[2],
+        $centreEcritId ? (int) $centreEcritId : null
     );
 
     // If a specific centre is requested
-    if ($centreId && !empty($dashboards)) {
+    if (($centreId || $centreEcritId) && !empty($dashboards)) {
         $data = $dashboards[0];
 
         return view('vacation-2026.dashboards.centre-single', array_merge($data, [
                 'allCentres' => $this->dashboardService->centreDashboard(),
             'selectedCentreId' => $centreId,
+            'selectedCentreEcritId' => $centreEcritId,
             ...$this->filterViewData($filters, 'CENTRE'),
         ]));
     }
 
-    // Divide centres into the 3 categories
+    // Use a compact, searchable and paginated listing: a card per centre does
+    // not remain readable when thousands of centres are imported.
     $ecritOnly = collect($dashboards)->filter(function ($dashboard) {
         return ($dashboard['centre_type'] ?? null) === VacationDecreeService::CENTRE_TYPE_ECRIT;
     });
@@ -180,8 +182,16 @@ class Vacation2026DashboardController extends Controller
         return ($dashboard['centre_type'] ?? null) === VacationDecreeService::CENTRE_TYPE_JUMELES;
     });
 
+    $search = trim((string) $request->query('search', ''));
+    $filtered = collect($dashboards)->filter(fn ($item) => $search === '' || str_contains(mb_strtolower($item['centre_name']), mb_strtolower($search)))->values();
+    $perPage = 30;
+    $page = LengthAwarePaginator::resolveCurrentPage();
+    $paged = new LengthAwarePaginator($filtered->forPage($page, $perPage)->values(), $filtered->count(), $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]);
+
     return view('vacation-2026.dashboards.centre-list', [
-        'dashboards' => $dashboards,
+        'dashboards' => $paged,
+        'totalCentres' => $filtered->count(),
+        'search' => $search,
         'ecritOnly' => $ecritOnly,
         'correctionOnly' => $correctionOnly,
         'jumeles' => $jumeles,
@@ -246,7 +256,8 @@ class Vacation2026DashboardController extends Controller
             'phaseFilter' => $phase,
             'activityFilter' => $activityId,
             'filterActivities' => \App\Models\Vacation2026Activity::when($level !== 'GLOBAL', fn ($query) => $query->where('level', $level))->where('year', '2026')->orderBy('examen')->orderBy('ordre')->get(),
-            'exams' => ['CEPE', 'BEPC', 'EPS'],
+            // EPS is an integral part of the BEPC session, not a separate exam.
+            'exams' => ['CEPE', 'BEPC'],
             'phases' => ['AVANT_SESSION', 'PENDANT_SESSION', 'APRES_SESSION', 'AVANT_EPREUVES_EPS', 'PENDANT_EPREUVES_EPS', 'APRES_EPREUVES_EPS'],
         ];
     }

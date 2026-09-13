@@ -8,7 +8,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class CentreCorrection extends Model
 {
-    protected $fillable = ['cisco_id', 'nom', 'type_examen', 'centre_type', 'is_eps_gym', 'eps_capacity'];
+    protected $fillable = ['cisco_id', 'nom', 'type_examen', 'centre_type', 'is_eps_gym', 'eps_capacity', 'parent_centre_correction_id'];
+
+    public function parentCentre(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_centre_correction_id');
+    }
+
+    public function sousCentres(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_centre_correction_id');
+    }
 
     public function cisco(): BelongsTo
     {

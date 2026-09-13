@@ -148,7 +148,6 @@ class VacationDecreeService
 
             // CENTRE
             'centre_before_session' => $this->centreBeforeSession($candidates, $centreType, $activity),
-            'centre_session_staff' => $this->centreSessionStaff($salles, $activity->nb_jours, $activity),
             'centre_room_supervisors' => $this->centreRoomSupervisors($salles, $special, $activity->nb_jours, $activity),
             'centre_yard_supervisors' => $this->centreYardSupervisors($salles, $activity->nb_jours, $activity),
             'centre_correction' => $this->centreCorrection($candidates, $ctx, $activity),
@@ -335,8 +334,8 @@ class VacationDecreeService
     // ---------------------------------------------------------------------
 
     /**
-     * Préparation avant session (centre) : Chef de centre 1 + Chef adjoint 1
-     * + 1 secrétaire par tranche de 250 candidats.
+     * Réception des dossiers d'inscription (centre) : Chef de centre 1 + Chef
+     * adjoint 1 + 1 secrétaire par tranche de 250 candidats.
      * Durée selon le type de centre : écrit seul 5 j, correction seul 5 j,
      * jumelés 8 j.
      */
@@ -351,24 +350,7 @@ class VacationDecreeService
         return $this->result($days, $activity, [
             ['role' => 'Chef de centre', 'count' => 1],
             ['role' => 'Chef de centre adjoint', 'count' => 1],
-            ['role' => 'Secrétaires (1 par tranche de 250 candidats)', 'count' => $secretaries],
-        ]);
-    }
-
-    /**
-     * Encadrement session écrite (pendant session) :
-     * Chef de centre 1, adjoint 1, comité de vigilance 1, secrétaire
-     * 1 par salle, responsable sécurité des sujets 1, responsables sécurité 2.
-     */
-    private function centreSessionStaff(int $salles, int $days, Vacation2026Activity $activity): array
-    {
-        return $this->result($days, $activity, [
-            ['role' => 'Chef de centre', 'count' => 1],
-            ['role' => 'Chef de centre adjoint', 'count' => 1],
-            ['role' => 'Comité de vigilance', 'count' => 1],
-            ['role' => 'Secrétaires (1 par salle)', 'count' => $salles],
-            ['role' => 'Responsable sécurité des sujets', 'count' => 1],
-            ['role' => 'Responsables sécurité', 'count' => 2],
+            ['role' => 'Agents de secrétariat (1 par tranche de 250 candidats)', 'count' => $secretaries],
         ]);
     }
 
@@ -530,9 +512,8 @@ class VacationDecreeService
                 self::CENTRE_TYPE_CORRECTION,
                 self::CENTRE_TYPE_JUMELES,
                 self::CENTRE_TYPE_TRANSCRIPTION,
-                self::CENTRE_TYPE_SOUS,
             ], true),
-            'centre_session_staff', 'centre_room_supervisors', 'centre_yard_supervisors' => in_array($centreType, [
+            'centre_room_supervisors', 'centre_yard_supervisors' => in_array($centreType, [
                 self::CENTRE_TYPE_ECRIT,
                 self::CENTRE_TYPE_JUMELES,
                 self::CENTRE_TYPE_SOUS,
@@ -621,7 +602,6 @@ class VacationDecreeService
     {
         return array_values(array_filter([
             'centre_before_session',
-            'centre_session_staff',
             'centre_room_supervisors',
             'centre_yard_supervisors',
             'centre_correction',

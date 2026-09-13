@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Cisco;
 use App\Models\Vacation2026Activity;
 use App\Models\Vacation2026Agent;
 use App\Models\Vacation2026Assignment;
 use App\Models\Vacation2026Setting;
+use App\Models\Vacation2026Plan;
+use App\Models\Vacation2026Session;
 use App\Models\AuditLog;
 use App\Services\VacationDecreeService;
+use App\Services\VacationPlanningService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -25,8 +29,50 @@ class Vacation2026Controller extends Controller
 {
     private ?bool $hasActivityRateColumn = null;
 
-    public function __construct(private readonly VacationDecreeService $decree)
+    public function __construct(private readonly VacationDecreeService $decree, private readonly VacationPlanningService $planning)
     {
+    }
+
+    public function calendar(Request $request)
+    {
+        $examFilter = trim((string) $request->query('examen', ''));
+        $sessions = Vacation2026Session::query()->where('level', 'CENTRAL')
+            ->when($examFilter !== '', fn ($query) => $query->where('examen', $examFilter))
+            ->latest('annee')->orderBy('examen')->get();
+        $session = $request->filled('session_id') ? $sessions->firstWhere('id', (int) $request->query('session_id')) : $sessions->first();
+        $plans = $session ? $session->plans()->with('activity')->orderBy('ordre')->get() : collect();
+        $activities = $session ? Vacation2026Activity::query()->where('examen', $session->examen)->where('level', 'CENTRAL')->orderBy('ordre')->get() : collect();
+
+        $examens = Vacation2026Activity::query()->where('level', 'CENTRAL')->distinct()->orderBy('examen')->pluck('examen');
+        return view('repartition.vacation-2026-calendar', compact('sessions', 'session', 'plans', 'activities', 'examens', 'examFilter'));
+    }
+
+    public function storeCalendarSession(Request $request): RedirectResponse
+    {
+        $data = $request->validate(['examen' => ['required', 'string', 'max:30'], 'annee' => ['required', 'integer', 'min:2020', 'max:2100'], 'libelle' => ['nullable', 'string', 'max:255'], 'date_session' => ['required', 'date'], 'date_fin_session' => ['nullable', 'date', 'after_or_equal:date_session']]);
+        $session = Vacation2026Session::query()->updateOrCreate(
+            ['examen' => $data['examen'], 'annee' => $data['annee'], 'level' => 'CENTRAL'],
+            ['libelle' => $data['libelle'] ?: $data['examen'].' '.$data['annee'], 'date_session' => $data['date_session'], 'date_fin_session' => $data['date_fin_session'] ?? $data['date_session']]
+        );
+        $this->planning->generate($session, true);
+        return redirect()->route('vacation2026.calendar', ['session_id' => $session->id])->with('status', 'Calendrier central généré.');
+    }
+
+    public function recalculateCalendar(Request $request, Vacation2026Session $session): RedirectResponse
+    {
+        abort_unless($session->level === 'CENTRAL', 404);
+        $mode = $request->validate(['mode' => ['required', 'in:preserve,automatic,all']])['mode'];
+        if ($mode === 'all') { $session->plans()->update(['manuel' => false]); }
+        $this->planning->generate($session, $mode !== 'all');
+        return back()->with('status', 'Calendrier recalculé.');
+    }
+
+    public function updateCalendarPlan(Request $request, Vacation2026Plan $plan): RedirectResponse
+    {
+        abort_unless($plan->session?->level === 'CENTRAL', 404);
+        $data = $request->validate(['ordre' => ['required', 'integer', 'min:0'], 'date_debut' => ['required', 'date'], 'date_fin' => ['required', 'date', 'after_or_equal:date_debut'], 'duree_jours' => ['required', 'integer', 'min:1'], 'chevauchement_autorise' => ['nullable', 'boolean'], 'dependency_ids' => ['nullable', 'array'], 'dependency_ids.*' => ['integer']]);
+        $plan->update($data + ['chevauchement_autorise' => $request->boolean('chevauchement_autorise'), 'dependency_ids' => $data['dependency_ids'] ?? [], 'manuel' => true]);
+        return back()->with('status', 'Activité planifiée mise à jour manuellement.');
     }
 
     public function index(Request $request)
@@ -344,10 +390,12 @@ class Vacation2026Controller extends Controller
     public function updateActivity(Request $request, Vacation2026Activity $activity): RedirectResponse
     {
         $payload = $request->validate([
+            'libelle' => ['required', 'string', 'max:255'],
             'max_agents' => ['nullable', 'integer', 'min:0'],
             'nb_jours' => ['required', 'integer', 'min:1'],
             'taux_activite' => ['nullable', 'numeric', 'min:0'],
             'level' => ['nullable', 'string', 'max:30'],
+            'phase' => ['nullable', 'in:AVANT_SESSION,PENDANT_SESSION,APRES_SESSION,AVANT_EPREUVES_EPS,PENDANT_EPREUVES_EPS,APRES_EPREUVES_EPS'],
         ]);
         $rateInput = array_key_exists('taux_activite', $payload) && $payload['taux_activite'] !== null
             ? (float) $payload['taux_activite']
@@ -382,12 +430,31 @@ class Vacation2026Controller extends Controller
         return back()->with('status', $status);
     }
 
+    public function destroyActivity(Request $request, Vacation2026Activity $activity): RedirectResponse
+    {
+        $assignments = $activity->assignments()->count();
+        if ($assignments > 0) {
+            return back()->withErrors([
+                'activity' => "Suppression impossible : {$assignments} affectation(s) sont encore liées à cette activité.",
+            ]);
+        }
+
+        $label = $activity->libelle;
+        $activity->groups()->delete();
+        $activity->delete();
+
+        AuditLog::record($request, 'delete_vacation_activity', ['activity_id' => $activity->id, 'libelle' => $label]);
+
+        return back()->with('status', "Activité « {$label} » supprimée.");
+    }
+
     public function storeActivity(Request $request): RedirectResponse
     {
         $payload = $request->validate([
             'examen' => ['required', 'string', 'max:255'],
             'libelle' => ['required', 'string', 'max:255'],
             'level' => ['nullable', 'string', 'max:30'],
+            'phase' => ['required', 'in:AVANT_SESSION,PENDANT_SESSION,APRES_SESSION,AVANT_EPREUVES_EPS,PENDANT_EPREUVES_EPS,APRES_EPREUVES_EPS'],
             'max_agents' => ['required', 'integer', 'min:1'],
             'nb_jours' => ['required', 'integer', 'min:1'],
             'taux_activite' => ['nullable', 'numeric', 'min:0'],
@@ -402,6 +469,7 @@ class Vacation2026Controller extends Controller
             'examen' => $payload['examen'],
             'libelle' => $payload['libelle'],
             'level' => $level !== '' ? $level : null,
+            'phase' => $payload['phase'],
             'max_agents' => (int) $payload['max_agents'],
             'nb_jours' => (int) $payload['nb_jours'],
             'taux_activite' => $payload['taux_activite'] ?? null,
@@ -425,9 +493,46 @@ class Vacation2026Controller extends Controller
 
     public function updateEpsCapacity(Request $request, \App\Models\CentreCorrection $centre): RedirectResponse
     {
-        $payload = $request->validate(['eps_capacity' => ['required', 'integer', 'min:1', 'max:2']]);
+        // eps_capacity = nombre de candidats EPS saisi manuellement pour ce centre EPS/GYM.
+        $payload = $request->validate(['eps_capacity' => ['required', 'integer', 'min:0', 'max:100000']]);
         $centre->update($payload);
-        return back()->with('status', "Capacité EPS mise à jour pour {$centre->nom}.");
+        return back()->with('status', "Nombre de candidats EPS mis à jour pour {$centre->nom}.");
+    }
+
+    public function updateManualEpsCandidates(Request $request, Cisco $cisco): RedirectResponse
+    {
+        $payload = $request->validate([
+            'manual_eps_candidates' => ['nullable', 'integer', 'min:0', 'max:100000'],
+        ]);
+        $cisco->update(['manual_eps_candidates' => $payload['manual_eps_candidates'] ?? null]);
+        return back()->with('status', "Candidats EPS manuels mis à jour pour {$cisco->nom}.");
+    }
+
+    public function storeEpsCentre(Request $request, Cisco $cisco): RedirectResponse
+    {
+        $payload = $request->validate(['name' => ['required', 'string', 'max:255'], 'candidate_count' => ['required', 'integer', 'min:0', 'max:100000']]);
+        $cisco->vacation2026EpsCentres()->create($payload);
+        return back()->with('status', "Centre EPS ajouté pour {$cisco->nom}.");
+    }
+
+    public function updateEpsCentre(Request $request, \App\Models\Vacation2026EpsCentre $epsCentre): RedirectResponse
+    {
+        $payload = $request->validate(['name' => ['required', 'string', 'max:255'], 'candidate_count' => ['required', 'integer', 'min:0', 'max:100000']]);
+        $epsCentre->update($payload);
+        return back()->with('status', 'Centre EPS mis à jour.');
+    }
+
+    public function destroyEpsCentre(\App\Models\Vacation2026EpsCentre $epsCentre): RedirectResponse
+    {
+        $epsCentre->delete();
+        return back()->with('status', 'Centre EPS supprimé.');
+    }
+
+    public function updateEpsRoleRate(Request $request, \App\Models\Vacation2026EpsRoleRate $epsRoleRate): RedirectResponse
+    {
+        $payload = $request->validate(['rate' => ['required', 'numeric', 'min:0', 'max:1000000']]);
+        $epsRoleRate->update(['rate' => $payload['rate']]);
+        return back()->with('status', "Taux EPS mis à jour pour {$epsRoleRate->label}.");
     }
 
     public function removeAssignment(Vacation2026Assignment $assignment): RedirectResponse

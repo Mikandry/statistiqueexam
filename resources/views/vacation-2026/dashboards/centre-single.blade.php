@@ -3,7 +3,14 @@
 @section('title', 'Tableau de bord Centre - Vacation 2026')
 @section('content')
 
-    @include('vacation-2026.dashboards._navigation')
+    @include('vacation-2026.dashboards._navigation', [
+        'navBackLabel' => 'Tableau de bord Centre',
+        'navBackRoute' => route('vacation2026.centre', array_filter([
+            'exam' => $examFilter,
+            'phase' => $phaseFilter,
+            'activity_id' => $activityFilter,
+        ], fn ($value) => $value !== null && $value !== '')),
+    ])
 
     <div class="space-y-4">
         <!-- Header -->
@@ -17,7 +24,8 @@
         <!-- Centre Selector -->
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             @include('vacation-2026.dashboards._filters')
-            <form method="GET" class="flex gap-3">
+            {{-- ne pas utiliser pour le moment --}}
+            {{-- <form method="GET" class="flex gap-3">
                 <select name="centre_id" onchange="this.form.submit()" class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm">
                     <option value="">Choisir un centre</option>
                     @foreach($allCentres as $centre)
@@ -26,12 +34,12 @@
                         </option>
                     @endforeach
                 </select>
-            </form>
+            </form> --}}
         </div>
 
         @include('vacation-2026.dashboards._phase-summary')
 
-        @if($selectedCentreId)
+        @if($selectedCentreId || ($selectedCentreEcritId ?? null))
         <!-- Centre Statistics -->
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
@@ -55,7 +63,8 @@
         <!-- Centre Header -->
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 class="text-xl font-semibold text-slate-900 mb-1">{{ $centre_name }}</h2>
-            <p class="text-sm text-slate-600">Type: {{ $centre_type }} @if($is_eps_gym) • EPS/GYM @endif @if($is_jumel) • <span class="font-semibold text-blue-700">Centre jumelé</span> @endif @if($has_special_needs) • Besoins spécifiques @endif</p>
+            <p class="text-sm text-slate-600">Type: {{ $centre_type }} @if($is_eps_gym && ($centre_type ?? '') !== 'EPS/GYM') • EPS/GYM @endif @if($is_jumel) • <span class="font-semibold text-blue-700">Centre jumelé</span> @endif @if($has_special_needs) • Besoins spécifiques @endif</p>
+            @if(!empty($parent_centre_name))<p class="mt-2 text-sm text-blue-800">Sous-centre rattaché au centre mère @if(!empty($centre_code))<span class="font-semibold">{{ $centre_code }}</span> — @endif<span class="font-semibold">{{ $parent_centre_name }}</span>.</p>@endif
             @if(($examFilter ?? '') !== '')
                 <p class="mt-2 text-sm font-medium {{ $total_candidates > 0 ? 'text-emerald-700' : 'text-orange-700' }}">Examen sélectionné : {{ $examFilter }} — {{ $total_candidates > 0 ? 'candidats rattachés' : 'aucun candidat rattaché à cet examen' }}</p>
             @endif
@@ -63,6 +72,43 @@
 
         <!-- Personnel Requirements -->
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            @if($is_eps_gym)
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Chefs de centre EPS</h3>
+                <p class="text-3xl font-bold text-slate-900 mb-2">{{ $chef_centre_required }}</p>
+                <p class="text-xs text-slate-600">1 chef + 1 adjoint par centre</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Médecin</h3>
+                <p class="text-3xl font-bold text-slate-900 mb-2">{{ $medical_required }}</p>
+                <p class="text-xs text-slate-600">1 par centre EPS</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Interrogateurs</h3>
+                <p class="text-3xl font-bold text-slate-900 mb-2">{{ $interrogators_required }}</p>
+                <p class="text-xs text-slate-600">3 par tranche de 600 candidats</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Agents de stade</h3>
+                <p class="text-3xl font-bold text-slate-900 mb-2">{{ $stadium_agents_required }}</p>
+                <p class="text-xs text-slate-600">2 par centre</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Surveillants</h3>
+                <p class="text-3xl font-bold text-slate-900 mb-2">{{ $eps_surveillants_required }}</p>
+                <p class="text-xs text-slate-600">2 par centre</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Secrétaires</h3>
+                <p class="text-3xl font-bold text-slate-900 mb-2">{{ $eps_secretaires_required }}</p>
+                <p class="text-xs text-slate-600">1 par tranche de 200 candidats</p>
+            </div>
+            @else
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Surveillants de Salle</h3>
                 <p class="text-3xl font-bold text-slate-900 mb-2">{{ $surveillants_required }}</p>
@@ -86,8 +132,9 @@
                 <p class="text-3xl font-bold text-slate-900 mb-2">{{ $security_required }}</p>
                 <p class="text-xs text-slate-600">Personnel de sécurité</p>
             </div>
+            @endif
 
-            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm @if($is_eps_gym) md:col-span-2 @else md:col-span-1 @endif">
                 <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Résumé Personnel</h3>
                 <div class="flex justify-between items-center">
                     <div>

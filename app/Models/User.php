@@ -14,6 +14,9 @@ class User extends Authenticatable
     public const ROLE_ADMIN = 'admin';
     public const ROLE_USER = 'user';
     public const ROLE_LOGISTIQUE = 'logistique';
+    public const ROLE_RH = 'rh';
+    public const ROLE_STATS = 'statistique';
+    public const ROLE_EXAMENS = 'examens'; // Adjust string to match your DB (e.g., 'examens' or 'saisie')
 
     protected $fillable = [
         'name',
@@ -54,5 +57,35 @@ class User extends Authenticatable
     public function canAccessLogistics(): bool
     {
         return $this->isAdmin() || $this->isLogistique();
+    }
+
+    public function isRh(): bool
+    {
+        return $this->role === self::ROLE_RH;
+    }
+
+    public function canAccessRh(): bool
+    {
+        return $this->isAdmin() || $this->isRh();
+    }
+
+    public function isStats(): bool
+    {
+        return $this->role === self::ROLE_STATS;
+    }
+
+    public function canAccessStats(): bool
+    {
+        return $this->isAdmin() || $this->isStats();
+    }
+
+    public function isExams(): bool
+    {
+        return $this->role === self::ROLE_EXAMENS;
+    }
+
+    public function canAccessExams(): bool
+    {
+        return $this->isAdmin() || $this->isExams();
     }
 }

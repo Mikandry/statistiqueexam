@@ -523,16 +523,32 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('vacation2026.import');
     Route::post('/vacation-2026/settings', [Vacation2026Controller::class, 'updateSetting'])
         ->name('vacation2026.settings.update');
+    Route::get('/vacation-2026/calendrier', [Vacation2026Controller::class, 'calendar'])->name('vacation2026.calendar');
+    Route::post('/vacation-2026/calendrier/sessions', [Vacation2026Controller::class, 'storeCalendarSession'])->name('vacation2026.calendar.sessions.store');
+    Route::post('/vacation-2026/calendrier/{session}/recalculer', [Vacation2026Controller::class, 'recalculateCalendar'])->name('vacation2026.calendar.recalculate');
+    Route::put('/vacation-2026/calendrier/plans/{plan}', [Vacation2026Controller::class, 'updateCalendarPlan'])->name('vacation2026.calendar.plans.update');
     Route::post('/vacation-2026/assignments', [Vacation2026Controller::class, 'assign'])
         ->name('vacation2026.assignments.store');
     Route::delete('/vacation-2026/assignments/{assignment}', [Vacation2026Controller::class, 'removeAssignment'])
         ->name('vacation2026.assignments.destroy');
     Route::put('/vacation-2026/activities/{activity}', [Vacation2026Controller::class, 'updateActivity'])
         ->name('vacation2026.activities.update');
+    Route::delete('/vacation-2026/activities/{activity}', [Vacation2026Controller::class, 'destroyActivity'])
+        ->name('vacation2026.activities.destroy');
     Route::put('/vacation-2026/activity-groups/{group}', [Vacation2026Controller::class, 'updateActivityGroup'])
         ->name('vacation2026.activity-groups.update');
     Route::put('/vacation-2026/centres/{centre}/eps-capacity', [Vacation2026Controller::class, 'updateEpsCapacity'])
         ->name('vacation2026.centres.eps-capacity.update');
+    Route::put('/vacation-2026/ciscos/{cisco}/manual-eps-candidates', [Vacation2026Controller::class, 'updateManualEpsCandidates'])
+        ->name('vacation2026.ciscos.manual-eps-candidates.update');
+    Route::post('/vacation-2026/ciscos/{cisco}/eps-centres', [Vacation2026Controller::class, 'storeEpsCentre'])
+        ->name('vacation2026.eps-centres.store');
+    Route::put('/vacation-2026/eps-centres/{epsCentre}', [Vacation2026Controller::class, 'updateEpsCentre'])
+        ->name('vacation2026.eps-centres.update');
+    Route::delete('/vacation-2026/eps-centres/{epsCentre}', [Vacation2026Controller::class, 'destroyEpsCentre'])
+        ->name('vacation2026.eps-centres.destroy');
+    Route::put('/vacation-2026/eps-role-rates/{epsRoleRate}', [Vacation2026Controller::class, 'updateEpsRoleRate'])
+        ->name('vacation2026.eps-role-rates.update');
     Route::post('/vacation-2026/activities', [Vacation2026Controller::class, 'storeActivity'])
         ->name('vacation2026.activities.store');
     Route::get('/vacation-2026/exports/{document}/word', [Vacation2026Controller::class, 'exportWord'])

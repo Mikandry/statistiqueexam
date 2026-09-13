@@ -3,7 +3,10 @@
 @section('title', 'Tableau de bord CISCO (Liste) - Vacation 2026')
 @section('content')
 
-    @include('vacation-2026.dashboards._navigation')
+    @include('vacation-2026.dashboards._navigation', [
+        'navBackLabel' => 'Dashboard global',
+        'navBackRoute' => route('vacation2026.dashboard.global'),
+    ])
     @include('vacation-2026.dashboards._filters')
 
     <div class="space-y-4">

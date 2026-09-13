@@ -283,6 +283,11 @@
                                                 <input class="ref-input" name="nom" placeholder="Nom centre correction" required>
                                                 <div class="inline-flex items-center rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-bold text-teal-800">{{ $centreTypeForForms }}</div>
                                                 <input type="hidden" name="type_examen" value="{{ $centreTypeForForms }}">
+                                                <div class="md:col-span-2">
+                                                    <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" name="is_eps_gym" value="1" class="ref-check w-4 h-4"> Centre EPS/GYM (épreuves physiques)</label>
+                                                    <input class="ref-input mt-1" type="number" min="0" step="1" name="eps_capacity" placeholder="Candidats EPS du centre (saisie manuelle)">
+                                                    <p class="text-xs text-slate-400 mt-1">Pour un centre EPS/GYM, saisissez le nombre de candidats de chaque centre (1 à 3 centres EPS possibles par CISCO).</p>
+                                                </div>
                                                 <div class="md:col-span-4">
                                                     <button class="ref-btn-primary inline-flex items-center justify-center px-4 py-3 text-sm" type="submit">Ajouter Centre correction</button>
                                                 </div>
@@ -555,7 +560,7 @@
                             <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Centres de correction</h3>
                             <div class="ref-table-wrap">
                             <table class="ref-table min-w-full border-collapse text-sm">
-                                <thead><tr><th class="text-left">CISCO</th><th class="text-left">Nom</th><th class="text-left">Type</th><th class="text-left">Action</th></tr></thead>
+                                <thead><tr><th class="text-left">CISCO</th><th class="text-left">Nom</th><th class="text-left">Type</th><th class="text-left">EPS/GYM</th><th class="text-left">Action</th></tr></thead>
                                 <tbody>
                                 @forelse($centresCorrectionPage as $cc)
                                     <tr>
@@ -577,6 +582,12 @@
                                                 </select>
                                         </td>
                                         <td>
+                                            <div class="flex flex-col gap-1">
+                                                <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" name="is_eps_gym" value="1" class="ref-check w-4 h-4" {{ $cc->is_eps_gym ? 'checked' : '' }}> EPS/GYM</label>
+                                                <input class="ref-input text-sm" type="number" min="0" step="1" name="eps_capacity" value="{{ $cc->eps_capacity ?? '' }}" placeholder="Candidats EPS">
+                                            </div>
+                                        </td>
+                                        <td>
                                                 <div class="flex flex-wrap gap-2">
                                                     <button class="ref-btn-primary px-3 py-2 text-sm" type="submit">Modifier</button>
                                             </form>
@@ -589,7 +600,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr><td class="text-slate-500" colspan="4">Aucun centre de correction trouvé.</td></tr>
+                                    <tr><td class="text-slate-500" colspan="5">Aucun centre de correction trouvé.</td></tr>
                                 @endforelse
                                 </tbody>
                             </table>

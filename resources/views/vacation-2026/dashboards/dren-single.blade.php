@@ -3,7 +3,14 @@
 @section('title', 'Tableau de bord DREN - Vacation 2026')
 @section('content')
 
-    @include('vacation-2026.dashboards._navigation')
+    @include('vacation-2026.dashboards._navigation', [
+        'navBackLabel' => 'Tableau de bord DREN',
+        'navBackRoute' => route('vacation2026.dren', array_filter([
+            'exam' => $examFilter,
+            'phase' => $phaseFilter,
+            'activity_id' => $activityFilter,
+        ], fn ($value) => $value !== null && $value !== '')),
+    ])
 
     <div class="space-y-4">
         <!-- Header -->
@@ -31,6 +38,139 @@
 
         @include('vacation-2026.dashboards._phase-summary')
         @include('vacation-2026.dashboards._activity-details')
+
+        {{-- @if($selectedDrenId && isset($eps_ciscos))
+        <div class="rounded-2xl border border-purple-200 bg-white p-5 shadow-sm">
+            <h2 class="mb-1 text-lg font-semibold text-slate-900">Récapitulatif EPS par CISCO</h2>
+            <p class="mb-4 text-sm text-slate-600">Détail par centre EPS, regroupé par CISCO, puis totalisé pour la DREN.</p>
+            <div class="space-y-4">@foreach($eps_ciscos as $epsCisco)<div class="overflow-x-auto rounded-xl border border-slate-200"><div class="flex items-center justify-between bg-purple-50 px-4 py-3"><span class="font-semibold text-purple-950">{{ $epsCisco['cisco_name'] }}</span><span class="text-sm">{{ $epsCisco['total_centres'] }} centre(s) · {{ number_format($epsCisco['total_candidates'], 0, ',', ' ') }} candidats · <strong>{{ $epsCisco['total_planned'] }} agents</strong> · {{ number_format($epsCisco['estimated_indemnity'], 0, ',', ' ') }} Ar</span></div><table class="w-full text-sm"><thead><tr class="border-b border-slate-200"><th class="px-3 py-2 text-left">Centre EPS</th><th class="px-3 py-2 text-center">Candidats</th><th class="px-3 py-2 text-center">Chefs</th><th class="px-3 py-2 text-center">Surveillants</th><th class="px-3 py-2 text-center">Interrogateurs</th><th class="px-3 py-2 text-center">Secrétariat</th><th class="px-3 py-2 text-center">Médecins</th><th class="px-3 py-2 text-center">Stade</th></tr></thead><tbody>@forelse($epsCisco['centres'] as $epsCentre)<tr class="border-b border-slate-100"><td class="px-3 py-2 font-medium">{{ $epsCentre['centre_name'] }}</td><td class="px-3 py-2 text-center">{{ number_format($epsCentre['candidates'], 0, ',', ' ') }}</td><td class="px-3 py-2 text-center">{{ $epsCentre['chef_centre_required'] }}</td><td class="px-3 py-2 text-center">{{ $epsCentre['surveillants_required'] }}</td><td class="px-3 py-2 text-center">{{ $epsCentre['interrogators_required'] }}</td><td class="px-3 py-2 text-center">{{ $epsCentre['secretariat_required'] }}</td><td class="px-3 py-2 text-center">{{ $epsCentre['medical_required'] }}</td><td class="px-3 py-2 text-center">{{ $epsCentre['stadium_agents_required'] }}</td></tr>@empty<tr><td colspan="8" class="px-3 py-3 text-center text-slate-500">Aucun centre EPS configuré.</td></tr>@endforelse</tbody></table></div>@endforeach</div>
+            <div class="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-purple-100 p-4 text-sm md:grid-cols-5"><div><span class="block text-purple-700">Centres EPS</span><strong>{{ $eps_total['centres'] }}</strong></div><div><span class="block text-purple-700">Candidats</span><strong>{{ number_format($eps_total['candidates'], 0, ',', ' ') }}</strong></div><div><span class="block text-purple-700">Agents requis</span><strong>{{ $eps_total['planned'] }}</strong></div><div><span class="block text-purple-700">Agents affectés</span><strong>{{ $eps_total['assigned'] }}</strong></div><div><span class="block text-purple-700">Montant EPS DREN</span><strong>{{ number_format($eps_total['amount'], 0, ',', ' ') }} Ar</strong></div></div>
+        </div>
+        @endif --}}
+        @if($selectedDrenId && isset($eps_ciscos))
+<div class="rounded-2xl border border-purple-200 bg-white p-5 shadow-sm">
+
+    <div class="overflow-x-auto rounded-xl border border-slate-200">
+        <table class="w-full text-sm">
+
+            {{-- UN SEUL EN-TÊTE --}}
+            <thead>
+                <tr class="border-b border-slate-200 bg-purple-50">
+                    <th class="px-3 py-2 text-left">CISCO</th>
+                    <th class="px-3 py-2 text-left">Centre EPS</th>
+                    <th class="px-3 py-2 text-center">Candidats</th>
+                    <th class="px-3 py-2 text-center">Chefs</th>
+                    <th class="px-3 py-2 text-center">Surveillants</th>
+                    <th class="px-3 py-2 text-center">Interrogateurs</th>
+                    <th class="px-3 py-2 text-center">Secrétariat</th>
+                    <th class="px-3 py-2 text-center">Médecins</th>
+                    <th class="px-3 py-2 text-center">Stade</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                @foreach($eps_ciscos as $epsCisco)
+
+                    {{-- CISCO --}}
+                    <tr class="border-b border-purple-100 bg-purple-50">
+                        <td colspan="9" class="px-3 py-2 font-semibold text-purple-950">
+                            {{ $epsCisco['cisco_name'] }}
+
+                            <span class="ml-3 text-sm font-normal text-slate-600">
+                                {{ $epsCisco['total_centres'] }} centre(s)
+                                · {{ number_format($epsCisco['total_candidates'], 0, ',', ' ') }} candidats
+                                · {{ $epsCisco['total_planned'] }} agents
+                                · {{ number_format($epsCisco['estimated_indemnity'], 0, ',', ' ') }} Ar
+                            </span>
+                        </td>
+                    </tr>
+
+                    {{-- CENTRES DU CISCO --}}
+                    @forelse($epsCisco['centres'] as $epsCentre)
+
+                        <tr class="border-b border-slate-100">
+                            <td class="px-3 py-2 text-slate-500">
+                                {{ $epsCisco['cisco_name'] }}
+                            </td>
+
+                            <td class="px-3 py-2 font-medium">
+                                {{ $epsCentre['centre_name'] }}
+                            </td>
+
+                            <td class="px-3 py-2 text-center">
+                                {{ number_format($epsCentre['candidates'], 0, ',', ' ') }}
+                            </td>
+
+                            <td class="px-3 py-2 text-center">
+                                {{ $epsCentre['chef_centre_required'] }}
+                            </td>
+
+                            <td class="px-3 py-2 text-center">
+                                {{ $epsCentre['surveillants_required'] }}
+                            </td>
+
+                            <td class="px-3 py-2 text-center">
+                                {{ $epsCentre['interrogators_required'] }}
+                            </td>
+
+                            <td class="px-3 py-2 text-center">
+                                {{ $epsCentre['secretariat_required'] }}
+                            </td>
+
+                            <td class="px-3 py-2 text-center">
+                                {{ $epsCentre['medical_required'] }}
+                            </td>
+
+                            <td class="px-3 py-2 text-center">
+                                {{ $epsCentre['stadium_agents_required'] }}
+                            </td>
+                        </tr>
+
+                    @empty
+
+                        <tr>
+                            <td colspan="9" class="px-3 py-3 text-center text-slate-500">
+                                Aucun centre EPS configuré.
+                            </td>
+                        </tr>
+
+                    @endforelse
+
+                @endforeach
+
+            </tbody>
+
+            {{-- TOTAL DREN --}}
+            <tfoot>
+                <tr class="bg-purple-100 font-semibold">
+                    <td colspan="2" class="px-3 py-3">
+                        TOTAL DREN
+                    </td>
+
+                    <td class="px-3 py-3 text-center">
+                        {{ number_format($eps_total['candidates'], 0, ',', ' ') }}
+                    </td>
+
+                    <td colspan="2" class="px-3 py-3 text-center">
+                        {{ $eps_total['planned'] }} agents
+                    </td>
+
+                    <td colspan="2" class="px-3 py-3 text-center">
+                        {{ $eps_total['assigned'] }} affectés
+                    </td>
+
+                    <td colspan="2" class="px-3 py-3 text-center">
+                        {{ number_format($eps_total['amount'], 0, ',', ' ') }} Ar
+                    </td>
+                </tr>
+            </tfoot>
+
+        </table>
+    </div>
+
+</div>
+@endif
 
         @if($selectedDrenId)
         <!-- Decree calculation context -->

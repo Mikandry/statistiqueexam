@@ -226,15 +226,25 @@ class ReferenceManagementController extends Controller
             'cisco_id' => ['required', 'integer', 'exists:ciscos,id'],
             'nom' => ['required', 'string', 'max:255'],
             'type_examen' => ['required', 'in:'.self::TYPE_BEPC.','.self::TYPE_CEPE],
+            'is_eps_gym' => ['nullable', 'boolean'],
+            'centre_type' => ['nullable', 'string', 'in:EPS/GYM'],
+            'eps_capacity' => ['nullable', 'integer', 'min:0', 'max:100000'],
         ]);
+
+        $isEps = (bool) ($request->boolean('is_eps_gym') || $request->input('centre_type') === 'EPS/GYM');
 
         CentreCorrection::query()->create([
             'cisco_id' => (int) $validated['cisco_id'],
             'nom' => trim((string) $validated['nom']),
             'type_examen' => $validated['type_examen'],
+            'centre_type' => $isEps ? 'EPS/GYM' : null,
+            'is_eps_gym' => $isEps,
+            'eps_capacity' => $isEps ? (int) ($validated['eps_capacity'] ?? 0) : null,
         ]);
 
-        return back()->with('status', 'Centre de correction ajouté.');
+        return back()->with('status', $isEps
+            ? "Centre EPS/GYM {$validated['nom']} ajouté (candidats EPS saisis)."
+            : 'Centre de correction ajouté.');
     }
 
     public function updateCentreCorrection(Request $request, CentreCorrection $centreCorrection): RedirectResponse
@@ -243,15 +253,25 @@ class ReferenceManagementController extends Controller
             'cisco_id' => ['required', 'integer', 'exists:ciscos,id'],
             'nom' => ['required', 'string', 'max:255'],
             'type_examen' => ['required', 'in:'.self::TYPE_BEPC.','.self::TYPE_CEPE],
+            'is_eps_gym' => ['nullable', 'boolean'],
+            'centre_type' => ['nullable', 'string', 'in:EPS/GYM'],
+            'eps_capacity' => ['nullable', 'integer', 'min:0', 'max:100000'],
         ]);
+
+        $isEps = (bool) ($request->boolean('is_eps_gym') || $request->input('centre_type') === 'EPS/GYM');
 
         $centreCorrection->update([
             'cisco_id' => (int) $validated['cisco_id'],
             'nom' => trim((string) $validated['nom']),
             'type_examen' => $validated['type_examen'],
+            'centre_type' => $isEps ? 'EPS/GYM' : null,
+            'is_eps_gym' => $isEps,
+            'eps_capacity' => $isEps ? (int) ($validated['eps_capacity'] ?? 0) : null,
         ]);
 
-        return back()->with('status', 'Centre de correction modifié.');
+        return back()->with('status', $isEps
+            ? "Centre EPS/GYM {$validated['nom']} modifié (candidats EPS saisis)."
+            : 'Centre de correction modifié.');
     }
 
     public function destroyCentreCorrection(CentreCorrection $centreCorrection): RedirectResponse

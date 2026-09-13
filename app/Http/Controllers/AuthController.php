@@ -77,6 +77,7 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
         AuditLog::record($request, 'register', ['email' => $user->email]);
+        $request->session()->forget('url.intended');
 
         return redirect()->intended(route('bepc.repartition.create'));
     }

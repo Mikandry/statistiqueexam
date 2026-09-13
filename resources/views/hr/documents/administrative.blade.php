@@ -238,6 +238,86 @@
         .page-break {
             page-break-before: always;
         }
+
+        /* ============================================================
+           ZONE DE SIGNATURES ET DE VALIDATION ADMINISTRATIVE
+           (fiche de congé — partie inférieure, avant le pied de page)
+           Présentation sobre : bordures noires/grises, fond blanc.
+           ============================================================ */
+        .validation-zone {
+            margin-top: 4mm;
+            page-break-inside: avoid;
+        }
+
+        .validation-zone .zone-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 10.5pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #0f172a;
+        }
+
+        /* Encadré « Signature de l'intéressé », séparé du tableau */
+        .interesse-box {
+            border: 1.2px solid #1e293b;
+            background: white;
+            padding: 7pt 10pt;
+            page-break-inside: avoid;
+        }
+
+        .interesse-box .zone-title {
+            margin: 0 0 26mm;
+        }
+
+        .interesse-box .signature-leaf {
+            padding-left: 12pt;
+            font-size: 10pt;
+            color: #1e293b;
+        }
+
+        /* Trait de signature (espace réservé à la main) */
+        .sig-blank {
+            display: inline-block;
+            min-width: 28mm;
+            border-bottom: 1px solid #64748b;
+            white-space: nowrap;
+        }
+
+        /* Tableau de validation en 3 colonnes */
+        .validation-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            margin-top: 3mm;
+            page-break-inside: avoid;
+        }
+
+        .validation-table th,
+        .validation-table td {
+            border: 1.3px solid #1e293b;
+            background: white;
+            padding: 5pt 7pt;
+            font-size: 9.5pt;
+            vertical-align: top;
+            color: #1e293b;
+        }
+
+        .validation-table th {
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #0f172a;
+        }
+
+        .validation-table .field {
+            line-height: 1.5;
+        }
+
+        .validation-table .spacer {
+            height: 24mm;
+        }
     </style>
 </head>
 
@@ -625,6 +705,70 @@
     {{ $settings?->ville ?: 'Antananarivo' }},
     le {{ $today->format('d/m/Y') }}
 </div>
+
+{{-- ========================================================= --}}
+{{-- ZONE DE SIGNATURES ET DE VALIDATION ADMINISTRATIVE        --}}
+{{-- Uniquement pour la fiche de congé                         --}}
+{{-- ========================================================= --}}
+@if($document === 'conge')
+    <div class="validation-zone">
+
+        {{-- Signature de l'intéressé (clairement séparée du tableau) --}}
+        <div class="interesse-box">
+            <div class="zone-title">Signature de l'intéressé</div>
+            <div class="signature-leaf">
+                Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+            </div>
+        </div>
+
+        {{-- Validation administrative : remplaçant / chef hiérarchique / signataire --}}
+        <table class="validation-table">
+            <thead>
+                <tr>
+                    <th style="width:32%">Signature du remplaçant</th>
+                    <th style="width:34%">Avis du chef hiérarchique</th>
+                    <th style="width:34%">Décision du signataire</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="field">
+                            Nom et prénom : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        </div>
+                        <div class="spacer">&nbsp;</div>
+                        <div class="field">
+                            Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="field">☐ FAVORABLE</div>
+                        <div class="field">☐ DÉFAVORABLE</div>
+                        <div class="spacer">&nbsp;</div>
+                        <div class="field">
+                            Date : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        </div>
+                        <div class="field">
+                            Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="field">☐ ACCORDÉE</div>
+                        <div class="field">☐ REFUSÉE</div>
+                        <div class="spacer">&nbsp;</div>
+                        <div class="field">
+                            Date : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        </div>
+                        <div class="field">
+                            Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+    </div>
+@endif
 
 </body>
 </html>

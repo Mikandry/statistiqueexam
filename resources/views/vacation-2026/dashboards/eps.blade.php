@@ -3,7 +3,10 @@
 @section('title', 'Tableau de bord EPS/GYM - Vacation 2026')
 @section('content')
 
-    @include('vacation-2026.dashboards._navigation')
+    @include('vacation-2026.dashboards._navigation', [
+        'navBackLabel' => 'Dashboard global',
+        'navBackRoute' => route('vacation2026.dashboard.global'),
+    ])
 
     <div class="space-y-4">
         @include('vacation-2026.dashboards._filters')
@@ -61,6 +64,14 @@
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-4">Récapitulatif Personnel</h3>
                 <div class="space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-sm text-slate-600">Chefs de centre</span>
+                        <span class="font-semibold">{{ $chef_centre_required }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-slate-600">Surveillants</span>
+                        <span class="font-semibold">{{ $surveillants_required }}</span>
+                    </div>
                     <div class="flex justify-between">
                         <span class="text-sm text-slate-600">Interrogateurs</span>
                         <span class="font-semibold">{{ $interrogators_required }}</span>
@@ -122,6 +133,20 @@
         </div>
 
         <!-- Centres EPS Details -->
+        <div class="rounded-2xl border border-purple-200 bg-purple-50 p-5">
+            <h3 class="text-lg font-semibold text-purple-950">Configuration des centres EPS par CISCO</h3>
+            <p class="mt-1 text-sm text-purple-800">Ajoutez autant de centres EPS que nécessaire et saisissez leurs candidats. Ces données sont prioritaires sur les anciens centres EPS/GYM.</p>
+            <form method="POST" action="{{ $selectedCiscoId ? route('vacation2026.eps-centres.store', $selectedCiscoId) : '#' }}" class="mt-4 grid gap-3 md:grid-cols-3">
+                @csrf
+                <select name="cisco_id_display" onchange="window.location='{{ route('vacation2026.dashboard.eps') }}?cisco_id='+this.value" class="rounded-lg border border-purple-300 px-3 py-2 text-sm" aria-label="CISCO">
+                    <option value="">Choisir un CISCO</option>
+                    @foreach($allCiscos as $cisco)<option value="{{ $cisco->id }}" @selected((string)$selectedCiscoId === (string)$cisco->id)>{{ $cisco->nom }} — {{ $cisco->dren?->nom }}</option>@endforeach
+                </select>
+                <input name="name" required maxlength="255" placeholder="Nom du centre EPS" class="rounded-lg border border-purple-300 px-3 py-2 text-sm" @disabled(! $selectedCiscoId)>
+                <div class="flex gap-2"><input name="candidate_count" type="number" min="0" required placeholder="Candidats" class="w-full rounded-lg border border-purple-300 px-3 py-2 text-sm" @disabled(! $selectedCiscoId)><button type="submit" class="rounded-lg bg-purple-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" @disabled(! $selectedCiscoId)>Ajouter</button></div>
+            </form>
+        </div>
+
         @if(!empty($centres))
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 class="text-lg font-semibold text-slate-900 mb-4">Centres EPS/GYM</h3>
@@ -130,9 +155,15 @@
                     <thead>
                         <tr class="border-b border-slate-200">
                             <th class="px-4 py-3 text-left font-semibold text-slate-900">Centre</th>
+                            <th class="px-4 py-3 text-left font-semibold text-slate-900">Origine</th>
                             <th class="px-4 py-3 text-center font-semibold text-slate-900">Candidats</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-900">Chefs</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-900">Surveillants</th>
                             <th class="px-4 py-3 text-center font-semibold text-slate-900">Interrogateurs</th>
-                            <th class="px-4 py-3 text-center font-semibold text-slate-900">Capacité</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-900">Secrétariat</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-900">Médecins</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-900">Agents stade</th>
+                            <th class="px-4 py-3 text-center font-semibold text-slate-900">Candidats EPS</th>
                             <th class="px-4 py-3 text-center font-semibold text-slate-900">Durée</th>
                         </tr>
                     </thead>
@@ -140,9 +171,15 @@
                         @foreach($centres as $centre)
                         <tr class="border-b border-slate-100 hover:bg-slate-50">
                             <td class="px-4 py-3 font-medium text-slate-900">{{ $centre['centre_name'] }}</td>
+                            <td class="px-4 py-3 text-xs">{{ $centre['legacy'] ? 'Ancien centre EPS/GYM' : 'Configuration EPS' }}</td>
                             <td class="px-4 py-3 text-center">{{ number_format($centre['candidates'], 0, ',', ' ') }}</td>
+                            <td class="px-4 py-3 text-center">{{ $centre['chef_centre_required'] }}</td>
+                            <td class="px-4 py-3 text-center">{{ $centre['surveillants_required'] }}</td>
                             <td class="px-4 py-3 text-center font-semibold">{{ $centre['interrogators_required'] }}</td>
-                            <td class="px-4 py-3 text-center"><form method="POST" action="{{ route('vacation2026.centres.eps-capacity.update', $centre['centre_id']) }}" class="inline-flex items-center gap-1">@csrf @method('PUT')<input class="w-12 rounded border border-slate-300 px-1 py-1 text-center" type="number" min="1" max="2" name="eps_capacity" value="{{ $centre['capacity'] }}"><button class="text-xs text-slate-600 underline" type="submit">OK</button></form></td>
+                            <td class="px-4 py-3 text-center">{{ $centre['secretariat_required'] }}</td>
+                            <td class="px-4 py-3 text-center">{{ $centre['medical_required'] }}</td>
+                            <td class="px-4 py-3 text-center">{{ $centre['stadium_agents_required'] }}</td>
+                            <td class="px-4 py-3 text-center">@if($centre['legacy'])<form method="POST" action="{{ route('vacation2026.centres.eps-capacity.update', $centre['centre_id']) }}" class="inline-flex items-center gap-1">@csrf @method('PUT')<input class="w-20 rounded border border-slate-300 px-1 py-1 text-center" type="number" min="0" step="1" name="eps_capacity" value="{{ $centre['capacity'] }}"><button class="text-xs text-slate-600 underline" type="submit">OK</button></form>@else<form method="POST" action="{{ route('vacation2026.eps-centres.update', $centre['centre_id']) }}" class="inline-flex items-center gap-1">@csrf @method('PUT')<input type="hidden" name="name" value="{{ $centre['centre_name'] }}"><input class="w-20 rounded border border-slate-300 px-1 py-1 text-center" type="number" min="0" name="candidate_count" value="{{ $centre['candidates'] }}"><button class="text-xs text-slate-600 underline">OK</button></form>@endif</td>
                             <td class="px-4 py-3 text-center">{{ $centre['duration'] }} jours</td>
                         </tr>
                         @endforeach
@@ -163,10 +200,117 @@
         </div>
         @endif
 
+        @if(!empty($personnel_details))
+    <div class="rounded-2xl border border-purple-200 bg-white p-5 shadow-sm">
+        <h3 class="mb-1 text-lg font-semibold text-slate-900">
+            Détail du personnel EPS requis
+        </h3>
+
+        <p class="mb-4 text-sm text-slate-600">
+            Effectifs calculés selon les règles du décret, tous centres EPS confondus.
+        </p>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-200">
+                        <th class="px-3 py-2 text-left">Fonction</th>
+                        <th class="px-3 py-2 text-left">Règle de calcul</th>
+                        <th class="px-3 py-2 text-right">Taux / jour</th>
+                        <th class="px-3 py-2 text-center">Nombre requis</th>
+                        <th class="px-3 py-2 text-right">Montant estimé</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach($personnel_details as $detail)
+                        <tr class="border-b border-slate-100">
+                            <td class="px-3 py-3 font-medium text-slate-900">
+                                {{ $detail['role'] }}
+                            </td>
+
+                            <td class="px-3 py-3 text-slate-600">
+                                {{ $detail['rule'] }}
+                            </td>
+
+                            <td class="px-3 py-3 text-right">
+                                @if($detail['rate_id'])
+                                    <form
+                                        method="POST"
+                                        action="{{ route('vacation2026.eps-role-rates.update', $detail['rate_id']) }}"
+                                        class="inline-flex items-center gap-1"
+                                    >
+                                        @csrf
+                                        @method('PUT')
+
+                                        <input
+                                            name="rate"
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            value="{{ $detail['rate'] }}"
+                                            class="w-24 rounded border border-slate-300 px-1 py-1 text-right"
+                                        >
+
+                                        <span>Ar</span>
+
+                                        <button
+                                            type="submit"
+                                            class="text-xs text-purple-700 underline"
+                                        >
+                                            OK
+                                        </button>
+                                    </form>
+                                @else
+                                    {{ number_format($detail['rate'], 0, ',', ' ') }} Ar
+                                @endif
+                            </td>
+
+                            <td class="px-3 py-3 text-center text-lg font-semibold text-purple-800">
+                                {{ $detail['required'] }}
+                            </td>
+
+                            <td class="px-3 py-3 text-right font-semibold">
+                                {{ number_format($detail['amount'], 0, ',', ' ') }} Ar
+                            </td>
+                        </tr>
+                    @endforeach
+
+                    <tr class="bg-purple-50 font-semibold">
+                        <td class="px-3 py-3" colspan="3">
+                            Total EPS
+                        </td>
+
+                        <td class="px-3 py-3 text-center text-purple-900">
+                            {{ $total_planned }}
+                        </td>
+
+                        <td class="px-3 py-3 text-right text-purple-900">
+                            {{ number_format($estimated_indemnity, 0, ',', ' ') }} Ar
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+@endif
+
         <!-- Notes on Calculations -->
         <div class="rounded-2xl border border-blue-200 bg-blue-50 p-5">
             <h3 class="text-sm font-semibold text-blue-900 uppercase tracking-wider mb-3">Notes sur les calculs</h3>
             <ul class="space-y-2 text-sm text-blue-800">
+                <li class="flex gap-2">
+                    <span class="font-semibold">•</span>
+                    <span><strong>Candidats EPS :</strong> saisie manuelle, par centre EPS/GYM (1 à 3 centres par CISCO)</span>
+                </li>
+                <li class="flex gap-2">
+                    <span class="font-semibold">•</span>
+                    <span><strong>Chefs de centre EPS :</strong> 2 par centre (1 chef + 1 adjoint)</span>
+                </li>
+                <li class="flex gap-2">
+                    <span class="font-semibold">•</span>
+                    <span><strong>Surveillants :</strong> 2 par centre</span>
+                </li>
                 <li class="flex gap-2">
                     <span class="font-semibold">•</span>
                     <span><strong>Interrogateurs :</strong> 3 par tranche de 600 candidats</span>
