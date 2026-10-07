@@ -9,12 +9,15 @@ class RepartitionSalle extends Model
 {
     public const LANGUES = ['Allemand', 'Esp', 'Anglais', 'Option B', 'Etranger Option A', 'Etranger Option B'];
 
+    public const BEPC_TOTAL_KEY = 'TOTAL_BEPC';
+
     protected $fillable = [
         'centre_ecrit_id',
         'annee',
         'langue',
         'numero_salle',
         'effectif',
+        'eps_inapt_effectif',
         'saisi_par',
         'axe_dispatching',
         'point_largage',

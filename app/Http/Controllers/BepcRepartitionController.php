@@ -43,7 +43,10 @@ class BepcRepartitionController extends Controller
                 if ($typeExamen === self::TYPE_CEPE) {
                     $query->where('langue', self::CEPE_KEY);
                 } else {
-                    $query->where('langue', '!=', self::CEPE_KEY);
+                    $query->where(function ($subQuery) {
+                        $subQuery->whereIn('langue', RepartitionSalle::LANGUES)
+                            ->orWhere('langue', RepartitionSalle::BEPC_TOTAL_KEY);
+                    });
                 }
             })
             ->orderBy('centre_ecrits.nom')
@@ -74,7 +77,6 @@ class BepcRepartitionController extends Controller
 
     public function store(Request $request)
     {
-        $langues = RepartitionSalle::LANGUES;
         $validated = $request->validate([
             'type_examen' => ['required', 'in:'.self::TYPE_BEPC.','.self::TYPE_CEPE],
             'dren_id' => ['required', 'integer', 'exists:drens,id'],
@@ -88,10 +90,10 @@ class BepcRepartitionController extends Controller
             'nombre_salles' => ['required', 'integer', 'min:1', 'max:50'],
             'salles_inutilisables' => ['nullable', 'string', 'max:255'],
             'candidats_specifiques' => ['nullable', 'string', 'max:2000'],
-            'has_foreign_candidates' => ['nullable', 'boolean'],
-            'foreign_option_a_lv' => ['nullable', 'in:Allemand,Esp,Anglais'],
-            'foreign_option_a_replace_malagasy' => ['nullable', 'string', 'max:255'],
-            'foreign_option_b_replace_malagasy' => ['nullable', 'string', 'max:255'],
+            'foreign_effectifs' => ['nullable', 'array'],
+            'eps_inapt_salles' => ['nullable', 'array', 'max:2'],
+            'eps_inapt_salles.*.numero_salle' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'eps_inapt_salles.*.effectif' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $nombreSalles = (int) $validated['nombre_salles'];
@@ -122,44 +124,59 @@ class BepcRepartitionController extends Controller
 
         if ($typeExamen === self::TYPE_BEPC) {
             $effectifs = $request->input('effectifs');
+            $foreignEffectifs = (array) $request->input('foreign_effectifs', []);
             if (! is_array($effectifs)) {
                 return back()
                     ->withInput()
                     ->withErrors(['effectifs' => 'Le tableau des effectifs BEPC est obligatoire.']);
             }
 
-            foreach ($langues as $langue) {
-                if (! isset($effectifs[$langue]) || ! is_array($effectifs[$langue])) {
-                    return back()
-                        ->withInput()
-                        ->withErrors(['effectifs' => "La ligne {$langue} est obligatoire."]);
+            $emptyRooms = [];
+            foreach ($sallesDisponibles as $salle) {
+                $value = $effectifs[$salle] ?? null;
+                $foreignCount = $foreignEffectifs[$salle] ?? 0;
+
+                if ($value === null || $value === '' || ! is_numeric($value) || (int) $value < 0) {
+                    return back()->withInput()->withErrors(['effectifs' => "Valeur invalide pour la salle {$salle}."]);
                 }
 
-                foreach ($sallesDisponibles as $salle) {
-                    $value = $effectifs[$langue][$salle] ?? null;
+                if (! is_numeric($foreignCount) || (int) $foreignCount < 0 || (int) $foreignCount > (int) $value) {
+                    return back()->withInput()->withErrors(['foreign_effectifs' => "Le nombre de candidats étrangers de la salle {$salle} doit être compris entre 0 et l'effectif total de la salle."]);
+                }
 
-                    if ($value === null || $value === '' || ! is_numeric($value) || (int) $value < 0) {
-                        return back()
-                            ->withInput()
-                            ->withErrors([
-                                'effectifs' => "Valeur invalide pour {$langue} - Salle {$salle}.",
-                            ]);
-                    }
-
-                    $totalCandidatsSaisis += (int) $value;
+                $totalCandidatsSaisis += (int) $value;
+                if ((int) $value <= 0) {
+                    $emptyRooms[] = $salle;
                 }
             }
 
-            $emptyRooms = [];
-            foreach ($sallesDisponibles as $salle) {
-                $roomTotal = 0;
-                foreach ($langues as $langue) {
-                    $roomTotal += (int) ($effectifs[$langue][$salle] ?? 0);
+            $epsRows = collect((array) $request->input('eps_inapt_salles', []))
+                ->filter(fn ($item) => is_array($item) && ((int) ($item['effectif'] ?? 0) > 0 || trim((string) ($item['numero_salle'] ?? '')) !== ''))
+                ->values();
+            if ($epsRows->count() > 2) {
+                return back()->withInput()->withErrors(['eps_inapt_salles' => 'Vous pouvez indiquer au maximum deux salles pour les candidats inaptes à l’EPS.']);
+            }
+            $totalInaptesEps = 0;
+            $epsRooms = [];
+            foreach ($epsRows as $item) {
+                $room = (int) ($item['numero_salle'] ?? 0);
+                $count = (int) ($item['effectif'] ?? 0);
+                if (! in_array($room, $sallesDisponibles, true) || $count < 0) {
+                    return back()->withInput()->withErrors(['eps_inapt_salles' => 'Chaque saisie EPS doit cibler une salle utilisable et indiquer un effectif valide.']);
                 }
+                if (in_array($room, $epsRooms, true)) {
+                    return back()->withInput()->withErrors(['eps_inapt_salles' => 'Chaque salle EPS ne peut être sélectionnée qu’une seule fois.']);
+                }
+                $epsRooms[] = $room;
+                $totalInaptesEps += $count;
+            }
+            if ($totalInaptesEps > $totalCandidatsSaisis) {
+                return back()->withInput()->withErrors(['eps_inapt_salles' => 'Le total des candidats inaptes à l’EPS ne peut pas dépasser le total des candidats du centre.']);
+            }
 
-                if ($roomTotal <= 0) {
-                    $emptyRooms[] = $salle;
-                }
+            $foreignTotal = collect($foreignEffectifs)->sum(fn ($count) => (int) $count);
+            if ($foreignTotal > $totalCandidatsSaisis) {
+                return back()->withInput()->withErrors(['foreign_effectifs' => 'Le total des candidats étrangers ne peut pas dépasser le total des candidats.']);
             }
 
             if ($emptyRooms !== []) {
@@ -203,71 +220,6 @@ class BepcRepartitionController extends Controller
                         'effectifs_total' => 'Salle(s) CEPE avec total 0: '.implode(', ', $emptyRooms).'. Veuillez saisir les effectifs ou ajuster le canevas/salles inutilisables.',
                     ]);
             }
-        }
-
-        $hasForeignCandidates = $typeExamen === self::TYPE_BEPC && (bool) $request->boolean('has_foreign_candidates');
-        $foreignSettings = null;
-        if ($hasForeignCandidates) {
-            $optionALv = (string) $request->input('foreign_option_a_lv', '');
-            $optionAReplace = trim((string) $request->input('foreign_option_a_replace_malagasy', ''));
-            $optionBReplace = trim((string) $request->input('foreign_option_b_replace_malagasy', ''));
-            $totalOptionA = 0;
-            $totalOptionB = 0;
-
-            if (! in_array($optionALv, ['Allemand', 'Esp', 'Anglais'], true)) {
-                return back()
-                    ->withInput()
-                    ->withErrors(['foreign_option_a_lv' => 'Choisissez Allemand, Esp ou Anglais pour les étrangers Option A.']);
-            }
-
-            foreach ($sallesDisponibles as $salle) {
-                $valueA = $request->input("foreign_effectifs.option_a.$salle", 0);
-                $valueB = $request->input("foreign_effectifs.option_b.$salle", 0);
-                if (! is_numeric($valueA) || (int) $valueA < 0 || ! is_numeric($valueB) || (int) $valueB < 0) {
-                    return back()
-                        ->withInput()
-                        ->withErrors(['foreign_effectifs' => "Valeur invalide pour les candidats étrangers - Salle {$salle}."]);
-                }
-
-                if ((int) $valueA > 0 && (int) $valueB > 0) {
-                    return back()
-                        ->withInput()
-                        ->withErrors(['foreign_effectifs' => "La salle {$salle} ne peut pas avoir étrangers Option A et Option B en même temps."]);
-                }
-
-                $totalOptionA += (int) $valueA;
-                $totalOptionB += (int) $valueB;
-                $totalCandidatsSaisis += (int) $valueA + (int) $valueB;
-            }
-
-            if ($totalOptionA === 0 && $totalOptionB === 0) {
-                return back()
-                    ->withInput()
-                    ->withErrors(['foreign_effectifs' => 'Activez l\'exception étrangers uniquement si vous avez des effectifs à saisir.']);
-            }
-
-            if ($totalOptionA > 0 && $optionAReplace === '') {
-                return back()
-                    ->withInput()
-                    ->withErrors(['foreign_option_a_replace_malagasy' => 'Renseignez la langue de remplacement Malagasy pour les étrangers Option A.']);
-            }
-            if ($totalOptionA > 0 && strcasecmp($optionAReplace, $optionALv) === 0) {
-                return back()
-                    ->withInput()
-                    ->withErrors(['foreign_option_a_replace_malagasy' => 'La langue de remplacement Malagasy (Option A) doit être différente de la langue vivante choisie.']);
-            }
-
-            if ($totalOptionB > 0 && $optionBReplace === '') {
-                return back()
-                    ->withInput()
-                    ->withErrors(['foreign_option_b_replace_malagasy' => 'Renseignez la langue de remplacement Malagasy pour les étrangers Option B.']);
-            }
-
-            $foreignSettings = [
-                'option_a_lv' => $optionALv,
-                'option_a_replace' => $optionAReplace,
-                'option_b_replace' => $optionBReplace,
-            ];
         }
 
         if ($totalCandidatsSaisis <= 0) {
@@ -324,13 +276,20 @@ class BepcRepartitionController extends Controller
             $sallesDisponibles
         );
 
-        DB::transaction(function () use ($validated, $langues, $sallesDisponibles, $typeExamen, $request, $centreEcrit, $nomSaisie, $hasForeignCandidates, $foreignSettings, $candidatsSpecifiques) {
+        DB::transaction(function () use ($validated, $sallesDisponibles, $typeExamen, $request, $centreEcrit, $nomSaisie, $candidatsSpecifiques) {
             $axeDispatching = trim((string) $validated['axe_dispatching']);
             $pointLargage = trim((string) $validated['point_largage']);
+
+            $oldForeignCount = RepartitionSalle::query()
+                ->where('centre_ecrit_id', $centreEcrit->id)
+                ->where('annee', $validated['annee'])
+                ->where('langue', 'Etranger (anglais obligatoire)')
+                ->sum('effectif');
 
             RepartitionSalle::query()
                 ->where('centre_ecrit_id', $centreEcrit->id)
                 ->where('annee', $validated['annee'])
+                ->where('langue', '!=', 'Etranger (anglais obligatoire)')
                 ->delete();
             DB::table('repartition_salles_specifiques')
                 ->where('centre_ecrit_id', $centreEcrit->id)
@@ -338,65 +297,35 @@ class BepcRepartitionController extends Controller
                 ->delete();
 
             if ($typeExamen === self::TYPE_BEPC) {
-                foreach ($langues as $langue) {
-                    foreach ($sallesDisponibles as $salle) {
+                foreach ($sallesDisponibles as $salle) {
+                    RepartitionSalle::updateOrCreate(
+                        ['centre_ecrit_id' => $centreEcrit->id, 'annee' => $validated['annee'], 'langue' => RepartitionSalle::BEPC_TOTAL_KEY, 'numero_salle' => $salle],
+                        ['effectif' => (int) $request->input("effectifs.$salle"), 'eps_inapt_effectif' => 0, 'saisi_par' => $nomSaisie, 'axe_dispatching' => $axeDispatching, 'point_largage' => $pointLargage]
+                    );
+                }
+
+                foreach ((array) $request->input('foreign_effectifs', []) as $salle => $count) {
+                    if ((int) $count > 0) {
                         RepartitionSalle::updateOrCreate(
-                            [
-                                'centre_ecrit_id' => $centreEcrit->id,
-                                'annee' => $validated['annee'],
-                                'langue' => $langue,
-                                'numero_salle' => $salle,
-                            ],
-                            [
-                                'effectif' => (int) $request->input("effectifs.$langue.$salle"),
-                                'saisi_par' => $nomSaisie,
-                                'axe_dispatching' => $axeDispatching,
-                                'point_largage' => $pointLargage,
-                            ]
+                            ['centre_ecrit_id' => $centreEcrit->id, 'annee' => $validated['annee'], 'langue' => 'Etranger (anglais obligatoire)', 'numero_salle' => (int) $salle],
+                            ['effectif' => (int) $count, 'saisi_par' => $nomSaisie, 'axe_dispatching' => $axeDispatching, 'point_largage' => $pointLargage]
                         );
                     }
                 }
+                if ($oldForeignCount > 0 && collect((array) $request->input('foreign_effectifs', []))->sum(fn ($count) => (int) $count) === 0) {
+                    RepartitionSalle::query()->where('centre_ecrit_id', $centreEcrit->id)->where('annee', $validated['annee'])->where('langue', 'Etranger (anglais obligatoire)')->delete();
+                }
 
-                if ($hasForeignCandidates && is_array($foreignSettings)) {
-                    foreach ($sallesDisponibles as $salle) {
-                        $optionACount = (int) $request->input("foreign_effectifs.option_a.$salle", 0);
-                        $optionBCount = (int) $request->input("foreign_effectifs.option_b.$salle", 0);
-
-                        if ($optionACount > 0) {
-                            RepartitionSalle::updateOrCreate(
-                                [
-                                    'centre_ecrit_id' => $centreEcrit->id,
-                                    'annee' => $validated['annee'],
-                                    'langue' => "Etranger Option A (LV: {$foreignSettings['option_a_lv']}, Rempl. Malagasy: {$foreignSettings['option_a_replace']})",
-                                    'numero_salle' => $salle,
-                                ],
-                                [
-                                    'effectif' => $optionACount,
-                                    'saisi_par' => $nomSaisie,
-                                    'axe_dispatching' => $axeDispatching,
-                                    'point_largage' => $pointLargage,
-                                ]
-                            );
-                        }
-
-                        if ($optionBCount > 0) {
-                            RepartitionSalle::updateOrCreate(
-                                [
-                                    'centre_ecrit_id' => $centreEcrit->id,
-                                    'annee' => $validated['annee'],
-                                    'langue' => "Etranger Option B (Rempl. Malagasy: {$foreignSettings['option_b_replace']})",
-                                    'numero_salle' => $salle,
-                                ],
-                                [
-                                    'effectif' => $optionBCount,
-                                    'saisi_par' => $nomSaisie,
-                                    'axe_dispatching' => $axeDispatching,
-                                    'point_largage' => $pointLargage,
-                                ]
-                            );
-                        }
+                foreach ((array) $request->input('eps_inapt_salles', []) as $item) {
+                    if (is_array($item) && (int) ($item['effectif'] ?? 0) > 0) {
+                        RepartitionSalle::where('centre_ecrit_id', $centreEcrit->id)
+                            ->where('annee', $validated['annee'])
+                            ->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)
+                            ->where('numero_salle', (int) $item['numero_salle'])
+                            ->update(['eps_inapt_effectif' => (int) $item['effectif']]);
                     }
                 }
+
             } else {
                 foreach ($sallesDisponibles as $salle) {
                     RepartitionSalle::updateOrCreate(

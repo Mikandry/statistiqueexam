@@ -10,6 +10,8 @@ use App\Models\Dren;
 use App\Models\GlobalSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use App\Models\AuditLog;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -97,6 +99,8 @@ class ReferenceManagementController extends Controller
         if ($selectedTypeExamen !== 'ALL') {
             $centresCorrectionQuery->where('type_examen', $selectedTypeExamen);
         }
+         $duplicateCentreCorrectionGroups = $this->buildDuplicateCentreCorrectionGroups();
+        $duplicateCentreEcritGroups = $this->buildDuplicateCentreEcritGroups();
 
         $centresEcritQuery = CentreEcrit::query()->with('centreCorrection.cisco.dren')->orderBy('nom');
         if ($selectedDrenId > 0) {
@@ -143,9 +147,45 @@ class ReferenceManagementController extends Controller
             'selectedCentreCorrectionId' => $selectedCentreCorrectionId,
             'selectedTypeExamen' => $selectedTypeExamen,
             'centreTypeForForms' => $centreTypeForForms,
+            'duplicateCentreCorrectionGroups' => $duplicateCentreCorrectionGroups,
+            'duplicateCentreCorrectionRowsCount' => $duplicateCentreCorrectionGroups->sum(fn (array $group) => $group['count']),
+            'duplicateCentreEcritGroups' => $duplicateCentreEcritGroups,
+            'duplicateCentreEcritRowsCount' => $duplicateCentreEcritGroups->sum(fn (array $group) => $group['count']),
             'dispatchingAxes' => $this->parseConfiguredList((string) ($settings->dispatching_axes ?? '')),
             'dispatchingDropPoints' => $this->parseConfiguredList((string) ($settings->dispatching_drop_points ?? '')),
         ]);
+    }
+     public function updateDuplicateCentreCorrectionName(Request $request, CentreCorrection $centreCorrection): RedirectResponse
+    {
+        $validated = $request->validate([
+            'nom' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('centre_corrections', 'nom')
+                    ->where(fn ($query) => $query
+                        ->where('cisco_id', $centreCorrection->cisco_id)
+                        ->where('type_examen', $centreCorrection->type_examen))
+                    ->ignore($centreCorrection->id),
+            ],
+        ]);
+
+        $previousName = $centreCorrection->nom;
+        $centreCorrection->update([
+            'nom' => trim((string) $validated['nom']),
+        ]);
+
+        AuditLog::record($request, 'admin_renommage_doublon_centre_correction', [
+            'centre_correction_id' => (int) $centreCorrection->id,
+            'ancien_nom' => $previousName,
+            'nouveau_nom' => $centreCorrection->nom,
+            'type_examen' => $centreCorrection->type_examen,
+        ]);
+
+        return redirect()
+            ->route('admin.references.index', $request->query())
+            ->withFragment('zone-doublons-centres')
+            ->with('status', 'Nom du centre de correction modifié.');
     }
 
     public function storeDren(Request $request): RedirectResponse
@@ -464,4 +504,117 @@ class ReferenceManagementController extends Controller
             $field => $normalized,
         ]);
     }
+     private function buildDuplicateCentreEcritGroups(): Collection
+    {
+        return CentreEcrit::query()
+            ->with('centreCorrection.cisco.dren')
+            ->orderBy('type_examen')
+            ->orderBy('nom')
+            ->get()
+            ->groupBy(fn (CentreEcrit $centre) => ($centre->type_examen ?? '').'|'.$this->normalizeCentreEcritName($centre->nom))
+            ->filter(fn (Collection $centres) => $centres->count() > 1)
+            ->map(function (Collection $centres) {
+                $first = $centres->first();
+
+                return [
+                    'nom' => (string) $first->nom,
+                    'type_examen' => (string) ($first->type_examen ?? ''),
+                    'count' => $centres->count(),
+                    'centres' => $centres
+                        ->sortBy([
+                            fn (CentreEcrit $centre) => $centre->centreCorrection->cisco->dren->nom ?? '',
+                            fn (CentreEcrit $centre) => $centre->centreCorrection->cisco->nom ?? '',
+                            fn (CentreEcrit $centre) => $centre->centreCorrection->nom ?? '',
+                        ])
+                        ->values(),
+                ];
+            })
+            ->sortBy([
+                fn (array $group) => $group['type_examen'],
+                fn (array $group) => $this->normalizeCentreEcritName($group['nom']),
+            ])
+            ->values();
+    }
+
+    private function buildDuplicateCentreCorrectionGroups(): Collection
+    {
+        return CentreCorrection::query()
+            ->with('cisco.dren')
+            ->orderBy('type_examen')
+            ->orderBy('nom')
+            ->get()
+            ->groupBy(fn (CentreCorrection $centre) => ($centre->type_examen ?? '').'|'.$this->normalizeCentreName($centre->nom))
+            ->filter(fn (Collection $centres) => $centres->count() > 1)
+            ->map(function (Collection $centres) {
+                $first = $centres->first();
+
+                return [
+                    'nom' => (string) $first->nom,
+                    'type_examen' => (string) ($first->type_examen ?? ''),
+                    'count' => $centres->count(),
+                    'centres' => $centres
+                        ->sortBy([
+                            fn (CentreCorrection $centre) => $centre->cisco->dren->nom ?? '',
+                            fn (CentreCorrection $centre) => $centre->cisco->nom ?? '',
+                        ])
+                        ->values(),
+                ];
+            })
+            ->sortBy([
+                fn (array $group) => $group['type_examen'],
+                fn (array $group) => $this->normalizeCentreName($group['nom']),
+            ])
+            ->values();
+    }
+
+    private function normalizeCentreEcritName(string $name): string
+    {
+        return $this->normalizeCentreName($name);
+    }
+
+    private function normalizeCentreName(string $name): string
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim($name)) ?? trim($name);
+
+        return function_exists('mb_strtolower')
+            ? mb_strtolower($normalized)
+            : strtolower($normalized);
+    }
+
+    private function parseSpecialCandidates(string $value, array $sallesDisponibles): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $sallesDisponibles = array_flip($sallesDisponibles);
+
+        return collect(preg_split('/\r\n|\r|\n|;/', $value) ?: [])
+            ->map(fn (string $line) => trim($line))
+            ->filter(fn (string $line) => $line !== '')
+            ->map(function (string $line) {
+                $delimiter = str_contains($line, ',') ? ',' : (str_contains($line, '-') ? '-' : null);
+                if ($delimiter === null) {
+                    return null;
+                }
+
+                [$salleRaw, $handicapRaw] = array_pad(explode($delimiter, $line, 2), 2, '');
+                $salle = (int) trim($salleRaw);
+                $handicap = trim($handicapRaw);
+
+                if ($salle <= 0 || $handicap === '') {
+                    return null;
+                }
+
+                return [
+                    'numero_salle' => $salle,
+                    'type_handicap' => $handicap,
+                ];
+            })
+            ->filter(fn ($item) => $item !== null && isset($sallesDisponibles[$item['numero_salle']]))
+            ->unique(fn (array $item) => $item['numero_salle'].'|'.$item['type_handicap'])
+            ->values()
+            ->all();
+    }
+
 }

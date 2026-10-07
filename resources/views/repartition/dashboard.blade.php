@@ -167,6 +167,7 @@
                             ['Centres correction', $globalStats['total_centres_correction'], 'fa-building', 'amber'],
                             ['Centres écrit', $globalStats['total_centres_ecrit'], 'fa-map-marker-alt', 'emerald'],
                         ];
+                        if ($isSimplifiedBepc) $cards[] = ['Inaptes EPS (écrit)', $totalEpsInaptes, 'fa-heartbeat', 'purple'];
                     @endphp
                     @foreach($cards as $card)
                     <div class="metric-card group rounded-3xl bg-white p-5 shadow-sm">
@@ -297,6 +298,7 @@
                         </div>
                     </div>
 
+                    @if($showOptionComparison)
                     <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="chart-card rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                             <div class="mb-5 flex items-start justify-between gap-4">
@@ -337,6 +339,9 @@
                             </div>
                         </div>
                     </div>
+                    @else
+                    <div class="lg:col-span-2 rounded-3xl border border-purple-100 bg-purple-50 p-6 text-sm font-semibold text-purple-900">Pour le BEPC {{ $filters['annee'] }}, l’anglais est obligatoire et les candidats sont comptés par salle. Inaptes EPS inscrits à l’épreuve écrite : {{ number_format($totalEpsInaptes, 0, ',', ' ') }}.</div>
+                    @endif
                 </div>
 
                 <div class="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">

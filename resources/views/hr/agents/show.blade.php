@@ -156,15 +156,19 @@
                 <input name="duree_heures" type="number" min="0.25" max="24" step="0.25" placeholder="Durée en heures" class="rounded-lg border-slate-300 text-sm">
                 <input name="heure_debut" type="time" class="rounded-lg border-slate-300 text-sm">
                 <input name="heure_fin" type="time" class="rounded-lg border-slate-300 text-sm">
-                <input name="lieu" placeholder="Lieu" class="rounded-lg border-slate-300 text-sm">
+                <input name="lieu" placeholder="Lieu de départ (A)" class="rounded-lg border-slate-300 text-sm">
                 <input name="organisme" placeholder="Organisme" class="rounded-lg border-slate-300 text-sm">
-                <input name="destination" placeholder="Destination" class="rounded-lg border-slate-300 text-sm">
+                <input name="destination" placeholder="Destination (B)" class="rounded-lg border-slate-300 text-sm">
                 <label class="text-sm font-semibold text-slate-700">
-                    Voiture
+                    Moyen de déplacement
                     <select name="vehicle_type" class="mt-1 w-full rounded-lg border-slate-300 text-sm">
                         <option value="">Non précisée</option>
                         <option value="administrative">Voiture administrative</option>
                         <option value="taxi_brousse">Taxi-brousse</option>
+                        <option value="bus">Bus</option>
+                        <option value="avion">Avion</option>
+                        <option value="vehicule_personnel">Véhicule personnel</option>
+                        <option value="autre">Autre moyen</option>
                     </select>
                 </label>
                 <div class="md:col-span-2">
@@ -175,7 +179,9 @@
                         @endforeach
                     </div>
                 </div>
-                <input name="reference" placeholder="Référence" class="rounded-lg border-slate-300 text-sm">
+                <label class="text-xs font-bold text-slate-500">Numéro de fiche (saisi manuellement)
+                    <input name="reference" type="number" min="1" max="999999" placeholder="Ex. 25" class="mt-1 w-full rounded-lg border-slate-300 text-sm">
+                </label>
                 <input name="autorite" placeholder="Autorité" class="rounded-lg border-slate-300 text-sm">
                 <textarea name="motif" placeholder="Motif" class="rounded-lg border-slate-300 text-sm md:col-span-2"></textarea>
                 <textarea name="observation" placeholder="Observation" class="rounded-lg border-slate-300 text-sm md:col-span-2"></textarea>

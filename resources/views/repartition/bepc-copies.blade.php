@@ -198,10 +198,14 @@
                                     <th class="px-5 py-3 font-bold text-slate-500 uppercase tracking-tighter">DREN</th>
                                     <th class="px-5 py-3 font-bold text-slate-500 uppercase tracking-tighter">CISCO</th>
                                     <th class="px-5 py-3 font-bold text-slate-500 uppercase tracking-tighter">Type</th>
-                                    <th class="px-5 py-3 text-right font-bold text-slate-500 uppercase tracking-tighter">Ctr sans langue</th>
-                                    <th class="px-5 py-3 text-right font-bold text-slate-500 uppercase tracking-tighter">% sans langue</th>
+                                    <th class="px-5 py-3 text-right font-bold text-slate-500 uppercase tracking-tighter">{{ str_starts_with((string) $filters['annee'], '2026') ? 'Ctr sans étrangers' : 'Ctr sans langue' }}</th>
+                                    <th class="px-5 py-3 text-right font-bold text-slate-500 uppercase tracking-tighter">{{ str_starts_with((string) $filters['annee'], '2026') ? '% sans étrangers' : '% sans langue' }}</th>
                                     <th class="px-5 py-3 font-bold text-slate-500 uppercase tracking-tighter w-[250px]">Code Postal</th>
-                                <th class="px-5 py-3 text-right font-bold text-slate-500 uppercase tracking-tighter">Candidats</th>
+                                    <th class="px-5 py-3 text-right font-bold text-slate-500 uppercase tracking-tighter">Candidats</th>
+                                    @if(str_starts_with((string) $filters['annee'], '2026'))
+                                        <th class="px-5 py-3 text-right font-bold text-blue-600 uppercase tracking-tighter">Étrangers</th>
+                                    @endif
+                                    <th class="px-5 py-3 text-right font-bold text-purple-600 uppercase tracking-tighter">Inaptes EPS</th>
                                 <th class="px-5 py-3 text-right font-bold text-slate-500 uppercase tracking-tighter text-cyan-600">F. Double</th>
                                 <th class="px-5 py-3 text-right font-bold text-slate-500 uppercase tracking-tighter text-sky-600">F. Double Arr.</th>
                                 <th class="px-5 py-3 text-right font-bold text-slate-500 uppercase tracking-tighter text-emerald-600">F. Simple</th>
@@ -238,6 +242,10 @@
                                         @endif
                                     </td>
                                     <td class="px-5 py-3.5 text-right font-bold">{{ number_format($row['total_candidats'], 0, ',', ' ') }}</td>
+                                    @if(str_starts_with((string) $filters['annee'], '2026'))
+                                        <td class="px-5 py-3.5 text-right font-bold text-blue-700">{{ number_format($row['total_etrangers'] ?? 0, 0, ',', ' ') }}</td>
+                                    @endif
+                                    <td class="px-5 py-3.5 text-right font-bold text-purple-700">{{ number_format($row['total_eps_inaptes'] ?? 0, 0, ',', ' ') }}</td>
                                     <td class="px-5 py-3.5 text-right font-bold text-cyan-700">{{ number_format($row['feuilles_double'], 0, ',', ' ') }}</td>
                                     <td class="px-5 py-3.5 text-right font-bold text-sky-700">{{ number_format($row['feuilles_double_arrondies'], 0, ',', ' ') }}</td>
                                     <td class="px-5 py-3.5 text-right font-bold text-emerald-700">{{ number_format($row['feuilles_simple'], 0, ',', ' ') }}</td>
@@ -260,7 +268,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="13" class="px-5 py-12 text-center text-slate-400 font-medium">Aucun résultat trouvé.</td></tr>
+                                <tr><td colspan="{{ str_starts_with((string) $filters['annee'], '2026') ? 14 : 13 }}" class="px-5 py-12 text-center text-slate-400 font-medium">Aucun résultat trouvé.</td></tr>
                             @endforelse
                         </tbody>
                         @if($rows->count() > 0)

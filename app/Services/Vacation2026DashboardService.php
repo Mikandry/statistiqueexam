@@ -155,9 +155,11 @@ class Vacation2026DashboardService
                 ->whereHas('centreEcrit', function ($q) use ($centreIds) {
                     $q->whereIn('centre_correction_id', $centreIds);
                 })
+                ->where('annee', 'like', '2026%')
                 ->get();
 
-            $totalCandidates = $salles->sum('effectif');
+            $candidateStats = $this->candidateSummary($salles);
+            $totalCandidates = $candidateStats['candidates'];
 
             $assignments = Vacation2026Assignment::query()
                 ->where('dren_id', $dren->id)
@@ -170,8 +172,10 @@ class Vacation2026DashboardService
             $context = [
                 'centre_count' => $centresCount,
                 'cisco_count' => $ciscos->count(),
-                'salles' => $salles->count(),
+                'salles' => $candidateStats['salles'],
                 'candidates' => $totalCandidates,
+                'candidates_by_exam' => $candidateStats['by_exam'],
+                'salles_by_exam' => $candidateStats['salles_by_exam'],
             ];
 
             $cepeStats = $this->scopedActivitiesStats($cepeActivities, $dren->id, null, 'DREN', $context);
@@ -184,12 +188,14 @@ class Vacation2026DashboardService
                     'centre_count' => $centresCount,
                     'cisco_count' => $ciscos->count(),
                     'candidates' => $totalCandidates,
-                    'salles' => $salles->count(),
+                    'candidates_by_exam' => $candidateStats['by_exam'],
+                    'salles_by_exam' => $candidateStats['salles_by_exam'],
+                    'salles' => $candidateStats['salles'],
                     'centre_type' => null,
                     'year' => 2026,
                     'has_special_needs' => false,
                 ];
-                $eval = $this->decree->evaluate($activity, $ctx);
+                $eval = $this->decree->evaluate($activity, $this->contextForActivity($activity, $ctx));
                 $drenPlanned += $eval['required'];
             }
 
@@ -201,17 +207,19 @@ class Vacation2026DashboardService
             $activityBreakdown = $this->drenActivityBreakdown($activities, $dren->id, $context);
 
             $ciscosBreakdown = $ciscos->map(function ($cisco) use ($examFilter, $phaseFilter, $activityId) {
-                $centresCorrection = CentreCorrection::query()->where('cisco_id', $cisco->id)->get();
+                $centresCorrection = CentreCorrection::query()->with('centresEcrit')->where('cisco_id', $cisco->id)->get();
                 $centreIds = $centresCorrection->pluck('id')->toArray();
 
                 $salles = RepartitionSalle::query()
                     ->whereHas('centreEcrit', function ($q) use ($centreIds) {
                         $q->whereIn('centre_correction_id', $centreIds);
                     })
+                    ->where('annee', 'like', '2026%')
                     ->get();
 
-                $candidates = (int) $salles->sum('effectif');
-                $sallesCount = $salles->count();
+                $candidateStats = $this->candidateSummary($salles);
+                $candidates = $candidateStats['candidates'];
+                $sallesCount = $candidateStats['salles'];
 
                 $activitiesCisco = $this->dashboardActivities('DREN', $examFilter, $phaseFilter, $activityId);
                 $cepeActivitiesCisco = $activitiesCisco->where('examen', 'CEPE');
@@ -221,6 +229,8 @@ class Vacation2026DashboardService
                     'cisco_count' => 1,
                     'salles' => $sallesCount,
                     'candidates' => $candidates,
+                    'candidates_by_exam' => $candidateStats['by_exam'],
+                    'salles_by_exam' => $candidateStats['salles_by_exam'],
                 ];
 
                 $required = 0;
@@ -232,17 +242,19 @@ class Vacation2026DashboardService
                     $ctx = [
                         'centre_count' => $centresCorrection->count(),
                         'cisco_count' => 1,
-                        'candidates' => $candidates,
-                        'salles' => $sallesCount,
+                        'candidates' => (int) ($candidateStats['by_exam'][$activity->examen] ?? $candidates),
+                        'candidates_by_exam' => $candidateStats['by_exam'],
+                        'salles_by_exam' => $candidateStats['salles_by_exam'],
+                        'salles' => (int) ($candidateStats['salles_by_exam'][$activity->examen] ?? $sallesCount),
                         'centre_type' => null,
                         'year' => 2026,
                         'has_special_needs' => false,
                     ];
-                    $eval = $this->decree->evaluate($activity, $ctx);
+                    $eval = $this->decree->evaluate($activity, $this->contextForActivity($activity, $ctx));
                     $required += $eval['required'];
                     $montant += $eval['required'] * (float) ($activity->taux_activite ?? 0) * (int) ($eval['days'] ?? $activity->nb_jours);
 
-                    $phase = (string) ($activity->phase ?? '');
+                    $phase = $this->normalizePhase((string) ($activity->phase ?? ''));
                     if ($phase === 'AVANT_SESSION') {
                         $avant += $eval['required'];
                     } elseif ($phase === 'PENDANT_SESSION') {
@@ -257,8 +269,9 @@ class Vacation2026DashboardService
                     $ecrits = $centre->centresEcrit;
                     $centreEcritIds = $ecrits->pluck('id')->toArray();
                     $centreSalles = !empty($centreEcritIds)
-                        ? RepartitionSalle::whereIn('centre_ecrit_id', $centreEcritIds)->get()
+                        ? RepartitionSalle::whereIn('centre_ecrit_id', $centreEcritIds)->where('annee', 'like', '2026%')->get()
                         : collect();
+                    $centreCandidateStats = $this->candidateSummary($centreSalles, (string) ($centre->type_examen ?? ''));
 
                     $centreType = (string) ($centre->centre_type ?? '');
                     if ($centre->is_eps_gym) {
@@ -267,7 +280,7 @@ class Vacation2026DashboardService
                         $centreType = "CENTRE D'ECRIT ET CORRECTION JUMELES";
                     }
 
-                    $personnel = $this->centrePersonnelByPhase($centre->id, $centreEcritIds[0] ?? 0, $centreSalles, $centreType, (bool) $centre->is_eps_gym, (bool) $centre->is_eps_gym ? max(0, (int) ($centre->eps_capacity ?? 0)) : null);
+                    $personnel = $this->centrePersonnelByPhase($centre->id, $centreEcritIds[0] ?? 0, $centreCandidateStats['rows'], $centreType, (bool) $centre->is_eps_gym, (bool) $centre->is_eps_gym ? max(0, (int) ($centre->eps_capacity ?? 0)) : null, $centreCandidateStats['candidates'], $centreCandidateStats['salles']);
 
                     $required += $personnel['total_required'];
                     $montant += $personnel['total_montant'];
@@ -353,9 +366,11 @@ class Vacation2026DashboardService
                 ->whereHas('centreEcrit', function ($q) use ($centreIds) {
                     $q->whereIn('centre_correction_id', $centreIds);
                 })
+                ->where('annee', 'like', '2026%')
                 ->get();
 
-            $totalCandidates = $salles->sum('effectif');
+            $candidateStats = $this->candidateSummary($salles);
+            $totalCandidates = $candidateStats['candidates'];
 
             $assignments = Vacation2026Assignment::query()
                 ->where('cisco_id', $cisco->id)
@@ -382,21 +397,24 @@ class Vacation2026DashboardService
                     ->sum(fn ($c) => max(0, (int) ($c->eps_capacity ?? 0)));
             }
 
-            $context = ['candidates' => $totalCandidates, 'salles' => $salles->count(), 'centre_count' => $centresCorrection->count(), 'cisco_count' => 1];
+            $context = ['candidates' => $totalCandidates, 'candidates_by_exam' => $candidateStats['by_exam'], 'salles_by_exam' => $candidateStats['salles_by_exam'], 'salles' => $candidateStats['salles'], 'centre_count' => $centresCorrection->count(), 'cisco_count' => 1, 'eps_candidates' => $epsCandidates];
 
             // Compute decree-based required personnel for CISCO
             $ciscoPlanned = 0;
             foreach ($cepeActivities->merge($bepcActivities)->merge($epsActivities)->merge($transcriptionActivities) as $activity) {
                 $ctx = [
-                    'candidates' => $activity->examen === 'EPS' ? $epsCandidates : $totalCandidates,
-                    'salles' => $salles->count(),
+                    'candidates' => $this->isEpsActivity($activity) ? $epsCandidates : (int) ($candidateStats['by_exam'][$activity->examen] ?? $totalCandidates),
+                    'salles' => (int) ($candidateStats['salles_by_exam'][$activity->examen] ?? $candidateStats['salles']),
                     'cisco_count' => 1,
                     'centre_count' => $centresCorrection->count(),
+                    'candidates_by_exam' => $candidateStats['by_exam'],
+                    'salles_by_exam' => $candidateStats['salles_by_exam'],
+                    'eps_candidates' => $epsCandidates,
                     'centre_type' => null,
                     'year' => 2026,
                     'has_special_needs' => false,
                 ];
-                $eval = $this->decree->evaluate($activity, $ctx);
+                $eval = $this->decree->evaluate($activity, $this->contextForActivity($activity, $ctx));
                 $ciscoPlanned += $eval['required'];
             }
 
@@ -423,11 +441,12 @@ class Vacation2026DashboardService
                 $centreEcritIds = $ecrits->pluck('id')->toArray();
 
                 $centreSalles = !empty($centreEcritIds)
-                    ? RepartitionSalle::whereIn('centre_ecrit_id', $centreEcritIds)->get()
+                    ? RepartitionSalle::whereIn('centre_ecrit_id', $centreEcritIds)->where('annee', 'like', '2026%')->get()
                     : collect();
 
-                $candidates = (int) $centreSalles->sum('effectif');
-                $sallesCount = $centreSalles->count();
+                $centreCandidateStats = $this->candidateSummary($centreSalles, $examFilter ?: (string) ($centre->type_examen ?? ''));
+                $candidates = $centreCandidateStats['candidates'];
+                $sallesCount = $centreCandidateStats['salles'];
 
                 $isEpsGym = (bool) ($centre->is_eps_gym ?? false);
                 // EPS/GYM candidate count is entered manually per centre (eps_capacity).
@@ -458,7 +477,7 @@ class Vacation2026DashboardService
                     $typeLabel = $centreType !== '' ? $centreType : '—';
                 }
 
-                $personnel = $this->centrePersonnelByPhase($centre->id, $centreEcritIds[0] ?? 0, $centreSalles, $centreType, $isEpsGym, $manualEpsCandidates);
+                $personnel = $this->centrePersonnelByPhase($centre->id, $centreEcritIds[0] ?? 0, $centreCandidateStats['rows'], $centreType, $isEpsGym, $manualEpsCandidates, $candidates, $sallesCount);
 
                 return [
                     'centre_id' => $centre->id,
@@ -507,8 +526,8 @@ class Vacation2026DashboardService
      */
     public function centreDashboard(?int $centreId = null, ?int $centreTypeId = null, string $examFilter = '', string $phaseFilter = '', ?int $activityId = null, ?int $centreEcritId = null): array
     {
-        $corrections = CentreCorrection::query()->with(['centresEcrit', 'parentCentre'])->get();
-        $ecrits = CentreEcrit::query()->with('centreCorrection')->get();
+        $corrections = CentreCorrection::query()->with(['centresEcrit', 'parentCentre', 'cisco.dren'])->get();
+        $ecrits = CentreEcrit::query()->with('centreCorrection.cisco.dren')->get();
         $groups = collect();
 
         foreach ($corrections as $correction) {
@@ -597,10 +616,11 @@ class Vacation2026DashboardService
             }
 
             // EPS/GYM candidate count is entered manually per centre (eps_capacity).
+            $candidateStats = $this->candidateSummary($salles, $requestedExam);
             $totalCandidates = $isEpsGym
                 ? max(0, (int) ($centre->eps_capacity ?? 0))
-                : (int) $salles->sum('effectif');
-            $totalSalles = $salles->pluck('numero_salle')->filter()->unique()->count();
+                : $candidateStats['candidates'];
+            $totalSalles = $candidateStats['salles'];
 
             $hasSpecialNeeds = $salles->contains(fn($s) => $s->has_special_needs_candidates ?? false);
 
@@ -626,15 +646,18 @@ class Vacation2026DashboardService
                 ->where('year', '2026')
                 ->when($examFilter === '' && $centreExam, fn ($query) => $query->where('examen', $centreExam))
                 ->when($examFilter !== '', fn ($query) => $query->where('examen', $examFilter))
-                ->when($phaseFilter !== '', fn ($query) => $query->where('phase', $phaseFilter))
+                ->when($phaseFilter !== '', fn ($query) => $query->whereIn('phase', $this->phaseAliases($phaseFilter)))
                 ->when($activityId, fn ($query) => $query->where('id', $activityId))
                 ->whereIn('rule_key', $this->decree->centreActivitiesForType($centreType))
                 ->orderBy('examen')
                 ->orderBy('ordre')
                 ->get()
-                ->map(function ($activity) use ($centreType, $totalCandidates, $totalSalles, $hasSpecialNeeds, $assignments) {
+                ->map(function ($activity) use ($centreType, $totalCandidates, $totalSalles, $hasSpecialNeeds, $assignments, $candidateStats, $isEpsGym) {
+                    $activityCandidates = $isEpsGym && $activity->level === 'EPS'
+                        ? (int) $candidateStats['eps_inapt']
+                        : (int) ($candidateStats['by_exam'][$activity->examen] ?? $totalCandidates);
                     $evaluation = $this->decree->evaluate($activity, [
-                        'candidates' => $totalCandidates,
+                        'candidates' => $activityCandidates,
                         'salles' => $totalSalles,
                         'centre_type' => $centreType,
                         'year' => 2026,
@@ -645,7 +668,10 @@ class Vacation2026DashboardService
 
                     return [
                         'id' => $activity->id,
+                        'level' => $activity->level,
+                        'is_eps_activity' => $this->isEpsActivity($activity),
                         'examen' => $activity->examen,
+                        'candidates' => $activityCandidates,
                         'libelle' => $activity->libelle,
                         'phase' => $activity->phase,
                         'required' => $evaluation['required'],
@@ -676,7 +702,7 @@ class Vacation2026DashboardService
             })->sum();
             $epsChefCentre = $personnelByRole->filter(fn ($count, $role) => str_contains(mb_strtolower($role), 'chef de centre'))->sum();
             $epsSecretaires = $personnelByRole->filter(fn ($count, $role) => str_contains(mb_strtolower($role), 'secrétaires'))->sum();
-            $activitiesByPhase = $activities->groupBy('phase')->map(fn ($group) => [
+            $activitiesByPhase = $activities->groupBy(fn ($activity) => $this->normalizePhase((string) ($activity['phase'] ?? '')))->map(fn ($group) => [
                 'count' => $group->count(),
                 'planned' => $group->sum('required'),
                 'assigned' => $group->sum('assigned'),
@@ -732,6 +758,10 @@ class Vacation2026DashboardService
             return [
                 'centre_id' => $centre->id ?? null,
                 'centre_ecrit_id' => $selectedEcrit?->id,
+                'dren_id' => $centre->cisco?->dren_id,
+                'dren_name' => $centre->cisco?->dren?->nom ?? '',
+                'cisco_id' => $centre->cisco_id,
+                'cisco_name' => $centre->cisco?->nom ?? '',
                 'centre_name' => $centreName,
                 'parent_centre_name' => $parentCentreName,
                 'centre_code' => $centreCode,
@@ -782,7 +812,7 @@ class Vacation2026DashboardService
                         ->orWhere('examen', 'EPS');
                 });
             })
-            ->when($phaseFilter !== '', fn ($query) => $query->where('phase', $phaseFilter))
+            ->when($phaseFilter !== '', fn ($query) => $query->whereIn('phase', $this->phaseAliases($phaseFilter)))
             ->when($activityId, fn ($query) => $query->where('id', $activityId))
             ->get();
 
@@ -816,10 +846,12 @@ class Vacation2026DashboardService
 
             $salles = RepartitionSalle::query()
                 ->whereIn('centre_ecrit_id', $centreEcritIds)
+                ->where('annee', 'like', '2026%')
                 ->get();
 
             $manualCapacity = (int) ($centre->eps_capacity ?? 0);
-            $candidates = $manualCapacity > 0 ? $manualCapacity : (int) $salles->sum('effectif');
+            $candidateStats = $this->candidateSummary($salles, 'BEPC');
+            $candidates = $manualCapacity > 0 ? $manualCapacity : $candidateStats['candidates'];
 
             $totalCandidates += $candidates;
 
@@ -889,12 +921,16 @@ class Vacation2026DashboardService
                     ? ['required' => $evaluations->sum('required'), 'days' => $evaluations->max('days') ?: (int) $activity->nb_jours]
                     : ['required' => (int) $activity->max_agents * count($centresData), 'days' => (int) $activity->nb_jours];
                 return [
+                    'id' => $activity->id,
+                    'level' => $activity->level,
+                    'is_eps_activity' => true,
                     'examen' => $activity->examen,
                     'libelle' => $activity->libelle,
                     'phase' => $activity->phase,
                     'required' => $evaluation['required'],
                     'days' => $evaluation['days'],
                     'rate' => (float) ($activity->taux_activite ?? 0),
+                    'assigned' => Vacation2026Assignment::query()->where('activity_id', $activity->id)->where('level', 'EPS')->distinct('agent_id')->count('agent_id'),
                     'amount' => (int) $evaluation['required'] * (float) ($activity->taux_activite ?? 0) * (int) $evaluation['days'],
                 ];
             }),
@@ -920,16 +956,122 @@ class Vacation2026DashboardService
             ->where('level', $level)
             ->where('year', '2026')
             ->when($exam !== '', fn ($query) => $query->where('examen', $exam))
-            ->when($phase !== '', fn ($query) => $query->where('phase', $phase))
+            ->when($phase !== '', fn ($query) => $query->whereIn('phase', $this->phaseAliases($phase)))
             ->when($activityId, fn ($query) => $query->where('id', $activityId))
             ->orderBy('phase')
             ->orderBy('ordre')
             ->get();
     }
 
+    private function contextForActivity(Vacation2026Activity $activity, array $context): array
+    {
+        if ($this->isEpsActivity($activity)) {
+            if (isset($context['eps_candidates'])) {
+                $context['candidates'] = (int) $context['eps_candidates'];
+            }
+        } else {
+            $exam = strtoupper((string) $activity->examen);
+            if (isset($context['candidates_by_exam'][$exam])) {
+                $context['candidates'] = (int) $context['candidates_by_exam'][$exam];
+            }
+            if (isset($context['salles_by_exam'][$exam])) {
+                $context['salles'] = (int) $context['salles_by_exam'][$exam];
+            }
+        }
+
+        return $context;
+    }
+
+    private function isEpsActivity(Vacation2026Activity $activity): bool
+    {
+        return $activity->level === 'EPS'
+            || str_starts_with((string) ($activity->rule_key ?? ''), 'eps_')
+            || str_contains((string) ($activity->phase ?? ''), 'EPS')
+            || strtoupper((string) $activity->examen) === 'EPS';
+    }
+
+    private function normalizePhase(string $phase): string
+    {
+        return match (strtoupper(trim($phase))) {
+            'AVANT_EPREUVES_EPS' => 'AVANT_SESSION',
+            'PENDANT_EPREUVES_EPS' => 'PENDANT_SESSION',
+            'APRES_EPREUVES_EPS' => 'APRES_SESSION',
+            default => strtoupper(trim($phase)) ?: 'AVANT_SESSION',
+        };
+    }
+
+    private function phaseAliases(string $phase): array
+    {
+        return match ($this->normalizePhase($phase)) {
+            'AVANT_SESSION' => ['AVANT_SESSION', 'AVANT_EPREUVES_EPS'],
+            'PENDANT_SESSION' => ['PENDANT_SESSION', 'PENDANT_EPREUVES_EPS'],
+            'APRES_SESSION' => ['APRES_SESSION', 'APRES_EPREUVES_EPS'],
+            default => [$phase],
+        };
+    }
+
+    /**
+     * Compute candidate and room counts from 2026 repartition rows, counting
+     * the simplified BEPC total once and treating foreign candidates as detail.
+     */
+    private function candidateSummary(Collection $salles, string $examFilter = ''): array
+    {
+        $examFilter = strtoupper(trim($examFilter));
+        $totals = ['CEPE' => 0, 'BEPC' => 0];
+        $rooms = ['CEPE' => [], 'BEPC' => []];
+        $epsInapt = 0;
+        $selectedRows = collect();
+
+        foreach ($salles->groupBy('centre_ecrit_id') as $centreRows) {
+            $cepeRows = $centreRows->where('langue', 'TOTAL');
+            $bepcRows = $centreRows->reject(fn ($row) => (string) $row->langue === 'TOTAL');
+            $hasSimplified = $bepcRows->contains(fn ($row) => (string) $row->langue === RepartitionSalle::BEPC_TOTAL_KEY);
+            $bepcPrimary = $hasSimplified
+                ? $bepcRows->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)
+                : $bepcRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)');
+            $cepeCount = (int) $cepeRows->sum('effectif');
+            $bepcCount = (int) $bepcPrimary->sum('effectif');
+            $totals['CEPE'] += $cepeCount;
+            $totals['BEPC'] += $bepcCount;
+            $epsInapt += (int) ($hasSimplified ? $bepcPrimary->sum('eps_inapt_effectif') : $bepcRows->sum('eps_inapt_effectif'));
+
+            foreach (['CEPE' => $cepeRows, 'BEPC' => $bepcPrimary] as $exam => $examRows) {
+                foreach ($examRows as $row) {
+                    $roomNumber = $row->numero_salle ?? $row->id;
+                    $rooms[$exam][$row->centre_ecrit_id.'|'.$roomNumber] = true;
+                }
+            }
+
+            if ($examFilter === 'CEPE') {
+                $selectedRows = $selectedRows->merge($cepeRows);
+            } elseif ($examFilter === 'BEPC') {
+                $selectedRows = $selectedRows->merge($bepcPrimary);
+            } else {
+                $selectedRows = $selectedRows->merge($cepeRows)->merge($bepcPrimary);
+            }
+        }
+
+        $roomCounts = array_map('count', $rooms);
+        $selectedRooms = $examFilter === 'CEPE'
+            ? $roomCounts['CEPE']
+            : ($examFilter === 'BEPC' ? $roomCounts['BEPC'] : count(array_unique(array_merge(array_keys($rooms['CEPE']), array_keys($rooms['BEPC'])))));
+        $count = $examFilter === 'CEPE'
+            ? $totals['CEPE']
+            : ($examFilter === 'BEPC' ? $totals['BEPC'] : array_sum($totals));
+
+        return [
+            'candidates' => $count,
+            'by_exam' => $totals,
+            'salles' => $selectedRooms,
+            'salles_by_exam' => $roomCounts,
+            'eps_inapt' => $epsInapt,
+            'rows' => $selectedRows->values(),
+        ];
+    }
+
     private function phaseSummary(Collection $activities, ?int $drenId, ?int $ciscoId, string $level, array $context = []): Collection
     {
-        return $activities->groupBy('phase')->map(function (Collection $group) use ($drenId, $ciscoId, $level, $context) {
+        return $activities->groupBy(fn ($activity) => $this->normalizePhase((string) ($activity->phase ?? '')))->map(function (Collection $group) use ($drenId, $ciscoId, $level, $context) {
             $details = $this->activityDetails($group, $drenId, $ciscoId, $level, $context);
             $planned = $details->sum('required');
             $assigned = $details->sum('assigned');
@@ -956,7 +1098,7 @@ class Vacation2026DashboardService
                 ->count('agent_id');
             $personnel = $activity->max_agents !== null
                 ? (int) $activity->max_agents
-                : $this->decree->evaluate($activity, array_merge($context, ['year' => 2026]))['required'];
+                : $this->decree->evaluate($activity, array_merge($this->contextForActivity($activity, $context), ['year' => 2026]))['required'];
             return $personnel * (float) ($activity->taux_activite ?? 0) * (int) $activity->nb_jours;
         });
     }
@@ -965,7 +1107,7 @@ class Vacation2026DashboardService
     {
         return $activities->map(function ($activity) use ($drenId, $ciscoId, $level, $context) {
             $evaluation = $activity->max_agents === null
-                ? $this->decree->evaluate($activity, array_merge($context, ['year' => 2026]))
+                ? $this->decree->evaluate($activity, array_merge($this->contextForActivity($activity, $context), ['year' => 2026]))
                 : ['required' => (int) $activity->max_agents, 'days' => (int) $activity->nb_jours];
             $assigned = Vacation2026Assignment::query()
                 ->where('activity_id', $activity->id)
@@ -976,6 +1118,9 @@ class Vacation2026DashboardService
                 ->count('agent_id');
 
             return [
+                'id' => $activity->id,
+                'level' => $activity->level,
+                'is_eps_activity' => $this->isEpsActivity($activity),
                 'examen' => $activity->examen,
                 'libelle' => $activity->libelle,
                 'phase' => $activity->phase,
@@ -1036,29 +1181,77 @@ class Vacation2026DashboardService
                 $query->where('level', $centreId ? 'CENTRE' : ($ciscoId ? 'CISCO' : 'DREN'));
             })
             ->when($examFilter !== '', fn ($query) => $query->where('examen', $examFilter))
-            ->when($phaseFilter !== '', fn ($query) => $query->where('phase', $phaseFilter))
+            ->when($phaseFilter !== '', fn ($query) => $query->whereIn('phase', $this->phaseAliases($phaseFilter)))
             ->when($activityId, fn ($query) => $query->where('id', $activityId))
             ->get();
 
-        $cepeActivities = $allActivities->where('examen', 'CEPE');
-        $bepcActivities = $allActivities->where('examen', 'BEPC');
-        $epsActivities = $allActivities->where('examen', 'EPS');
+        // Build the planned totals from each scope's decree evaluation. This
+        // makes candidate-based activities respond to the repartition entries.
+        $detailRows = collect();
+        if ($centreId) {
+            foreach ($this->centreDashboard($centreId, null, $examFilter, $phaseFilter, $activityId) as $centreData) {
+                $detailRows = $detailRows->concat(collect($centreData['activities'] ?? [])->where('level', 'CENTRE'));
+            }
+        } elseif ($ciscoId) {
+            foreach ($this->ciscoDashboard($ciscoId, $examFilter, $phaseFilter, $activityId) as $ciscoData) {
+                $detailRows = $detailRows->concat(collect($ciscoData['activity_details'] ?? [])->where('level', 'CISCO'));
+            }
+        } elseif ($drenId) {
+            foreach ($this->drenDashboard($drenId, null, $examFilter, $phaseFilter, $activityId) as $drenData) {
+                $detailRows = $detailRows->concat($drenData['activity_details'] ?? []);
+            }
+        } else {
+            $centralActivities = $allActivities->where('level', 'CENTRAL');
+            $detailRows = $detailRows->concat($this->centralActivitiesDetail($centralActivities)->map(fn ($row) => array_merge($row, ['level' => 'CENTRAL', 'is_eps_activity' => false])));
 
-        $cepeStats = $this->getActivitiesStats($cepeActivities);
-        $bepcStats = $this->getActivitiesStats($bepcActivities);
-        $epsStats = $this->getActivitiesStats($epsActivities);
+            foreach ($this->drenDashboard(null, null, $examFilter, $phaseFilter, $activityId) as $drenData) {
+                $detailRows = $detailRows->concat($drenData['activity_details'] ?? []);
+            }
+            foreach ($this->ciscoDashboard(null, $examFilter, $phaseFilter, $activityId) as $ciscoData) {
+                $detailRows = $detailRows->concat(collect($ciscoData['activity_details'] ?? [])->where('level', 'CISCO'));
+            }
+            foreach ($this->centreDashboard(null, null, $examFilter, $phaseFilter, $activityId) as $centreData) {
+                $detailRows = $detailRows->concat(collect($centreData['activities'] ?? [])->where('level', 'CENTRE'));
+            }
+            $epsSummary = $this->epsDashboard($examFilter, $phaseFilter, $activityId);
+            $detailRows = $detailRows->concat($epsSummary['activities'] ?? []);
+        }
+        $detailRows = $detailRows->values();
 
-        // Get centres and candidates data
-        $allCentres = CentreCorrection::query()->get();
+        $cepeDetails = $detailRows->where('examen', 'CEPE');
+        $bepcDetails = $detailRows->filter(fn ($row) => strtoupper((string) ($row['examen'] ?? '')) === 'BEPC' && ! ($row['is_eps_activity'] ?? false));
+        $epsDetails = $detailRows->filter(fn ($row) => (bool) ($row['is_eps_activity'] ?? false));
+        $makeStats = function (Collection $rows): array {
+            $planned = (int) $rows->sum('required');
+            $assigned = (int) $rows->sum('assigned');
+            return [
+                'planned' => $planned,
+                'assigned' => $assigned,
+                'remaining' => max(0, $planned - $assigned),
+                'completion_percentage' => $planned > 0 ? round(($assigned / $planned) * 100, 2) : 0,
+            ];
+        };
+        $cepeStats = $makeStats($cepeDetails);
+        $bepcStats = $makeStats($bepcDetails);
+        $epsStats = $makeStats($epsDetails);
+
+        // Get centres and candidate rows in the selected 2026 scope.
+        $allCentres = CentreCorrection::query()
+            ->when($centreId, fn ($query) => $query->where('id', $centreId))
+            ->when($ciscoId, fn ($query) => $query->where('cisco_id', $ciscoId))
+            ->when($drenId, fn ($query) => $query->whereHas('cisco', fn ($q) => $q->where('dren_id', $drenId)))
+            ->get();
         $allSalles = RepartitionSalle::query()
             ->when($centreId, fn ($query) => $query->whereHas('centreEcrit', fn ($q) => $q->where('centre_correction_id', $centreId)))
             ->when($ciscoId, fn ($query) => $query->whereHas('centreEcrit.centreCorrection', fn ($q) => $q->where('cisco_id', $ciscoId)))
             ->when($drenId, fn ($query) => $query->whereHas('centreEcrit.centreCorrection.cisco', fn ($q) => $q->where('dren_id', $drenId)))
+            ->where('annee', 'like', '2026%')
             ->get();
 
-        $totalCandidates = $allSalles->sum('effectif');
+        $candidateStats = $this->candidateSummary($allSalles, $examFilter);
+        $totalCandidates = $candidateStats['candidates'];
         $totalCentres = $allCentres->count();
-        $totalSalles = $allSalles->count();
+        $totalSalles = $candidateStats['salles'];
 
         // Get all assignments
         $allAssignments = Vacation2026Assignment::query()
@@ -1067,16 +1260,9 @@ class Vacation2026DashboardService
             ->when($drenId, fn ($query) => $query->where('dren_id', $drenId))
             ->get();
 
-        $totalPlanned = $cepeStats['planned'] + $bepcStats['planned'] + $epsStats['planned'];
-        $totalAssigned = $allAssignments->unique('agent_id')->count();
-
-        // Compute estimated indemnity
-        $estimatedIndemnity = 0.0;
-        foreach ($allActivities as $activity) {
-            $rate = $activity->taux_activite ?? 0;
-            $days = (int) $activity->nb_jours;
-            $estimatedIndemnity += $rate * $days * (int) $activity->max_agents;
-        }
+        $totalPlanned = (int) $detailRows->sum('required');
+        $totalAssigned = (int) $detailRows->sum('assigned');
+        $estimatedIndemnity = (float) $detailRows->sum('amount');
 
         // Activities by status
         $activitiesByStatus = $allActivities->groupBy(function ($activity) {
@@ -1098,18 +1284,15 @@ class Vacation2026DashboardService
             return 'PENDING';
         })->map(fn($g) => $g->count());
 
-        $activitiesByPhase = $allActivities->groupBy(fn ($activity) => $activity->phase ?: 'AVANT_SESSION')->map(function ($group) {
-            $planned = $group->sum(fn ($activity) => (int) ($activity->max_agents ?? 0));
-            $assigned = Vacation2026Assignment::query()
-                ->whereIn('activity_id', $group->pluck('id'))
-                ->distinct('agent_id')
-                ->count('agent_id');
+        $activitiesByPhase = $detailRows->groupBy(fn ($row) => $this->normalizePhase((string) ($row['phase'] ?? '')))->map(function ($group) {
+            $planned = (int) $group->sum('required');
+            $assigned = (int) $group->sum('assigned');
             return [
                 'count' => $group->count(),
                 'planned' => $planned,
                 'assigned' => $assigned,
                 'remaining' => max(0, $planned - $assigned),
-                'amount' => $group->sum(fn ($activity) => (int) ($activity->max_agents ?? 0) * (float) ($activity->taux_activite ?? 0) * (int) $activity->nb_jours),
+                'amount' => (float) $group->sum('amount'),
             ];
         });
 
@@ -1289,12 +1472,12 @@ class Vacation2026DashboardService
         ];
     }
 
-    private function centrePersonnelByPhase(int $centreId, int $centreEcritId, Collection $centreSalles, string $centreType, bool $isEpsGym, ?int $manualCandidates = null): array
+    private function centrePersonnelByPhase(int $centreId, int $centreEcritId, Collection $centreSalles, string $centreType, bool $isEpsGym, ?int $manualCandidates = null, ?int $computedCandidates = null, ?int $computedRooms = null): array
     {
         $candidates = $manualCandidates !== null && $manualCandidates > 0
             ? $manualCandidates
-            : (int) $centreSalles->sum('effectif');
-        $sallesCount = $centreSalles->count();
+            : ($computedCandidates ?? (int) $centreSalles->sum('effectif'));
+        $sallesCount = $computedRooms ?? $centreSalles->pluck('numero_salle')->filter()->unique()->count();
         $hasSpecialNeeds = (bool) $centreSalles->max('has_special_needs_candidates');
 
         $ctx = [
@@ -1346,11 +1529,12 @@ class Vacation2026DashboardService
             $totalMontant += $montant;
 
             $phase = (string) ($activity->phase ?? '');
-            if ($phase === 'AVANT_SESSION') {
+            $phaseGroup = $this->normalizePhase($phase);
+            if ($phaseGroup === 'AVANT_SESSION') {
                 $avant += $required;
-            } elseif ($phase === 'PENDANT_SESSION') {
+            } elseif ($phaseGroup === 'PENDANT_SESSION') {
                 $pendant += $required;
-            } elseif ($phase === 'APRES_SESSION') {
+            } elseif ($phaseGroup === 'APRES_SESSION') {
                 $apres += $required;
             }
 

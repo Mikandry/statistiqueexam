@@ -298,6 +298,12 @@
 
                             @endif
 
+                            @if($s['code'] === 'formation_partielle' && !empty($s['time_start']))
+                                <p class="mt-2 max-w-xs rounded-md bg-violet-50 px-2 py-1 text-xs font-medium text-violet-800">
+                                    Remarque : {{ $s['agent']->full_name }} est absent(e) de {{ substr($s['time_start'], 0, 5) }} à {{ substr($s['time_end'], 0, 5) }} pendant sa formation, chaque jour concerné.
+                                </p>
+                            @endif
+
                         </td>
 
 

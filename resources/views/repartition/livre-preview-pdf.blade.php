@@ -5,8 +5,8 @@
     <title>Livre de Répartition PDF</title>
     <style>
         @page {
-            size: A4 landscape;
-            margin: 6mm 6mm 12mm 25mm;
+            size: A4 portrait;
+            margin: 8mm 8mm 12mm 12mm;
         }
         body {
             font-family: DejaVu Sans, Arial, sans-serif;
@@ -100,6 +100,13 @@
             font-weight: bold;
             text-align: left;
         }
+        .ge-room-table .ge-group-cell {
+            border-left: 2px solid #334155;
+            text-align: center;
+            vertical-align: middle;
+            background: #f8fafc;
+            white-space: nowrap;
+        }
         .right {
             text-align: right;
         }
@@ -158,6 +165,8 @@
 @php
     $isBepcLanguesVariant = ($bookVariant ?? 'default') === 'langues' && (($filters['type_examen'] ?? '') === 'BEPC');
     $langueLabels = [
+        'TOTAL_BEPC' => 'Candidats',
+        'Candidats étrangers' => 'Étrangers (anglais)',
         'Anglais' => 'ANG',
         'Allemand' => 'ALL',
         'Esp' => 'ESP',
@@ -257,9 +266,47 @@
                         <div class="muted">{{ $centre['dren'] }} | {{ $centre['annee'] }}</div>
                     @endif
 
+                    @if(($filters['type_examen'] ?? '') === 'BEPC' && !empty($centre['is_bepc_simplified']))
+                        @php
+                            $singleBepcTable = $centre['tables'][0] ?? null;
+                        @endphp
+                        <div class="summary-compact">
+                            <strong>{{ $centre['centre_ecrit'] }}</strong> |
+                            Candidats: <strong>{{ number_format($centre['total_candidats'], 0, ',', ' ') }}</strong> |
+                            Salles: <strong>{{ number_format($centre['total_salles'], 0, ',', ' ') }}</strong> |
+                            PE: <strong>{{ number_format($centre['pe'] ?? 0, 0, ',', ' ') }}</strong> |
+                            GE: <strong>{{ number_format($centre['ge_count'] ?? 0, 0, ',', ' ') }}</strong>
+                            | Inaptes EPS écrit: <strong>{{ number_format($centre['total_eps_inaptes'] ?? 0, 0, ',', ' ') }}</strong>
+                        </div>
+                        @if($singleBepcTable)
+                            <table class="pdf-table ge-room-table">
+                                <thead><tr><th>Salle</th><th>Candidats</th><th>Regroupement GE</th></tr></thead>
+                                <tbody>
+                                    @foreach($centre['ge_groups'] ?? [] as $geGroup)
+                                        @foreach($geGroup['salles'] as $roomIndex => $salle)
+                                            @php
+                                                $totalCandidatesRow = $singleBepcTable['rows']->firstWhere('label', 'Total candidats');
+                                                $candidateCount = (int) (($totalCandidatesRow['values'][$salle] ?? 0));
+                                            @endphp
+                                            <tr>
+                                                <td>Salle {{ $salle }}</td>
+                                                <td class="right">{{ number_format($candidateCount, 0, ',', ' ') }}</td>
+                                                @if($roomIndex === 0)
+                                                    <td rowspan="{{ count($geGroup['salles']) }}" class="ge-group-cell">
+                                                        <strong>GE {{ $geGroup['numero'] }}</strong><br>
+                                                        {{ collect($geGroup['salles'])->map(fn ($room) => 'S'.$room)->implode(' + ') }}
+                                                    </td>
+                                                @endif
+                                            </tr>
+                                        @endforeach
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        @endif
+                    @else
                     @foreach($centre['tables'] as $table)
                         <div class="centre-table-block">
-                            @if((($filters['type_examen'] ?? '') === 'BEPC' || ($filters['type_examen'] ?? '') === 'CEPE') && $loop->first)
+                    @if((($filters['type_examen'] ?? '') === 'BEPC' || ($filters['type_examen'] ?? '') === 'CEPE') && $loop->first && empty($centre['is_bepc_simplified']))
                                 @php
                                     $geProblemeRepartition = collect($centre['ge_distribution_probleme'] ?? [])
                                         ->map(fn ($n) => (string) $n)
@@ -272,24 +319,26 @@
                                     <table class="summary-compact-table">
                                         <tr>
                                             <td>
-                                                <strong>Langues:</strong>
-                                                @forelse(($centre['langue_totals'] ?? []) as $langue => $total)
-                                                    <span>
-                                                        <strong>{{ $langueLabels[$langue] ?? $langue }}:</strong>
-                                                        {{ number_format($total, 0, ',', ' ') }}
-                                                        | Salle: {{ number_format((int) ($centre['langue_salles'][$langue] ?? 0), 0, ',', ' ') }}
-                                                    </span>
-                                                    @unless($loop->last)<span> ; </span>@endunless
-                                                @empty
-                                                    <span class="muted">Aucune langue.</span>
-                                                @endforelse
+                                                @if(!empty($centre['is_bepc_simplified']))
+                                                    <strong>Récapitulatif du centre:</strong>
+                                                    <span><strong>PE:</strong> {{ number_format($centre['pe'] ?? 0, 0, ',', ' ') }}</span>
+                                                    <span><strong>GE:</strong> {{ number_format($centre['ge_count'] ?? 0, 0, ',', ' ') }}</span>
+                                                    <span><strong>Répartition GE:</strong> {{ collect($centre['ge_distribution'] ?? [])->implode('+') ?: '-' }}</span>
+                                                    <span><strong>Inaptes EPS écrit:</strong> {{ number_format($centre['total_eps_inaptes'] ?? 0, 0, ',', ' ') }}</span>
+                                                @else
+                                                    <strong>Langues:</strong>
+                                                    @forelse(($centre['langue_totals'] ?? []) as $langue => $total)
+                                                        <span><strong>{{ $langueLabels[$langue] ?? $langue }}:</strong> {{ number_format($total, 0, ',', ' ') }} | Salle: {{ number_format((int) ($centre['langue_salles'][$langue] ?? 0), 0, ',', ' ') }}</span>
+                                                        @unless($loop->last)<span> ; </span>@endunless
+                                                    @empty
+                                                        <span class="muted">Aucune langue.</span>
+                                                    @endforelse
+                                                @endif
                                             </td>
                                             <td class="summary-total">
                                                 Candidats: <strong>{{ number_format($centre['total_candidats'], 0, ',', ' ') }}</strong>
                                                 |
                                                 Salle: <strong>{{ number_format($centre['total_salles'], 0, ',', ' ') }}</strong>
-                                                |
-                                                GE/matiere: <strong>{{ number_format($centre['ge_count'], 0, ',', ' ') }}</strong>
                                             </td>
                                         </tr>
                                         <tr>
@@ -307,7 +356,7 @@
                             <div class="small-title" style="margin-top: 6px;">Tableau {{ $table['index'] }} / {{ count($centre['tables']) }}</div>
                             <table class="pdf-table">
                                 @if(($filters['type_examen'] ?? '') === 'BEPC')
-                                    @php $rowspan = count($table['rows']) + 2; @endphp
+                                    @php $showBepcTotalRow = empty($centre['is_bepc_simplified']) && !$isBepcLanguesVariant; $rowspan = count($table['rows']) + 1 + ($showBepcTotalRow ? 1 : 0); @endphp
                                     <tbody>
                                     <tr>
                                         <td rowspan="{{ $rowspan }}"><strong>{{ $centre['centre_ecrit'] }}</strong></td>
@@ -324,19 +373,19 @@
                                             @endforeach
                                         </tr>
                                     @endforeach
-                                    @unless($isBepcLanguesVariant)
+                                    @if($showBepcTotalRow)
                                         <tr>
                                             <td><strong>Total</strong></td>
                                             @foreach($table['salles'] as $salle)
                                                 <td class="center"><strong>{{ number_format((int) ($table['totaux_salles'][$salle] ?? 0), 0, ',', ' ') }}</strong></td>
                                             @endforeach
                                         </tr>
-                                    @endunless
+                                    @endif
                                     </tbody>
                                 @else
                                     <thead>
                                     <tr>
-                                        <th>Langue / Option</th>
+                                        <th>{{ !empty($centre['is_bepc_simplified']) ? 'Effectif' : 'Langue / Option' }}</th>
                                         @foreach($table['salles'] as $salle)
                                             <th class="center">S{{ $salle }}</th>
                                         @endforeach
@@ -351,17 +400,20 @@
                                             @endforeach
                                         </tr>
                                     @endforeach
-                                    <tr>
-                                        <td><strong>TOTAL SALLE</strong></td>
-                                        @foreach($table['salles'] as $salle)
-                                            <td class="center"><strong>{{ number_format((int) ($table['totaux_salles'][$salle] ?? 0), 0, ',', ' ') }}</strong></td>
-                                        @endforeach
-                                    </tr>
+                                    @unless(!empty($centre['is_bepc_simplified']))
+                                        <tr>
+                                            <td><strong>TOTAL SALLE</strong></td>
+                                            @foreach($table['salles'] as $salle)
+                                                <td class="center"><strong>{{ number_format((int) ($table['totaux_salles'][$salle] ?? 0), 0, ',', ' ') }}</strong></td>
+                                            @endforeach
+                                        </tr>
+                                    @endunless
                                     </tbody>
                                 @endif
                             </table>
                         </div>
                     @endforeach
+                    @endif
                 </div>
             @endforeach
             <div class="page-footer">

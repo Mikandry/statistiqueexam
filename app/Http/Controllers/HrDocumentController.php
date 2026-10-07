@@ -523,7 +523,7 @@ class HrDocumentController extends Controller
             'document' => $document,
             'title' => $definition['title'],
             'today' => $today,
-            'reference' => $this->reference($settings),
+            'reference' => $this->reference($settings, $event),
         ];
 
         $data = array_merge($data, $extra);
@@ -618,13 +618,17 @@ class HrDocumentController extends Controller
     */
 
     private function reference(
-        HrDocumentSetting $settings
+        HrDocumentSetting $settings,
+        ?HrEvent $event = null
     ): string {
 
         $year = $settings->reference_year ?: now()->year;
         
         $prefix = trim((string) $settings->reference_prefix);
-        $number = $settings->next_reference_number ?: 1;
+        // Chaque fiche liée à un événement utilise le numéro renseigné par
+        // l'utilisateur. Les attestations sans événement conservent le
+        // compteur historique des paramètres.
+        $number = $event?->reference ?: ($settings->next_reference_number ?: 1);
 
         return ( ('N°') . $year . '/' .$number  . ' ' .($prefix ? $prefix . ' ' : '')) ;
     }

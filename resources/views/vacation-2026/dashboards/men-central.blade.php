@@ -14,11 +14,16 @@
                         <h1 class="text-2xl font-bold tracking-tight text-slate-900">Tableau de bord MEN Central</h1>
                         <p class="mt-1 text-sm text-slate-600">Vacation 2026 - Vue d'ensemble des activités au niveau central</p>
                     </div>
-                    <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">SOE</div>
-                        <div class="text-sm">
-                            <div class="font-semibold text-slate-900">SOE</div>
-                            <div class="text-xs text-slate-500">Service de l'Organisation des Examens</div>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <a href="{{ route('vacation2026.dashboard.men-central.excel', request()->query()) }}" class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800">
+                            <i class="fas fa-file-excel"></i> Exporter Excel
+                        </a>
+                        <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">SOE</div>
+                            <div class="text-sm">
+                                <div class="font-semibold text-slate-900">SOE</div>
+                                <div class="text-xs text-slate-500">Service de l'Organisation des Examens</div>
+                            </div>
                         </div>
                     </div>
                 </div>

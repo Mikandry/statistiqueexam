@@ -12,7 +12,7 @@
     </p>
 </div>
 <h1 style="text-align:center">{{ mb_strtoupper($title) }}</h1>
-<p><b>Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable du service' }}, atteste que :</b></p>
+<p><b>Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }}, atteste que :</b></p>
 @php
     $visibleFields = $settings?->fieldsFor($document ?? '') ?? ['nom', 'im', 'corps_grade'];
     $agentParts = [];
@@ -58,10 +58,10 @@
     <p>Fonction : {{ $agent->fonction ?: 'non renseignée' }}. Direction : {{ $agent->direction ?: 'non renseignée' }}. Service : {{ $agent->service ?: 'non renseigné' }}.</p>
 @elseif($title === 'ORDRE DE MISSION')
     @if($event)
-        <p><b>Véhicule :</b> {{ $event->vehicle_type === 'administrative' ? 'Voiture administrative' : ($event->vehicle_type === 'taxi_brousse' ? 'Taxi-brousse' : 'Non précisé') }}</p>
+        <p><b>Déplacement :</b> de {{ $event->lieu ?: '—' }} à {{ $event->destination ?: '—' }}<br /><b>Moyen :</b> {{ ['administrative' => 'Voiture administrative', 'taxi_brousse' => 'Taxi-brousse', 'bus' => 'Bus', 'avion' => 'Avion', 'vehicule_personnel' => 'Véhicule personnel', 'autre' => 'Autre moyen'][$event->vehicle_type] ?? 'Non précisé' }}</p>
     @endif
     <p>Le présent ordre de mission lui est délivré pour servir et valoir ce que de droit et lui tient lieu d’ordre de route.</p>
 @else
     <p>La présente attestation est délivrée pour servir et valoir ce que de droit.</p>
 @endif
-<p style="text-align:right">Fait à ____________________, le {{ $today->format('d/m/Y') }}<br /><br /><b>{{ $settings?->signataire_qualite ?: 'Le responsable habilité' }}</b><br />{{ $settings?->signataire ?: '' }}</p>
+<p style="text-align:right">Fait à ____________________, le {{ $today->format('d/m/Y') }}<br /><br /><b>{{ $settings?->signataire_qualite ?: 'Responsable habilité' }}</b></p>

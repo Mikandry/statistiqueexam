@@ -229,10 +229,18 @@ class HrAgentController extends Controller
             'destination' => ['nullable', 'string', 'max:255'],
             'vehicle_type' => [
                 'nullable',
-                Rule::in(['administrative', 'taxi_brousse']),
+                Rule::in([
+                    'administrative', 'taxi_brousse', 'bus', 'avion',
+                    'vehicule_personnel', 'autre',
+                ]),
             ],
 
-            'reference' => ['nullable', 'string', 'max:255'],
+            // Le numéro est saisi par le demandeur. L'administration peut
+            // ainsi le contrôler avant validation, sans le générer elle-même.
+            'reference' => [
+                'nullable', 'integer', 'min:1', 'max:999999',
+                Rule::unique('hr_events', 'reference'),
+            ],
             'autorite' => ['nullable', 'string', 'max:255'],
             'observation' => ['nullable', 'string'],
         ]);

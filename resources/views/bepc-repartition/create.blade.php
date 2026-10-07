@@ -199,43 +199,6 @@
                             </div>
                         </div>
 
-                        @if($stickyTypeExamen === 'BEPC')
-                            <div class="mb-10 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/30 p-6">
-                                <div class="mb-6 flex items-center justify-between">
-                                    <div class="flex items-center gap-3">
-                                        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-white">
-                                            <i class="fas fa-globe-africa text-sm"></i>
-                                        </div>
-                                        <h3 class="text-sm font-black uppercase tracking-widest text-amber-800">Candidats Étrangers</h3>
-                                    </div>
-                                    <label class="relative inline-flex cursor-pointer items-center">
-                                        <input id="has_foreign_candidates" type="checkbox" name="has_foreign_candidates" value="1" {{ old('has_foreign_candidates') ? 'checked' : '' }} class="peer sr-only">
-                                        <div class="h-6 w-11 rounded-full bg-slate-200 peer-checked:bg-amber-500 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full"></div>
-                                        <span class="ml-3 text-xs font-bold text-amber-900">Activer l'exception</span>
-                                    </label>
-                                </div>
-
-                                <div id="foreign-config" class="grid grid-cols-1 gap-6 md:grid-cols-3">
-                                    <div class="space-y-2">
-                                        <label class="text-xs font-bold text-amber-800 uppercase">LV Etrangère</label>
-                                        <select name="foreign_option_a_lv" class="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm font-bold shadow-sm outline-none">
-                                            <option value="Allemand" {{ old('foreign_option_a_lv', 'Allemand') === 'Allemand' ? 'selected' : '' }}>Allemand</option>
-                                            <option value="Esp" {{ old('foreign_option_a_lv') === 'Esp' ? 'selected' : '' }}>Esp (Espagnol)</option>
-                                            <option value="Anglais" {{ old('foreign_option_a_lv') === 'Anglais' ? 'selected' : '' }}>Anglais</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-xs font-bold text-amber-800 uppercase">Rempl. Malagasy A</label>
-                                        <input type="text" name="foreign_option_a_replace_malagasy" value="{{ old('foreign_option_a_replace_malagasy') }}" placeholder="Ex: Français" class="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm font-bold outline-none">
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-xs font-bold text-amber-800 uppercase">Rempl. Malagasy B</label>
-                                        <input type="text" name="foreign_option_b_replace_malagasy" value="{{ old('foreign_option_b_replace_malagasy') }}" placeholder="Ex: Français" class="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm font-bold outline-none">
-                                    </div>
-                                </div>
-                            </div>
-                        @endif
-
                         <div class="mb-10 rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden">
                             <div class="bg-indigo-600 px-8 py-5 flex items-center justify-between">
                                 <h3 class="font-black uppercase tracking-widest text-white text-xs">Canevas des Effectifs</h3>
@@ -253,16 +216,20 @@
                                     </thead>
                                     <tbody class="divide-y divide-slate-100">
                                         @if($stickyTypeExamen === 'BEPC')
-                                            @foreach($langues as $index => $langue)
-                                                <tr class="hover:bg-indigo-50/30 transition-colors">
-                                                    <td class="sticky-col px-6 py-4 font-black text-slate-700 text-sm whitespace-nowrap">{{ $langue }}</td>
-                                                    @for($salle = 1; $salle <= $nombreSalles; $salle++)
-                                                        <td class="px-3 py-3 border-l border-slate-50">
-                                                            <input type="number" min="0" name="effectifs[{{ $langue }}][{{ $salle }}]" value="{{ old("effectifs.$langue.$salle", 0) }}" required data-salle="{{ $salle }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-sm font-bold shadow-sm input-focus-ring input-effectif">
-                                                        </td>
-                                                    @endfor
-                                                </tr>
-                                            @endforeach
+                                            <tr class="hover:bg-indigo-50/30 transition-colors">
+                                                <td class="sticky-col px-6 py-4 font-black text-slate-700 text-sm whitespace-nowrap">Total candidats</td>
+                                                @for($salle = 1; $salle <= $nombreSalles; $salle++)
+                                                    <td class="px-3 py-3 border-l border-slate-50"><input type="number" min="0" name="effectifs[{{ $salle }}]" value="{{ old("effectifs.$salle", 0) }}" required data-salle="{{ $salle }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-sm font-bold shadow-sm input-focus-ring input-effectif"></td>
+                                                @endfor
+                                            </tr>
+                                            <tr class="hover:bg-indigo-50/30 transition-colors">
+                                                <td class="sticky-col px-6 py-4 font-black text-amber-700 text-sm whitespace-nowrap">Candidats étrangers</td>
+                                                @for($salle = 1; $salle <= $nombreSalles; $salle++)
+                                                    <td class="px-3 py-3 border-l border-slate-50">
+                                                            <input type="number" min="0" name="foreign_effectifs[{{ $salle }}]" value="{{ old("foreign_effectifs.$salle", 0) }}" data-salle="{{ $salle }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold shadow-sm input-focus-ring input-effectif">
+                                                    </td>
+                                                @endfor
+                                            </tr>
                                         @else
                                             <tr class="hover:bg-indigo-50/30 transition-colors">
                                                 <td class="sticky-col px-6 py-8 font-black text-indigo-600 text-sm whitespace-nowrap uppercase tracking-wider">Total CEPE</td>
@@ -279,31 +246,29 @@
                         </div>
 
                         @if($stickyTypeExamen === 'BEPC')
-                            <div id="foreign-effectifs" class="mb-10 overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-lg opacity-50 transition-all duration-300">
-                                <div class="bg-amber-500 px-8 py-4 text-white text-xs font-black uppercase tracking-widest">Effectifs Étrangers par Salle</div>
-                                <div class="overflow-x-auto custom-scrollbar">
-                                    <table class="w-full border-collapse">
-                                        <tbody class="divide-y divide-amber-50">
-                                            <tr class="hover:bg-amber-50">
-                                                <td class="sticky-col px-6 py-4 font-bold text-amber-700 text-xs uppercase bg-amber-50 border-r-amber-100">Option A</td>
-                                                @for($salle = 1; $salle <= $nombreSalles; $salle++)
-                                                    <td class="px-3 py-3 border-l border-amber-50">
-                                                        <input type="number" min="0" name="foreign_effectifs[option_a][{{ $salle }}]" value="{{ old("foreign_effectifs.option_a.$salle", 0) }}" data-salle="{{ $salle }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:ring-4 focus:ring-amber-500/20 input-effectif">
-                                                    </td>
-                                                @endfor
-                                            </tr>
-                                            <tr class="hover:bg-amber-50">
-                                                <td class="sticky-col px-6 py-4 font-bold text-amber-700 text-xs uppercase bg-amber-50 border-r-amber-100">Option B</td>
-                                                @for($salle = 1; $salle <= $nombreSalles; $salle++)
-                                                    <td class="px-3 py-3 border-l border-amber-50">
-                                                        <input type="number" min="0" name="foreign_effectifs[option_b][{{ $salle }}]" value="{{ old("foreign_effectifs.option_b.$salle", 0) }}" data-salle="{{ $salle }}" class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:ring-4 focus:ring-amber-500/20 input-effectif">
-                                                    </td>
-                                                @endfor
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                            <section class="mb-10 rounded-2xl border border-purple-200 bg-purple-50/50 p-6">
+                                <h3 class="text-sm font-black uppercase tracking-widest text-purple-800">Inaptes à l’EPS — épreuve écrite</h3>
+                                <p class="mt-1 text-sm text-purple-700">Renseignez une ou deux salles d’accueil pour l’épreuve écrite. Le total des inaptes peut dépasser l’effectif de chaque salle, mais ne doit pas dépasser le total des candidats du centre.</p>
+                                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                                    @for($slot = 0; $slot < 2; $slot++)
+                                        <div class="grid grid-cols-2 gap-3 rounded-xl border border-purple-100 bg-white p-4">
+                                            <label class="text-xs font-bold text-slate-600">Salle
+                                                <select name="eps_inapt_salles[{{ $slot }}][numero_salle]" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
+                                                    <option value="">Aucune</option>
+                                                    @for($salle = 1; $salle <= $nombreSalles; $salle++)
+                                                        @if(!in_array($salle, $sallesInutilisables ?? [], true))
+                                                            <option value="{{ $salle }}" {{ (string) old("eps_inapt_salles.$slot.numero_salle") === (string) $salle ? 'selected' : '' }}>Salle {{ $salle }}</option>
+                                                        @endif
+                                                    @endfor
+                                                </select>
+                                            </label>
+                                            <label class="text-xs font-bold text-slate-600">Nombre d’inaptes
+                                                <input type="number" min="0" name="eps_inapt_salles[{{ $slot }}][effectif]" value="{{ old("eps_inapt_salles.$slot.effectif", 0) }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-center">
+                                            </label>
+                                        </div>
+                                    @endfor
                                 </div>
-                            </div>
+                            </section>
                         @endif
 
                         <div class="flex justify-end pt-6 border-t border-slate-200">
@@ -365,9 +330,6 @@
         const pointOtherInput = document.getElementById('point_largage_other');
         const saveButton = document.getElementById('save-button');
         const filterAlert = document.getElementById('filterAlert');
-        const foreignModeCheckbox = document.getElementById('has_foreign_candidates');
-        const foreignConfig = document.getElementById('foreign-config');
-        const foreignEffectifsBlock = document.getElementById('foreign-effectifs');
 
         const oldCisco = @json((string) $stickyCiscoId);
         const oldCc = @json((string) $stickyCentreCorrectionId);
@@ -530,18 +492,6 @@
             }
         }
 
-        function updateForeignState() {
-            if (!foreignModeCheckbox) return;
-            const enabled = foreignModeCheckbox.checked;
-            if (foreignConfig) {
-                foreignConfig.querySelectorAll('input,select').forEach((el) => el.disabled = !enabled);
-                foreignConfig.style.opacity = enabled ? '1' : '0.45';
-            }
-            if (foreignEffectifsBlock) {
-                foreignEffectifsBlock.querySelectorAll('input').forEach((el) => el.disabled = !enabled);
-                foreignEffectifsBlock.style.opacity = enabled ? '1' : '0.45';
-            }
-        }
 
         drenSelect.addEventListener('change', () => { refreshCisco(''); updateSaveState(); });
         ciscoSelect.addEventListener('change', () => { refreshCentreCorrection(''); refreshPointOptions(''); updateSaveState(); });
@@ -552,9 +502,6 @@
         }
         if (pointSelect) {
             pointSelect.addEventListener('change', toggleOtherPointInput);
-        }
-        if (foreignModeCheckbox) {
-            foreignModeCheckbox.addEventListener('change', updateForeignState);
         }
 
         refreshCisco(oldCisco);
@@ -570,7 +517,6 @@
             ceSelect.value = oldCe;
         }
         refreshPointOptions(oldPoint);
-        updateForeignState();
         updateSaveState();
     })();
 </script>

@@ -9,15 +9,16 @@
            MARGES ET FORMAT PAGE (A4)
            ============================================================ */
         @page {
-            margin: 1.25cm 1.45cm 1.35cm 1.45cm;
+            /* Gabarit volontairement compact : une fiche = une page A4. */
+            margin: 0.65cm 0.85cm 0.7cm;
             size: A4;
         }
 
         body {
             font-family: 'Times New Roman', Times, serif;
-            font-size: 10.5pt;
+            font-size: 8.5pt;
             color: #1e293b;
-            line-height: 1.35;
+            line-height: 1.15;
             background: white;
         }
           /* ============================================================
@@ -38,8 +39,8 @@
             margin-right: auto;
             text-align: center;
             font-weight: bold;
-            font-size: 9pt;
-            line-height: 1.35;
+            font-size: 7.5pt;
+            line-height: 1.1;
             letter-spacing: 0.2px;
             text-transform: uppercase;
             color: #0f172a;
@@ -65,16 +66,16 @@
         } */
 
         .institution .stars {
-            font-size: 10pt;
+            font-size: 7pt;
             letter-spacing: 2px;
             color: #0f766e;
-            margin: 3px 0;
+            margin: 1px 0;
         }
 
         .header-rule {
             border-bottom: 3px solid #0f766e;
             width: 30%;
-            margin: 7px auto 0;
+            margin: 3px auto 0;
             border-radius: 2px;
             margin-right: auto;
             margin-left: 117px;
@@ -88,7 +89,7 @@
             text-align: left;
             font-size: 9.5pt;
             font-weight: 600;
-            margin-top: 12px;
+            margin-top: 5px;
             color: #334155;
             letter-spacing: 0.5px;
         }
@@ -101,13 +102,13 @@
            ============================================================ */
         .title {
             text-align: center;
-            font-size: 14pt;
+            font-size: 11pt;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 1.5px;
             color: #0f172a;
-            margin: 18px 0 14px;
-            padding-bottom: 10px;
+            margin: 7px 0 6px;
+            padding-bottom: 4px;
             border-bottom: 1.5px solid #cbd5e1;
             display: inline-block;
             width: 100%;
@@ -118,8 +119,8 @@
            ============================================================ */
         .body-text {
             text-align: justify;
-            margin: 0.75em 0;
-            font-size: 10.5pt;
+            margin: 0.35em 0;
+            font-size: 8.5pt;
             text-indent: 1em;
         }
 
@@ -127,23 +128,23 @@
            TABLEAU DES INFORMATIONS DE L'AGENT
            ============================================================ */
         .agent-info {
-            margin: 10px 0 12px;
+            margin: 4px 0;
             border: 1px solid #e2e8f0;
             border-radius: 6px;
             background: #f8fafc;
-            padding: 7px 10px;
+            padding: 3px 6px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
         .agent-info table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 9.5pt;
+            font-size: 8pt;
         }
 
         .agent-info td {
             vertical-align: top;
-            padding: 3px 7px 3px 0;
+            padding: 1px 4px 1px 0;
         }
 
         .agent-info .label {
@@ -166,17 +167,17 @@
            ENCADRÉS (ÉVÉNEMENTS)
            ============================================================ */
         .event-box {
-            margin: 10px 0 12px;
-            padding: 8px 12px;
+            margin: 4px 0;
+            padding: 4px 7px;
             border-left: 4px solid #0f766e;
             background: #f1f5f9;
             border-radius: 4px;
-            font-size: 9.5pt;
+            font-size: 8pt;
             box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         }
 
         .event-box p {
-            margin: 2px 0;
+            margin: 1px 0;
         }
 
         .event-box strong {
@@ -187,7 +188,7 @@
            SIGNATURE
            ============================================================ */
         .signature {
-            margin-top: 28px;
+            margin-top: 6px;
             text-align: right;
             padding-right: 20px;
         }
@@ -224,7 +225,7 @@
            PIED DE PAGE (optionnel)
            ============================================================ */
         .footer {
-            margin-top: 18px;
+            margin-top: 5px;
             font-size: 8pt;
             text-align: center;
             color: #94a3b8;
@@ -245,34 +246,31 @@
            Présentation sobre : bordures noires/grises, fond blanc.
            ============================================================ */
         .validation-zone {
-            margin-top: 4mm;
+            margin-top: 2mm;
             page-break-inside: avoid;
         }
 
         .validation-zone .zone-title {
             text-align: center;
             font-weight: bold;
-            font-size: 10.5pt;
+            font-size: 8.5pt;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: #0f172a;
         }
 
-        /* Encadré « Signature de l'intéressé », séparé du tableau */
+        /* Encadré de visa manuscrit, séparé du tableau */
         .interesse-box {
             border: 1.2px solid #1e293b;
             background: white;
-            padding: 7pt 10pt;
+            padding: 3pt 6pt;
             page-break-inside: avoid;
         }
 
-        .interesse-box .zone-title {
-            margin: 0 0 26mm;
-        }
-
         .interesse-box .signature-leaf {
-            padding-left: 12pt;
-            font-size: 10pt;
+            min-height: 8mm;
+            padding-left: 6pt;
+            font-size: 8pt;
             color: #1e293b;
         }
 
@@ -289,7 +287,7 @@
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            margin-top: 3mm;
+            margin-top: 1.5mm;
             page-break-inside: avoid;
         }
 
@@ -297,8 +295,8 @@
         .validation-table td {
             border: 1.3px solid #1e293b;
             background: white;
-            padding: 5pt 7pt;
-            font-size: 9.5pt;
+            padding: 3pt 4pt;
+            font-size: 8pt;
             vertical-align: top;
             color: #1e293b;
         }
@@ -316,7 +314,7 @@
         }
 
         .validation-table .spacer {
-            height: 24mm;
+            height: 10mm;
         }
     </style>
 </head>
@@ -373,8 +371,7 @@
 @if($document === 'non-interruption')
 
     <p class="body-text">
-        Je, soussigné(e),
-        {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
         atteste que :
     </p>
 
@@ -393,8 +390,7 @@
 @elseif($document === 'prise-service')
 
     <p class="body-text">
-        Je, soussigné(e), <strong>{{ $settings?->signataire ?: 'le responsable habilité' }}</strong>,
-        {{ $settings?->signataire_qualite ?: 'responsable habilité' }}, certifie que l’agent ci-dessous
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }}, certifie que l’agent ci-dessous
         a effectivement pris service au sein de l’administration.
     </p>
 
@@ -432,9 +428,7 @@
 @elseif($document === 'conge')
 
     <p class="body-text">
-        Je, soussigné(e),
-        <strong>{{ $settings?->signataire }}</strong>,
-        {{ $settings?->signataire_qualite }},
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
         autorise par la présente :
     </p>
 
@@ -454,8 +448,7 @@
 @elseif($document === 'mission')
 
     <p class="body-text">
-        Je, soussigné(e),
-        {{ $settings?->signataire_qualite }}, donne ordre à l’agent désigné
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }}, donne ordre à l’agent désigné
         ci-dessus d’effectuer la mission suivante :
     </p>
 
@@ -471,11 +464,18 @@
                     au {{ $event->date_fin->format('d/m/Y') }}
                 @endif
             </p>
-            @if($event->destination)
-                <p><strong>De se rendre à :</strong> {{ $event->destination }}</p>
+            @if($event->lieu || $event->destination)
+                <p><strong>Déplacement :</strong> de {{ $event->lieu ?: '—' }} à {{ $event->destination ?: '—' }}</p>
             @endif
             @if($event->vehicle_type)
-                <p><strong>Voiture :</strong> {{ $event->vehicle_type === 'administrative' ? 'Voiture administrative' : 'Taxi-brousse' }}</p>
+                <p><strong>Moyen de déplacement :</strong> {{ [
+                    'administrative' => 'Voiture administrative',
+                    'taxi_brousse' => 'Taxi-brousse',
+                    'bus' => 'Bus',
+                    'avion' => 'Avion',
+                    'vehicule_personnel' => 'Véhicule personnel',
+                    'autre' => 'Autre moyen',
+                ][$event->vehicle_type] ?? 'Non précisé' }}</p>
             @endif
             @if($event->motif)
                 <p><strong>Motif :</strong> {{ $event->motif }}</p>
@@ -496,9 +496,7 @@
 @elseif($document === 'absence')
 
     <p class="body-text">
-        Je, soussigné(e),
-        <strong>{{ $settings?->signataire }}</strong>,
-        {{ $settings?->signataire_qualite }},
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
         autorise :
     </p>
 
@@ -538,8 +536,7 @@
 @elseif($document === 'formation')
 
     <p class="body-text">
-        Je, soussigné(e),
-        {{ $settings?->signataire_qualite }},
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
         sollicite / autorise la participation de l’agent ci-après désigné
         à une action de formation :
     </p>
@@ -585,8 +582,7 @@
 @elseif($document === 'autre')
 
     <p class="body-text">
-        Je, soussigné(e),
-        {{ $settings?->signataire_qualite }},
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
         certifie que la présente demande concerne :
     </p>
 
@@ -708,26 +704,24 @@
 
 {{-- ========================================================= --}}
 {{-- ZONE DE SIGNATURES ET DE VALIDATION ADMINISTRATIVE        --}}
-{{-- Uniquement pour la fiche de congé                         --}}
+{{-- Fiches de congé et d'autorisation d'absence               --}}
 {{-- ========================================================= --}}
-@if($document === 'conge')
+@if(in_array($document, ['conge', 'absence'], true))
     <div class="validation-zone">
 
-        {{-- Signature de l'intéressé (clairement séparée du tableau) --}}
+        {{-- Zone réservée à la signature manuscrite de l'agent. --}}
         <div class="interesse-box">
-            <div class="zone-title">Signature de l'intéressé</div>
             <div class="signature-leaf">
-                Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
             </div>
         </div>
 
-        {{-- Validation administrative : remplaçant / chef hiérarchique / signataire --}}
+        {{-- La décision est volontairement placée en bas à droite. --}}
         <table class="validation-table">
             <thead>
                 <tr>
-                    <th style="width:32%">Signature du remplaçant</th>
-                    <th style="width:34%">Avis du chef hiérarchique</th>
-                    <th style="width:34%">Décision du signataire</th>
+                    <th style="width:50%">Signature du remplaçant</th>
+                    <th style="width:50%">Avis du chef hiérarchique</th>
                 </tr>
             </thead>
             <tbody>
@@ -752,16 +746,16 @@
                             Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
                         </div>
                     </td>
+                </tr>
+                <tr>
+                    <td style="border:0">&nbsp;</td>
                     <td>
+                        <div class="field" style="font-weight:bold; text-align:center; text-transform:uppercase">Décision du signataire</div>
                         <div class="field">☐ ACCORDÉE</div>
                         <div class="field">☐ REFUSÉE</div>
                         <div class="spacer">&nbsp;</div>
-                        <div class="field">
-                            Date : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                        </div>
-                        <div class="field">
-                            Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                        </div>
+                        <div class="field">Date : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                        <div class="field">Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
                     </td>
                 </tr>
             </tbody>

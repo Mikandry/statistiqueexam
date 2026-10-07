@@ -422,6 +422,166 @@
                         </div>
                     </details>
 
+                    <details id="zone-doublons-centres" class="ref-collapsible mb-6 scroll-mt-24" open>
+                        <summary class="flex items-center justify-between gap-4 px-5 py-4 md:px-6">
+                            <div class="ref-section-title">
+                                <span class="ref-section-icon"><i class="fas fa-copy"></i></span>
+                                <div>
+                                    <p class="ref-label">Contrôle doublons</p>
+                                    <h2 class="mt-1 text-xl font-black text-slate-900">Centres avec le même nom</h2>
+                                    <p class="mt-1 max-w-3xl text-sm font-medium text-slate-500">Les noms identiques sont regroupés par type d'examen, sans filtre DREN/CISCO. Les différences majuscules/minuscules sont ignorées.</p>
+                                </div>
+                            </div>
+                            <svg class="ref-collapsible-toggle h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </summary>
+                        <div class="ref-collapsible-body">
+                        <div class="ref-collapsible-inner px-5 pb-5 md:px-6 md:pb-6">
+                            <div class="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+                                <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                                    <p class="ref-label text-amber-700">Groupes correction</p>
+                                    <p class="mt-1 text-2xl font-black text-amber-900">{{ number_format($duplicateCentreCorrectionGroups->count(), 0, ',', ' ') }}</p>
+                                </div>
+                                <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                                    <p class="ref-label text-amber-700">Groupes écrit</p>
+                                    <p class="mt-1 text-2xl font-black text-amber-900">{{ number_format($duplicateCentreEcritGroups->count(), 0, ',', ' ') }}</p>
+                                </div>
+                                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                    <p class="ref-label">Portée</p>
+                                    <p class="mt-2 text-sm font-black text-slate-900">Par type, sans filtre CISCO</p>
+                                </div>
+                            </div>
+
+                            <div class="mb-4 flex items-center justify-between gap-3">
+                                <div>
+                                    <p class="ref-label">Centres de correction</p>
+                                    <h3 class="mt-1 text-lg font-black text-slate-900">Noms répétés dans le total centres correction</h3>
+                                </div>
+                                <span class="ref-chip bg-amber-100 text-amber-800">{{ number_format($duplicateCentreCorrectionRowsCount, 0, ',', ' ') }} lignes</span>
+                            </div>
+                            @forelse($duplicateCentreCorrectionGroups as $group)
+                                <div class="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                                        <div>
+                                            <p class="ref-label">Nom répété</p>
+                                            <h3 class="mt-1 text-lg font-black text-slate-900">{{ $group['nom'] }}</h3>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <span class="ref-chip bg-teal-100 text-teal-800">{{ $group['type_examen'] ?: 'Type non défini' }}</span>
+                                            <span class="ref-chip bg-amber-100 text-amber-800">{{ $group['count'] }} centres</span>
+                                        </div>
+                                    </div>
+                                    <div class="overflow-x-auto">
+                                        <table class="ref-table min-w-full border-collapse text-sm">
+                                            <thead>
+                                            <tr>
+                                                <th class="text-left">Localisation</th>
+                                                <th class="text-left">Type</th>
+                                                <th class="text-left">Nouveau nom centre correction</th>
+                                                <th class="text-left">Action</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            @foreach($group['centres'] as $centre)
+                                                <tr>
+                                                    <td>
+                                                        <div class="font-bold text-slate-900">{{ $centre->cisco->dren->nom ?? '-' }}</div>
+                                                        <div class="text-xs font-medium text-slate-500">{{ $centre->cisco->nom ?? '-' }} / ID centre correction: {{ $centre->id }}</div>
+                                                    </td>
+                                                    <td>
+                                                        <span class="ref-chip bg-slate-100 text-slate-700">{{ $centre->type_examen ?: '-' }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <form id="duplicate-centre-correction-{{ $centre->id }}" method="POST" action="{{ route('admin.references.centres-correction.duplicate-name.update', array_merge(['centreCorrection' => $centre->id], request()->query())) }}">
+                                                            @csrf
+                                                            @method('PUT')
+                                                            <input class="ref-input" name="nom" value="{{ $centre->nom }}" required>
+                                                        </form>
+                                                    </td>
+                                                    <td>
+                                                        <button class="ref-btn-primary px-3 py-2 text-sm" form="duplicate-centre-correction-{{ $centre->id }}" type="submit">Modifier</button>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-6 text-sm font-bold text-emerald-800">
+                                    Aucun doublon de centre de correction.
+                                </div>
+                            @endforelse
+
+                            <div class="mb-4 mt-8 flex items-center justify-between gap-3">
+                                <div>
+                                    <p class="ref-label">Centres d'écrit</p>
+                                    <h3 class="mt-1 text-lg font-black text-slate-900">Noms répétés dans le total centres écrit</h3>
+                                </div>
+                                <span class="ref-chip bg-amber-100 text-amber-800">{{ number_format($duplicateCentreEcritRowsCount, 0, ',', ' ') }} lignes</span>
+                            </div>
+                            @forelse($duplicateCentreEcritGroups as $group)
+                                <div class="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                                        <div>
+                                            <p class="ref-label">Nom répété</p>
+                                            <h3 class="mt-1 text-lg font-black text-slate-900">{{ $group['nom'] }}</h3>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <span class="ref-chip bg-teal-100 text-teal-800">{{ $group['type_examen'] ?: 'Type non défini' }}</span>
+                                            <span class="ref-chip bg-amber-100 text-amber-800">{{ $group['count'] }} centres</span>
+                                        </div>
+                                    </div>
+                                    <div class="overflow-x-auto">
+                                        <table class="ref-table min-w-full border-collapse text-sm">
+                                            <thead>
+                                            <tr>
+                                                <th class="text-left">Localisation</th>
+                                                <th class="text-left">Centre correction</th>
+                                                <th class="text-left">Type</th>
+                                                <th class="text-left">Nouveau nom centre écrit</th>
+                                                <th class="text-left">Action</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            @foreach($group['centres'] as $centre)
+                                                <tr>
+                                                    <td>
+                                                        <div class="font-bold text-slate-900">{{ $centre->centreCorrection->cisco->dren->nom ?? '-' }}</div>
+                                                        <div class="text-xs font-medium text-slate-500">{{ $centre->centreCorrection->cisco->nom ?? '-' }}</div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="font-bold text-slate-900">{{ $centre->centreCorrection->nom ?? '-' }}</div>
+                                                        <div class="text-xs font-medium text-slate-500">ID centre écrit: {{ $centre->id }}</div>
+                                                    </td>
+                                                    <td>
+                                                        <span class="ref-chip bg-slate-100 text-slate-700">{{ $centre->type_examen ?: '-' }}</span>
+                                                    </td>
+                                                    <td>
+                                                        <form id="duplicate-centre-ecrit-{{ $centre->id }}" method="POST" action="{{ route('admin.references.centres-ecrit.duplicate-name.update', array_merge(['centreEcrit' => $centre->id], request()->query())) }}">
+                                                            @csrf
+                                                            @method('PUT')
+                                                            <input class="ref-input" name="nom" value="{{ $centre->nom }}" required>
+                                                        </form>
+                                                    </td>
+                                                    <td>
+                                                        <button class="ref-btn-primary px-3 py-2 text-sm" form="duplicate-centre-ecrit-{{ $centre->id }}" type="submit">Modifier</button>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-6 text-sm font-bold text-emerald-800">
+                                    Aucun doublon de centre d'écrit.
+                                </div>
+                            @endforelse
+                        </div>
+                        </div>
+                    </details>
                     <details id="zone-filtres-referentiels" class="ref-collapsible scroll-mt-24" open>
                         <summary class="flex items-center justify-between gap-4 px-5 py-4 md:px-6">
                             <div>

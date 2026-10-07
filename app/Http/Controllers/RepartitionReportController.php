@@ -32,7 +32,7 @@ class RepartitionReportController extends Controller
 
     private const MAX_SALLES_PER_TABLE = 20;
 
-    private const CENTRES_PER_PAGE = 2;
+    private const CENTRES_PER_PAGE = 4;
 
     private const GE_PE_BEPC = 3;
 
@@ -77,12 +77,13 @@ class RepartitionReportController extends Controller
             ->orderBy('rss.numero_salle')
             ->get();
 
-        $totalsByLangue = $rows
-            ->groupBy(fn ($row) => $row->langue === self::CEPE_KEY ? 'Total CEPE' : $row->langue)
+        $candidateRows = $rows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)');
+        $totalsByLangue = $candidateRows
+            ->groupBy(fn ($row) => in_array((string) $row->langue, [self::CEPE_KEY, RepartitionSalle::BEPC_TOTAL_KEY], true) ? 'Total candidats' : $row->langue)
             ->map(fn (Collection $group) => $group->sum('effectif'))
             ->sortDesc();
 
-        $recapByDren = $rows
+        $recapByDren = $candidateRows
             ->groupBy('dren')
             ->map(function (Collection $drenRows, string $drenName) {
                 $ciscos = $drenRows
@@ -96,7 +97,7 @@ class RepartitionReportController extends Controller
                                     ->map(function (Collection $ceRows, string $ceName) {
                                         return [
                                             'nom' => $ceName,
-                                            'total_candidats' => $ceRows->sum('effectif'),
+                                            'total_candidats' => $ceRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif'),
                                             'total_salles' => $this->countDistinctSalles($ceRows),
                                         ];
                                     })
@@ -104,7 +105,7 @@ class RepartitionReportController extends Controller
 
                                 return [
                                     'nom' => $ccName,
-                                    'total_candidats' => $ccRows->sum('effectif'),
+                                    'total_candidats' => $ccRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif'),
                                     'total_salles' => $this->countDistinctSalles($ccRows),
                                     'centres_ecrit' => $centresEcrit,
                                 ];
@@ -113,7 +114,7 @@ class RepartitionReportController extends Controller
 
                         return [
                             'nom' => $ciscoName,
-                            'total_candidats' => $ciscoRows->sum('effectif'),
+                            'total_candidats' => $ciscoRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif'),
                             'total_salles' => $this->countDistinctSalles($ciscoRows),
                             'centres_correction' => $centresCorrection,
                         ];
@@ -122,7 +123,7 @@ class RepartitionReportController extends Controller
 
                 return [
                     'nom' => $drenName,
-                    'total_candidats' => $drenRows->sum('effectif'),
+                    'total_candidats' => $drenRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif'),
                     'total_salles' => $this->countDistinctSalles($drenRows),
                     'ciscos' => $ciscos,
                 ];
@@ -143,7 +144,7 @@ class RepartitionReportController extends Controller
             ];
         });
 
-        $bepcComparisonTotals = $rows
+        $bepcComparisonTotals = $candidateRows
             ->filter(fn ($row) => (string) $row->langue !== self::CEPE_KEY)
             ->groupBy(fn ($row) => strtoupper(trim((string) $row->langue)))
             ->map(fn (Collection $group) => $group->sum('effectif'));
@@ -157,6 +158,9 @@ class RepartitionReportController extends Controller
             ])
             ->values();
 
+        $isSimplifiedBepc = $filters['type_examen'] === self::TYPE_BEPC
+            && str_starts_with((string) $filters['annee'], '2026');
+        $comparisonByOption = $filters['type_examen'] !== self::TYPE_CEPE && ! $isSimplifiedBepc;
         $optionBTotal = (int) $bepcComparisonTotals
             ->filter(fn (int $value, string $label) => str_contains($label, 'OPTION B'))
             ->sum();
@@ -180,12 +184,15 @@ class RepartitionReportController extends Controller
             'totalsByLangue' => $totalsByLangue,
             'languesComparisonChart' => $languesComparisonChart,
             'optionsComparisonChart' => $optionsComparisonChart,
-            'showLangueComparison' => $filters['type_examen'] !== self::TYPE_CEPE,
+            'showLangueComparison' => $comparisonByOption,
+            'showOptionComparison' => $comparisonByOption,
             'recapByDren' => $recapByDrenPaginated,
             'drenChartData' => $chartData,
             'centresSaisieStats' => $centresSaisieStats,
+            'isSimplifiedBepc' => $isSimplifiedBepc,
+            'totalEpsInaptes' => (int) $rows->sum('eps_inapt_effectif'),
             'globalStats' => [
-                'total_candidats' => $rows->sum('effectif'),
+                'total_candidats' => $candidateRows->sum('effectif'),
                 'total_salles' => $this->countDistinctSalles($rows),
                 'total_drens' => $rows->pluck('dren')->unique()->count(),
                 'total_ciscos' => $rows->pluck('cisco')->unique()->count(),
@@ -367,6 +374,9 @@ class RepartitionReportController extends Controller
         $globalRows = $isBepcLanguesVariant
             ? $rows->filter(fn ($row) => in_array((string) $row->langue, ['Anglais', 'Allemand', 'Esp'], true))
             : $rows;
+        if (collect($bookData)->contains(fn (array $centre) => (bool) ($centre['is_bepc_simplified'] ?? false))) {
+            $globalRows = $globalRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)');
+        }
 
         return view('repartition.livre-preview', [
             'filters' => $filters,
@@ -379,10 +389,11 @@ class RepartitionReportController extends Controller
             'globalStats' => [
                 'total_candidats' => $globalRows->sum('effectif'),
                 'total_salles' => $this->countDistinctSalles($globalRows),
+                'total_eps_inaptes' => (int) $globalRows->sum('eps_inapt_effectif'),
                 'total_pe' => $totalPe,
                 'total_ge' => $totalGe,
                 'totaux_langues' => $globalRows
-                    ->groupBy(fn ($row) => $row->langue === self::CEPE_KEY ? 'Total CEPE' : $row->langue)
+                    ->groupBy(fn ($row) => in_array((string) $row->langue, [self::CEPE_KEY, RepartitionSalle::BEPC_TOTAL_KEY], true) ? 'Total candidats' : ((string) $row->langue === 'Etranger (anglais obligatoire)' ? 'Candidats étrangers' : $row->langue))
                     ->map(fn (Collection $group) => $group->sum('effectif'))
                     ->sortDesc(),
             ],
@@ -588,7 +599,9 @@ class RepartitionReportController extends Controller
                     'cisco' => (string) $first->cisco,
                     'centre_correction' => (string) $first->centre_correction,
                     'centre_ecrit' => (string) $first->centre_ecrit,
-                    'total_candidats' => (int) $group->sum('effectif'),
+                'total_candidats' => (int) ($group->contains(fn ($row) => (string) $row->langue === RepartitionSalle::BEPC_TOTAL_KEY)
+                    ? $group->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)->sum('effectif')
+                    : $group->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif')),
                     'total_salles' => $this->countDistinctSalles($group),
                 ];
             });
@@ -1435,6 +1448,7 @@ class RepartitionReportController extends Controller
                 'rs.langue',
                 'rs.numero_salle',
                 'rs.effectif',
+                'rs.eps_inapt_effectif',
                 'ce.id as centre_ecrit_id',
                 'ce.nom as centre_ecrit',
                 'cc.nom as centre_correction',
@@ -1453,6 +1467,11 @@ class RepartitionReportController extends Controller
         }
         if ($filters['type_examen'] === self::TYPE_BEPC) {
             $query->where('rs.langue', '!=', self::CEPE_KEY);
+            if (str_starts_with((string) $filters['annee'], '2026')) {
+                $query->whereIn('rs.langue', [RepartitionSalle::BEPC_TOTAL_KEY, 'Etranger (anglais obligatoire)']);
+            } elseif ($filters['annee'] !== '') {
+                $query->where('rs.langue', '!=', RepartitionSalle::BEPC_TOTAL_KEY);
+            }
         } elseif ($filters['type_examen'] === self::TYPE_CEPE) {
             $query->where('rs.langue', self::CEPE_KEY);
         }
@@ -1555,6 +1574,9 @@ class RepartitionReportController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('COMPARAISON_CENTRES');
 
+        $isSimplifiedBepc = str_starts_with((string) $filters['annee'], '2026')
+            && $filters['type_examen'] === self::TYPE_BEPC;
+        $isSimplifiedBepc = $isSimplifiedBepc && $filters['type_examen'] === self::TYPE_BEPC;
         $sheet->fromArray([
             ['Comparaison Centres N / N-1'],
             ['Annee N', $filters['annee_n'] ?: 'Toutes', 'Annee N-1', $filters['annee_n1'] ?: 'Toutes', 'Examen', $filters['type_examen']],
@@ -1707,6 +1729,9 @@ class RepartitionReportController extends Controller
         $globalRows = $isBepcLanguesVariant
             ? $rows->filter(fn ($row) => in_array((string) $row->langue, ['Anglais', 'Allemand', 'Esp'], true))
             : $rows;
+        if (collect($bookData)->contains(fn (array $centre) => (bool) ($centre['is_bepc_simplified'] ?? false))) {
+            $globalRows = $globalRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)');
+        }
 
         $payload = [
             'filters' => $filters,
@@ -1719,10 +1744,11 @@ class RepartitionReportController extends Controller
             'globalStats' => [
                 'total_candidats' => $globalRows->sum('effectif'),
                 'total_salles' => $this->countDistinctSalles($globalRows),
+                'total_eps_inaptes' => (int) $globalRows->sum('eps_inapt_effectif'),
                 'total_pe' => $totalPe,
                 'total_ge' => $totalGe,
                 'totaux_langues' => $globalRows
-                    ->groupBy(fn ($row) => $row->langue === self::CEPE_KEY ? 'Total CEPE' : $row->langue)
+                    ->groupBy(fn ($row) => in_array((string) $row->langue, [self::CEPE_KEY, RepartitionSalle::BEPC_TOTAL_KEY], true) ? 'Total candidats' : ((string) $row->langue === 'Etranger (anglais obligatoire)' ? 'Candidats étrangers' : $row->langue))
                     ->map(fn (Collection $group) => $group->sum('effectif'))
                     ->sortDesc(),
             ],
@@ -1740,7 +1766,7 @@ class RepartitionReportController extends Controller
                 .'.pdf';
 
             $pdf = Pdf::loadView('repartition.livre-preview-pdf', $payload)
-                ->setPaper('a4', 'landscape');
+                ->setPaper('a4', 'portrait');
 
             return $pdf->download($filename);
         }
@@ -1823,7 +1849,11 @@ class RepartitionReportController extends Controller
         if ($bookData->isEmpty()) {
             $detailSheet->setCellValue('A1', 'Aucune donnee detaillee disponible.');
         } else {
-            $detailHeaders = [
+            $isSimplifiedBepc = (str_starts_with((string) $filters['annee'], '2026') && $filters['type_examen'] === self::TYPE_BEPC)
+                || $bookData->contains(fn (array $centre) => (bool) ($centre['is_bepc_simplified'] ?? false));
+            $detailHeaders = $isSimplifiedBepc ? [
+                'DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'TYPE EXAMEN', 'ANNEE', 'SALLE', 'TOTAL CANDIDATS', 'CANDIDATS ÉTRANGERS', 'INAPTES EPS ÉCRIT', 'TOTAL SALLE', 'PE', 'GE TOTAL', 'REPARTITION GE', 'SOUBIQUE SUJETS', 'AXE DISPATCHING', 'POINT LARGAGE',
+            ] : [
                 'DREN',
                 'CISCO',
                 'CENTRE CORRECTION',
@@ -1879,13 +1909,18 @@ class RepartitionReportController extends Controller
                         'annee' => (string) $first->annee,
                         'salle' => (int) $first->numero_salle,
                         'total_cepe' => (int) $salleRows->where('langue', self::CEPE_KEY)->sum('effectif'),
+                        'total_candidats' => (int) $salleRows->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)->sum('effectif'),
+                        'candidats_etrangers' => (int) $salleRows->where('langue', 'Etranger (anglais obligatoire)')->sum('effectif'),
+                        'inaptes_eps' => (int) $salleRows->sum('eps_inapt_effectif'),
                         'anglais' => (int) $salleRows->where('langue', 'Anglais')->sum('effectif'),
                         'esp' => (int) $salleRows->where('langue', 'Esp')->sum('effectif'),
                         'allemand' => (int) $salleRows->where('langue', 'Allemand')->sum('effectif'),
                         'option_b' => (int) $salleRows->where('langue', 'Option B')->sum('effectif'),
                         'etranger_option_a' => $this->sumForeignOption($salleRows, 'A'),
                         'etranger_option_b' => $this->sumForeignOption($salleRows, 'B'),
-                        'total_salle' => (int) $salleRows->sum('effectif'),
+                        'total_salle' => $centre['is_bepc_simplified'] ?? false
+                            ? (int) $salleRows->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)->sum('effectif')
+                            : (int) $salleRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif'),
                         'pe' => (int) ($centre['pe'] ?? 0),
                         'ge_count' => (int) ($centre['ge_count'] ?? 0),
                         'ge_distribution' => implode('+', array_map(fn (int $n) => (string) $n, $centre['ge_distribution'] ?? [])),
@@ -1918,7 +1953,9 @@ class RepartitionReportController extends Controller
                 $firstSalleForCentre = ! isset($centreSeen[$centreKey]);
                 $centreSeen[$centreKey] = true;
 
-                $detailSheet->fromArray([
+                $detailSheet->fromArray($isSimplifiedBepc ? [
+                    $line['dren'], $line['cisco'], $line['centre_correction'], $line['centre_ecrit'], $line['type_examen'], $line['annee'], $line['salle'], $line['total_candidats'], $line['candidats_etrangers'], $line['inaptes_eps'], $line['total_salle'], $firstSalleForCentre ? $line['pe'] : 0, $firstSalleForCentre ? $line['ge_count'] : 0, $firstSalleForCentre ? $line['ge_distribution'] : '', $firstSalleForCentre ? $line['soubique_sujets'] : 0, $line['axe_dispatching'], $line['point_largage'],
+                ] : [
                     $line['dren'],
                     $line['cisco'],
                     $line['centre_correction'],
@@ -2007,8 +2044,12 @@ class RepartitionReportController extends Controller
                 }
 
                 if ($isBepc) {
-                    $langueOrder = ['Anglais', 'Allemand', 'Esp', 'Option B'];
+                    $langueOrder = !empty($centre['is_bepc_simplified'])
+                        ? [RepartitionSalle::BEPC_TOTAL_KEY, 'Candidats étrangers']
+                        : ['Anglais', 'Allemand', 'Esp', 'Option B'];
                     $langueLabels = [
+                        RepartitionSalle::BEPC_TOTAL_KEY => 'Total candidats',
+                        'Candidats étrangers' => 'Étrangers (anglais)',
                         'Anglais' => 'Ang',
                         'Allemand' => 'ALL',
                         'Esp' => 'ESP',
@@ -2022,11 +2063,11 @@ class RepartitionReportController extends Controller
                         }
                         $salleCount = (int) ($centre['langue_salles'][$langue] ?? 0);
                         $label = $langueLabels[$langue] ?? $langue;
-                        $langueLines[] = "Total cddts {$label}: {$total} total salle {$label}: {$salleCount}";
+                        $langueLines[] = "{$label}: {$total}".(!empty($centre['is_bepc_simplified']) ? '' : " total salle {$label}: {$salleCount}");
                     }
 
                     if ($langueLines === []) {
-                        $langueLines[] = 'Total par langues: 0';
+                        $langueLines[] = !empty($centre['is_bepc_simplified']) ? 'Total candidats: 0' : 'Total par langues: 0';
                     }
 
                     $maxSalles = collect($centre['tables'] ?? [])
@@ -2385,6 +2426,7 @@ class RepartitionReportController extends Controller
         $rows = collect($payload['rows']);
         $filters = $payload['filters'];
         $global = $payload['globalStats'];
+        $isSimplifiedBepc = str_starts_with((string) $filters['annee'], '2026');
         $marginPercent = $payload['marginPercent'];
         $roundingModeLabel = $filters['rounding_mode'] === 'down' ? 'Arrondi moins' : 'Arrondi plus';
 
@@ -2398,16 +2440,17 @@ class RepartitionReportController extends Controller
             ['Annee', $filters['annee'] !== '' ? $filters['annee'] : 'Toutes', 'DREN', $filters['dren'] !== '' ? $filters['dren'] : 'Toutes'],
             ['Marge generale (%)', $marginPercent],
             ['Mode arrondi', $roundingModeLabel],
-            ['Surplus langue absent', $filters['add_missing_langue_surplus'] ? 'Oui' : 'Non', 'Pas surplus', $filters['missing_langue_surplus_step']],
+            [$isSimplifiedBepc ? 'Surplus sans étrangers' : 'Surplus langue absente', $filters['add_missing_langue_surplus'] ? 'Oui' : 'Non', 'Pas surplus', $filters['missing_langue_surplus_step']],
             ['Fusion petit lot', $filters['merge_small_soubique'] ? 'Oui' : 'Non', 'Capacite fusion', $filters['merge_small_soubique_capacity']],
-            ['DREN', 'CISCO', 'TYPE', 'CENTRES SANS LANGUE', '% SANS LANGUE', 'CODE POSTAL', 'TOTAL CANDIDATS', 'FEUILLES DOUBLE', 'FEUILLES DOUBLE ARRONDIES', 'FEUILLES SIMPLE', 'FEUILLES SIMPLE ARRONDIES', 'SURPLUS', 'SOUBIQUE'],
+            $isSimplifiedBepc ? ['DREN', 'CISCO', 'TYPE', 'CENTRES SANS ÉTRANGERS', '% SANS ÉTRANGERS', 'CODE POSTAL', 'TOTAL CANDIDATS', 'ÉTRANGERS', 'INAPTES EPS', 'FEUILLES DOUBLE', 'FEUILLES DOUBLE ARRONDIES', 'FEUILLES SIMPLE', 'FEUILLES SIMPLE ARRONDIES', 'SURPLUS', 'SOUBIQUE'] : ['DREN', 'CISCO', 'TYPE', 'CENTRES SANS LANGUE', '% SANS LANGUE', 'CODE POSTAL', 'TOTAL CANDIDATS', 'FEUILLES DOUBLE', 'FEUILLES DOUBLE ARRONDIES', 'FEUILLES SIMPLE', 'FEUILLES SIMPLE ARRONDIES', 'SURPLUS', 'SOUBIQUE'],
         ], null, 'A1');
 
-        $sheet->mergeCells('A1:M1');
-        $sheet->mergeCells('A2:M2');
+        $lastCol = $isSimplifiedBepc ? 'O' : 'M';
+        $sheet->mergeCells("A1:{$lastCol}1");
+        $sheet->mergeCells("A2:{$lastCol}2");
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(18);
         $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(13);
-        $sheet->getStyle('A1:M2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle("A1:{$lastCol}2")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         $rowIndex = 9;
         foreach ($rows as $row) {
@@ -2423,6 +2466,7 @@ class RepartitionReportController extends Controller
                 (float) $row['centres_sans_langue_percent'],
                 $row['code_postal'],
                 (int) $row['total_candidats'],
+                ...($isSimplifiedBepc ? [(int) ($row['total_etrangers'] ?? 0), (int) ($row['total_eps_inaptes'] ?? 0)] : []),
                 (int) $row['feuilles_double'],
                 (int) $row['feuilles_double_arrondies'],
                 (int) $row['feuilles_simple'],
@@ -2441,6 +2485,7 @@ class RepartitionReportController extends Controller
             '',
             '',
             (int) $global['total_candidats'],
+            ...($isSimplifiedBepc ? [(int) ($global['total_etrangers'] ?? 0), (int) ($global['total_eps_inaptes'] ?? 0)] : []),
             (int) $global['total_feuilles_double'],
             (int) $global['total_feuilles_double_arrondies'],
             (int) $global['total_feuilles_simple'],
@@ -2449,12 +2494,12 @@ class RepartitionReportController extends Controller
             ((int) $global['total_soubiques']).(((int) ($global['total_soubiques_mixte'] ?? 0)) > 0 ? ' (Mixte: '.((int) $global['total_soubiques_mixte']).')' : ''),
         ]], null, "A{$rowIndex}");
 
-        $sheet->getStyle('A8:M8')->getFont()->setBold(true);
-        $sheet->getStyle('A8:M8')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
-        $sheet->getStyle("A8:M{$rowIndex}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        $sheet->getStyle("A{$rowIndex}:M{$rowIndex}")->getFont()->setBold(true);
+        $sheet->getStyle("A8:{$lastCol}8")->getFont()->setBold(true);
+        $sheet->getStyle("A8:{$lastCol}8")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle("A8:{$lastCol}{$rowIndex}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle("A{$rowIndex}:{$lastCol}{$rowIndex}")->getFont()->setBold(true);
 
-        foreach (range(1, 13) as $i) {
+        foreach (range(1, $isSimplifiedBepc ? 15 : 13) as $i) {
             $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
         }
 
@@ -3114,6 +3159,8 @@ class RepartitionReportController extends Controller
         [$rows, $filters] = $this->getFilteredRows($request);
 
         $centreRows = $this->buildStatsExportRows($rows, $filters['type_examen']);
+        $isSimplifiedBepc = $filters['type_examen'] === self::TYPE_BEPC
+            && str_starts_with((string) $filters['annee'], '2026');
         [$headers, $numericKeys] = $this->getStatsExportMeta($filters['type_examen']);
 
         $csvRows = [$headers];
@@ -3172,12 +3219,14 @@ class RepartitionReportController extends Controller
                 $row['centre_ecrit'],
                 $row['type_examen'],
             ]));
-        $recapHeaders = ['DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'ALL', 'ESP', 'ANG', 'B', 'ETRANGER OPTION A', 'ETRANGER OPTION B', 'SALLE', 'SOUBIQUE SUJETS', 'TOTAL'];
+        $recapHeaders = $isSimplifiedBepc
+            ? ['DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'CANDIDATS', 'ÉTRANGERS', 'INAPTES EPS ÉCRIT', 'SALLE', 'SOUBIQUE SUJETS']
+            : ['DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'ALL', 'ESP', 'ANG', 'B', 'ETRANGER OPTION A', 'ETRANGER OPTION B', 'SALLE', 'SOUBIQUE SUJETS', 'TOTAL'];
         $recapSheet->fromArray($recapHeaders, null, 'A1');
 
         $centreRecapRows = $rows
             ->groupBy(fn ($row) => implode('|', [$row->dren, $row->cisco, $row->centre_correction, $row->centre_ecrit]))
-            ->map(function (Collection $group) {
+            ->map(function (Collection $group) use ($isSimplifiedBepc) {
                 $sum = fn (string $langue): int => (int) $group->where('langue', $langue)->sum('effectif');
 
                 return [
@@ -3193,7 +3242,12 @@ class RepartitionReportController extends Controller
                     'etranger_option_b' => $this->sumForeignOption($group, 'B'),
                     'salle' => $this->countDistinctSalles($group),
                     'type_examen' => (string) $group->first()->type_examen,
-                    'total' => (int) $group->sum('effectif'),
+                    'total' => (int) ($group->contains(fn ($row) => (string) $row->langue === RepartitionSalle::BEPC_TOTAL_KEY)
+                        ? $group->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)->sum('effectif')
+                        : $group->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif')),
+                    'candidats' => (int) $group->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)->sum('effectif'),
+                    'etrangers' => (int) $group->where('langue', 'Etranger (anglais obligatoire)')->sum('effectif'),
+                    'inaptes_eps' => (int) $group->sum('eps_inapt_effectif'),
                 ];
             })
             ->sortBy(['dren', 'cisco', 'centre_correction', 'centre_ecrit'])
@@ -3208,7 +3262,9 @@ class RepartitionReportController extends Controller
                 $line['centre_ecrit'],
                 $line['type_examen'],
             ]);
-            $recapSheet->fromArray([
+            $recapSheet->fromArray($isSimplifiedBepc ? [
+                $line['dren'], $line['cisco'], $line['centre_correction'], $line['centre_ecrit'], $line['candidats'], $line['etrangers'], $line['inaptes_eps'], $line['salle'], (int) ($soubiqueByCentre->get($centreKey)['soubique_sujets'] ?? 0),
+            ] : [
                 $line['dren'],
                 $line['cisco'],
                 $line['centre_correction'],
@@ -3225,11 +3281,11 @@ class RepartitionReportController extends Controller
             ], null, "A{$recapRow}");
             $recapRow++;
         }
-        $recapSheet->getStyle('A1:M1')->getFont()->setBold(true);
-        $recapSheet->getStyle('A1:M1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $recapSheet->getStyle('A1:'.$recapSheet->getHighestColumn().'1')->getFont()->setBold(true);
+        $recapSheet->getStyle('A1:'.$recapSheet->getHighestColumn().'1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
         $recapTableLastRow = max(1, $recapRow - 1);
-        $recapSheet->getStyle("A1:M{$recapTableLastRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        foreach (range('A', 'M') as $col) {
+        $recapSheet->getStyle('A1:'.$recapSheet->getHighestColumn().$recapTableLastRow)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        foreach (range('A', $recapSheet->getHighestColumn()) as $col) {
             $recapSheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -3572,6 +3628,10 @@ class RepartitionReportController extends Controller
                     ->filter(fn ($row) => $startsWithForeign((string) $row->langue, $prefix))
                     ->sum('effectif');
 
+                $isSimplifiedBepc = (string) $first->type_examen === self::TYPE_BEPC && str_starts_with((string) $first->annee, '2026');
+                $simplifiedTotal = (int) $group->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)->sum('effectif');
+                $foreignTotal = (int) $group->where('langue', 'Etranger (anglais obligatoire)')->sum('effectif');
+                $epsInaptes = (int) $group->sum('eps_inapt_effectif');
                 $anglais = $sum('Anglais');
                 $esp = $sum('Esp');
                 $allemand = $sum('Allemand');
@@ -3579,6 +3639,9 @@ class RepartitionReportController extends Controller
                 $etrangerOptionA = $sumStartsWith('Etranger Option A');
                 $etrangerOptionB = $sumStartsWith('Etranger Option B');
                 $totalCepe = $sum(self::CEPE_KEY);
+                $totalCandidats = $isSimplifiedBepc
+                    ? $simplifiedTotal
+                    : $anglais + $esp + $allemand + $optionB + $etrangerOptionA + $etrangerOptionB + $totalCepe;
                 $centreKey = implode('|', [
                     $first->dren,
                     $first->cisco,
@@ -3603,7 +3666,11 @@ class RepartitionReportController extends Controller
                     'etranger_option_b' => $etrangerOptionB,
                     'total_cepe' => $totalCepe,
                     'soubique_sujets' => $soubiqueSujets,
-                    'total' => $anglais + $esp + $allemand + $optionB + $etrangerOptionA + $etrangerOptionB + $totalCepe,
+                    'total_candidats' => $totalCandidats,
+                    'total_etrangers' => $foreignTotal,
+                    'inaptes_eps' => $epsInaptes,
+                    'is_bepc_simplified' => $isSimplifiedBepc,
+                    'total' => $isSimplifiedBepc ? $simplifiedTotal : $totalCandidats,
                 ];
             })
             ->sortBy(['dren', 'cisco', 'centre_correction', 'centre_ecrit', 'numero_salle'])
@@ -3619,6 +3686,11 @@ class RepartitionReportController extends Controller
         }
 
         if ($typeExamen === self::TYPE_BEPC) {
+            if (str_starts_with((string) request()->query('annee', ''), '2026')) {
+                return [[
+                    'DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'SALLE', 'TOTAL CANDIDATS', 'CANDIDATS ÉTRANGERS', 'INAPTES EPS ÉCRIT', 'SOUBIQUE SUJETS', 'TOTAL',
+                ], ['total_candidats', 'total_etrangers', 'inaptes_eps', 'soubique_sujets', 'total']];
+            }
             return [[
                 'DREN', 'CISCO', 'CENTRE CORRECTION', 'CENTRE ECRIT', 'SALLE',
                 'OPTION A - ANGLAIS', 'OPTION A - ESP', 'OPTION A - ALLEMAND', 'OPTION B',
@@ -3648,6 +3720,9 @@ class RepartitionReportController extends Controller
         }
 
         if ($typeExamen === self::TYPE_BEPC) {
+            if (str_starts_with((string) request()->query('annee', ''), '2026')) {
+                return [$line['dren'], $line['cisco'], $line['centre_correction'], $line['centre_ecrit'], $line['numero_salle'], $line['total_candidats'], $line['total_etrangers'], $line['inaptes_eps'], $line['soubique_sujets'], $line['total']];
+            }
             return [
                 $line['dren'],
                 $line['cisco'],
@@ -3691,6 +3766,10 @@ class RepartitionReportController extends Controller
         }
 
         if ($typeExamen === self::TYPE_BEPC) {
+            if (str_starts_with((string) request()->query('annee', ''), '2026')) {
+                return [$label, '', '', '', '', $totals['total_candidats'] ?? 0, $totals['total_etrangers'] ?? 0, $totals['inaptes_eps'] ?? 0, $totals['soubique_sujets'] ?? 0, $totals['total'] ?? 0];
+            }
+
             return [
                 $label, '', '', '', '',
                 $totals['anglais'] ?? 0,
@@ -3942,7 +4021,7 @@ class RepartitionReportController extends Controller
                         return [
                             'dren' => $dren,
                             'cisco' => $cisco,
-                            'candidats' => (int) $ciscoRows->sum('effectif'),
+                            'candidats' => (int) $ciscoRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif'),
                             'salles' => $this->countDistinctSalles($ciscoRows),
                         ];
                     })
@@ -3952,7 +4031,7 @@ class RepartitionReportController extends Controller
 
                 return [
                     'dren' => $dren,
-                    'candidats' => (int) $drenRows->sum('effectif'),
+                    'candidats' => (int) $drenRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif'),
                     'salles' => $this->countDistinctSalles($drenRows),
                     'ciscos' => $ciscos,
                 ];
@@ -4196,6 +4275,7 @@ class RepartitionReportController extends Controller
                 'rs.langue',
                 'rs.numero_salle',
                 'rs.effectif',
+                'rs.eps_inapt_effectif',
                 'rs.axe_dispatching',
                 'rs.point_largage',
                 'ce.id as centre_ecrit_id',
@@ -4224,7 +4304,13 @@ class RepartitionReportController extends Controller
         }
 
         if ($filters['type_examen'] === self::TYPE_BEPC) {
-            $query->where('rs.langue', '!=', self::CEPE_KEY);
+            if (str_starts_with((string) $filters['annee'], '2026')) {
+                $query->whereIn('rs.langue', [RepartitionSalle::BEPC_TOTAL_KEY, 'Etranger (anglais obligatoire)']);
+            } else {
+                // Annee vide = toutes les annees : garder les anciennes lignes par langue
+                // ainsi que les lignes TOTAL_BEPC du nouveau format.
+                $query->where('rs.langue', '!=', self::CEPE_KEY);
+            }
         } elseif ($filters['type_examen'] === self::TYPE_CEPE) {
             $query->where('rs.langue', self::CEPE_KEY);
         }
@@ -4305,6 +4391,14 @@ class RepartitionReportController extends Controller
 
     private function normalizeBepcLangueBucket(string $langue): string
     {
+        if ($langue === RepartitionSalle::BEPC_TOTAL_KEY) {
+            return 'TOTAL BEPC';
+        }
+
+        if ($langue === 'Etranger (anglais obligatoire)') {
+            return 'Candidats étrangers';
+        }
+
         if ($this->isForeignOptionLabel($langue, 'A')) {
             return 'Etranger Option A';
         }
@@ -4344,6 +4438,8 @@ class RepartitionReportController extends Controller
                 $typeExamen = (string) $first->type_examen;
                 $isBepc = $typeExamen === self::TYPE_BEPC;
                 $bepcLangueMap = [
+                    'TOTAL BEPC' => 'Total candidats',
+                    'Candidats étrangers' => 'Étrangers (anglais)',
                     'Anglais' => 'Ang',
                     'Allemand' => 'ALL',
                     'Esp' => 'ESP',
@@ -4351,13 +4447,18 @@ class RepartitionReportController extends Controller
                     'Etranger Option A' => 'ETR A',
                     'Etranger Option B' => 'ETR B',
                 ];
-                $bepcLangueOrder = $bepcLanguesOnly && $isBepc
+                $hasSimplifiedRows = $centreRows->contains(fn ($row) => (string) $row->langue === RepartitionSalle::BEPC_TOTAL_KEY);
+                $bepcLangueOrder = $hasSimplifiedRows
+                    ? ['TOTAL BEPC', 'Candidats étrangers']
+                    : ($bepcLanguesOnly && $isBepc
                     ? ['Anglais', 'Allemand', 'Esp']
-                    : ['Anglais', 'Allemand', 'Esp', 'Option B', 'Etranger Option A', 'Etranger Option B'];
+                    : ['Anglais', 'Allemand', 'Esp', 'Option B', 'Etranger Option A', 'Etranger Option B']);
 
-                $displayRows = $bepcLanguesOnly && $isBepc
+                $displayRows = $hasSimplifiedRows
+                    ? $centreRows->filter(fn ($row) => in_array((string) $row->langue, [RepartitionSalle::BEPC_TOTAL_KEY, 'Etranger (anglais obligatoire)'], true))
+                    : ($bepcLanguesOnly && $isBepc
                     ? $centreRows->filter(fn ($row) => in_array((string) $row->langue, ['Anglais', 'Allemand', 'Esp'], true))
-                    : $centreRows;
+                    : $centreRows);
 
                 if ($displayRows->isEmpty()) {
                     return null;
@@ -4395,9 +4496,11 @@ class RepartitionReportController extends Controller
                         ->values();
                 }
 
-                $tables = $salleChunks->map(function (Collection $chunk, int $index) use ($labels, $rowsByLangue) {
+                $tables = $salleChunks->map(function (Collection $chunk, int $index) use ($labels, $rowsByLangue, $hasSimplifiedRows) {
                     $tableRows = $labels->map(function (string $label) use ($chunk, $rowsByLangue) {
                         $langueKey = match ($label) {
+                            'Total candidats' => 'TOTAL BEPC',
+                            'Étrangers (anglais)' => 'Candidats étrangers',
                             'Ang' => 'Anglais',
                             'ALL' => 'Allemand',
                             'ESP' => 'Esp',
@@ -4420,20 +4523,38 @@ class RepartitionReportController extends Controller
                         ];
                     });
 
-                    $totauxSalles = $chunk->mapWithKeys(function (int $salle) use ($tableRows) {
-                        return [$salle => (int) $tableRows->sum(fn (array $row) => (int) ($row['values'][$salle] ?? 0))];
-                    });
+                $totauxSalles = $chunk->mapWithKeys(function (int $salle) use ($tableRows) {
+                    return [$salle => (int) $tableRows->sum(fn (array $row) => (int) ($row['values'][$salle] ?? 0))];
+                });
 
-                    return [
-                        'index' => $index + 1,
-                        'salles' => $chunk->values(),
-                        'rows' => $tableRows,
-                        'totaux_salles' => $totauxSalles,
-                    ];
-                })->values();
+                if ($hasSimplifiedRows) {
+                    $totalRow = $rowsByLangue->get(RepartitionSalle::BEPC_TOTAL_KEY, collect())
+                        ->groupBy('numero_salle')
+                        ->map(fn (Collection $rows) => (int) $rows->sum('effectif'));
+                    $totauxSalles = $totauxSalles->map(fn (int $total, int $salle) => (int) $totalRow->get($salle, $total));
+                }
 
-                $pe = $this->countDistinctSalles($displayRows);
+                return [
+                    'index' => $index + 1,
+                    'salles' => $chunk->values(),
+                    'rows' => $tableRows,
+                    'totaux_salles' => $totauxSalles,
+                ];
+            })->values();
+
+                $candidateBookRows = $displayRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)');
+                $candidateSalleNumbers = $candidateBookRows->pluck('numero_salle')->unique()->sort()->values()->all();
+                $pe = $this->countDistinctSalles($candidateBookRows);
                 $geDistribution = $this->getGeDistribution($pe, (string) $first->type_examen);
+                $geGroups = [];
+                $roomOffset = 0;
+                foreach ($geDistribution as $geIndex => $geSize) {
+                    $geGroups[] = [
+                        'numero' => $geIndex + 1,
+                        'salles' => array_slice($candidateSalleNumbers, $roomOffset, $geSize),
+                    ];
+                    $roomOffset += $geSize;
+                }
                 $geDistributionProbleme = $first->type_examen === self::TYPE_CEPE
                     ? $this->getGeDistribution($pe, self::TYPE_BEPC)
                     : [];
@@ -4465,11 +4586,14 @@ class RepartitionReportController extends Controller
                     'point_largage' => trim((string) ($first->point_largage ?? '')),
                     'annee' => $first->annee,
                     'type_examen' => $first->type_examen,
-                    'total_candidats' => $displayRows->sum('effectif'),
+                    'is_bepc_simplified' => $hasSimplifiedRows,
+                    'total_candidats' => $displayRows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif'),
+                    'total_eps_inaptes' => (int) $displayRows->sum('eps_inapt_effectif'),
                     'total_salles' => $pe,
                     'pe' => $pe,
                     'ge_count' => count($geDistribution),
                     'ge_distribution' => $geDistribution,
+                    'ge_groups' => $geGroups,
                     'ge_distribution_probleme' => $geDistributionProbleme,
                     'ge_distribution_autres' => $geDistributionAutres,
                     'langue_totals' => $langueTotals,
@@ -4724,7 +4848,8 @@ class RepartitionReportController extends Controller
             ['key' => 'malagasy', 'label' => 'Malagasy', 'pages' => (int) $settings->bepc_pages_malagasy, 'subject_type' => self::TYPE_BEPC, 'grouping_type' => self::TYPE_BEPC, 'mode' => 'mandatory'],
             ['key' => 'svt', 'label' => 'SVT', 'pages' => (int) $settings->bepc_pages_svt, 'subject_type' => self::TYPE_BEPC, 'grouping_type' => self::TYPE_BEPC, 'mode' => 'mandatory'],
             ['key' => 'francais', 'label' => 'Français', 'pages' => (int) $settings->bepc_pages_francais, 'subject_type' => self::TYPE_BEPC, 'grouping_type' => self::TYPE_BEPC, 'mode' => 'mandatory'],
-            ['key' => 'anglais', 'label' => 'Anglais', 'pages' => (int) $settings->bepc_pages_anglais, 'subject_type' => self::TYPE_BEPC, 'grouping_type' => self::TYPE_BEPC, 'mode' => 'langue', 'langue' => 'Anglais'],
+            ['key' => 'anglais', 'label' => 'Anglais', 'pages' => (int) $settings->bepc_pages_anglais, 'subject_type' => self::TYPE_BEPC, 'grouping_type' => self::TYPE_BEPC, 'mode' => 'mandatory', 'annee_from' => '2026'],
+            ['key' => 'anglais_langue', 'label' => 'Anglais', 'pages' => (int) $settings->bepc_pages_anglais, 'subject_type' => self::TYPE_BEPC, 'grouping_type' => self::TYPE_BEPC, 'mode' => 'langue', 'langue' => 'Anglais', 'annee_until' => '2025'],
             ['key' => 'esp', 'label' => 'Esp', 'pages' => (int) $settings->bepc_pages_esp, 'subject_type' => self::TYPE_BEPC, 'grouping_type' => self::TYPE_BEPC, 'mode' => 'langue', 'langue' => 'Esp'],
             ['key' => 'pc', 'label' => 'PC', 'pages' => (int) $settings->bepc_pages_pc, 'subject_type' => self::TYPE_BEPC, 'grouping_type' => self::TYPE_BEPC, 'mode' => 'mandatory'],
             ['key' => 'math', 'label' => 'Math', 'pages' => (int) $settings->bepc_pages_math, 'subject_type' => self::TYPE_BEPC, 'grouping_type' => self::TYPE_BEPC, 'mode' => 'mandatory'],
@@ -4741,6 +4866,12 @@ class RepartitionReportController extends Controller
         $subjects = [];
 
         foreach ($subjectDefinitions as $subject) {
+            if (isset($subject['annee_from']) && strcmp((string) $first->annee, (string) $subject['annee_from']) < 0) {
+                continue;
+            }
+            if (isset($subject['annee_until']) && strcmp((string) $first->annee, (string) $subject['annee_until']) > 0) {
+                continue;
+            }
             $pages = max(0, (int) ($subject['pages'] ?? 0));
             if ($pages === 0) {
                 continue;
@@ -4748,14 +4879,18 @@ class RepartitionReportController extends Controller
 
             if (($subject['mode'] ?? 'mandatory') === 'langue') {
                 $langue = (string) ($subject['langue'] ?? '');
-                $candidates = (int) $group->where('langue', $langue)->sum('effectif');
-                $roomCount = $group
+                $subjectRows = $group->where('langue', $langue);
+                $candidates = (int) $subjectRows->sum('effectif');
+                $roomCount = $subjectRows
                     ->filter(fn ($row) => (string) $row->langue === $langue && (int) $row->effectif > 0)
                     ->pluck('numero_salle')
                     ->unique()
                     ->count();
             } else {
-                $candidates = (int) $group->sum('effectif');
+                $candidateRows = $group->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)');
+                $candidates = (int) ($candidateRows->contains(fn ($row) => (string) $row->langue === RepartitionSalle::BEPC_TOTAL_KEY)
+                    ? $candidateRows->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)->sum('effectif')
+                    : $candidateRows->sum('effectif'));
                 $roomCount = $totalSalles;
             }
 
@@ -4785,7 +4920,9 @@ class RepartitionReportController extends Controller
             'centre_ecrit' => (string) $first->centre_ecrit,
             'annee' => (string) $first->annee,
             'type_examen' => $typeExamen,
-            'total_candidats' => (int) $group->sum('effectif'),
+            'total_candidats' => (int) ($group->contains(fn ($row) => (string) $row->langue === RepartitionSalle::BEPC_TOTAL_KEY)
+                ? $group->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)->sum('effectif')
+                : $group->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif')),
             'total_salles' => $totalSalles,
             'total_pe_count' => (int) collect($subjects)->sum('pe_count'),
             'total_pe_with_margin' => (int) collect($subjects)->sum('pe_total_with_margin'),
@@ -4960,7 +5097,8 @@ class RepartitionReportController extends Controller
             return $rows;
         }
 
-        $nonEmptyKeys = $rows
+        $candidateRows = $rows->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)');
+        $nonEmptyKeys = $candidateRows
             ->groupBy(fn ($row) => $row->centre_ecrit_id.'|'.$row->annee.'|'.$row->type_examen.'|'.$row->numero_salle)
             ->filter(fn (Collection $group) => (int) $group->sum('effectif') > 0)
             ->keys()
@@ -4997,7 +5135,10 @@ class RepartitionReportController extends Controller
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('RECAP_CISCO');
-        $headers = [
+        $isSimplifiedBepc = $rows->contains(fn ($row) => (string) $row->langue === RepartitionSalle::BEPC_TOTAL_KEY);
+        $headers = $isSimplifiedBepc ? [
+            'DREN', 'CISCO', 'NOMBRE DE CENTRES DE CORRECTION', 'NOMBRE DE CENTRES ECRIT', 'TOTAL CANDIDATS', 'TOTAL SALLES', 'TOTAL ETRANGERS', 'TOTAL INAPTES EPS',
+        ] : [
             'DREN',
             'CISCO',
             'NOMBRE DE CENTRES DE CORRECTION',
@@ -5021,8 +5162,12 @@ class RepartitionReportController extends Controller
                     'cisco' => (string) $group->first()->cisco,
                     'centres_correction' => $group->pluck('centre_correction')->unique()->count(),
                     'centres_ecrit' => $group->pluck('centre_ecrit_id')->unique()->count(),
-                    'total_candidats' => (int) $group->sum('effectif'),
+                    'total_candidats' => (int) ($group->contains(fn ($row) => (string) $row->langue === RepartitionSalle::BEPC_TOTAL_KEY)
+                        ? $group->where('langue', RepartitionSalle::BEPC_TOTAL_KEY)->sum('effectif')
+                        : $group->reject(fn ($row) => (string) $row->langue === 'Etranger (anglais obligatoire)')->sum('effectif')),
                     'total_salles' => $this->countDistinctSalles($group),
+                    'total_etrangers' => (int) $group->where('langue', 'Etranger (anglais obligatoire)')->sum('effectif'),
+                    'inaptes_eps' => (int) $group->sum('eps_inapt_effectif'),
                     'anglais' => $sum('Anglais'),
                     'all' => $sum('Allemand'),
                     'esp' => $sum('Esp'),
@@ -5041,11 +5186,15 @@ class RepartitionReportController extends Controller
             'all' => 0,
             'esp' => 0,
             'option_b' => 0,
+            'total_etrangers' => 0,
+            'inaptes_eps' => 0,
         ];
 
         $rowIndex = 2;
         foreach ($recapRows as $line) {
-            $sheet->fromArray([
+            $sheet->fromArray($isSimplifiedBepc ? [
+                $line['dren'], $line['cisco'], $line['centres_correction'], $line['centres_ecrit'], $line['total_candidats'], $line['total_salles'], $line['total_etrangers'], $line['inaptes_eps'],
+            ] : [
                 $line['dren'],
                 $line['cisco'],
                 $line['centres_correction'],
@@ -5065,7 +5214,9 @@ class RepartitionReportController extends Controller
             $rowIndex++;
         }
 
-        $sheet->fromArray([
+        $sheet->fromArray($isSimplifiedBepc ? [
+            'TOTAL GLOBAL', '', $totals['centres_correction'], $totals['centres_ecrit'], $totals['total_candidats'], $totals['total_salles'], $totals['total_etrangers'], $totals['inaptes_eps'],
+        ] : [
             'TOTAL GLOBAL',
             '',
             $totals['centres_correction'],
@@ -5078,11 +5229,12 @@ class RepartitionReportController extends Controller
             $totals['option_b'],
         ], null, "A{$rowIndex}");
 
-        $sheet->getStyle('A1:J1')->getFont()->setBold(true);
-        $sheet->getStyle("A{$rowIndex}:J{$rowIndex}")->getFont()->setBold(true);
-        $sheet->getStyle('A1:J1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
-        $sheet->getStyle("A1:J{$rowIndex}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-        foreach (range('A', 'J') as $col) {
+        $lastCol = $sheet->getHighestColumn();
+        $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);
+        $sheet->getStyle("A{$rowIndex}:{$lastCol}{$rowIndex}")->getFont()->setBold(true);
+        $sheet->getStyle("A1:{$lastCol}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle("A1:{$lastCol}{$rowIndex}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        foreach (range('A', $lastCol) as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
     }
@@ -5993,8 +6145,10 @@ class RepartitionReportController extends Controller
                 'cs.nom as cisco',
                 'ce.id as centre_ecrit_id',
                 'ce.nom as centre_ecrit',
-                DB::raw('SUM(rs.effectif) as total_candidats'),
-                DB::raw("SUM(CASE WHEN rs.langue IN ('Anglais', 'Allemand', 'Esp') THEN rs.effectif ELSE 0 END) as total_langues"),
+                DB::raw("SUM(CASE WHEN rs.langue = 'Etranger (anglais obligatoire)' THEN 0 ELSE rs.effectif END) as total_candidats"),
+                DB::raw("SUM(CASE WHEN rs.langue = 'Etranger (anglais obligatoire)' THEN rs.effectif ELSE 0 END) as total_etrangers"),
+                DB::raw('SUM(rs.eps_inapt_effectif) as total_eps_inaptes'),
+                DB::raw("SUM(CASE WHEN rs.langue IN ('Anglais', 'Allemand', 'Esp', '".RepartitionSalle::BEPC_TOTAL_KEY."') THEN rs.effectif ELSE 0 END) as total_langues"),
                 DB::raw('MAX(bcd.code_postal) as code_postal'),
             ])
             ->where('rs.langue', '!=', self::CEPE_KEY);
@@ -6002,6 +6156,13 @@ class RepartitionReportController extends Controller
         if ($filters['annee'] !== '') {
             $centreRows->where('rs.annee', $filters['annee']);
         }
+        $centreRows->where(function ($query) use ($filters) {
+            if (str_starts_with((string) ($filters['annee'] ?? ''), '2026')) {
+                $query->whereIn('rs.langue', [RepartitionSalle::BEPC_TOTAL_KEY, 'Etranger (anglais obligatoire)']);
+            } else {
+                $query->where('rs.langue', '!=', RepartitionSalle::BEPC_TOTAL_KEY);
+            }
+        });
 
         if ($filters['dren'] !== '') {
             $centreRows->where('d.nom', $filters['dren']);
@@ -6037,6 +6198,8 @@ class RepartitionReportController extends Controller
                 'centre_ecrit' => (string) $row->centre_ecrit,
                 'code_postal' => (string) ($row->code_postal ?? ''),
                 'total_candidats' => (int) ($row->total_candidats ?? 0),
+                'total_etrangers' => (int) ($row->total_etrangers ?? 0),
+                'total_eps_inaptes' => (int) ($row->total_eps_inaptes ?? 0),
                 'total_langues' => (int) ($row->total_langues ?? 0),
             ])
             ->values();
@@ -6118,6 +6281,8 @@ class RepartitionReportController extends Controller
                 'total_ciscos' => $centreRows->pluck('cisco_id')->unique()->count(),
                 'total_dispatch_rows' => $rows->count(),
                 'total_candidats' => (int) $rows->sum('total_candidats'),
+                'total_etrangers' => (int) $centreRows->sum('total_etrangers'),
+                'total_eps_inaptes' => (int) $centreRows->sum('total_eps_inaptes'),
                 'total_centres' => (int) $rows->sum('total_centres'),
                 'total_centres_sans_langue' => (int) $rows->sum('centres_sans_langue'),
                 'total_feuilles_double' => (int) $rows->sum('feuilles_double'),
@@ -6136,8 +6301,13 @@ class RepartitionReportController extends Controller
     private function buildBepcCopiesDistributionRow(Collection $centres, array $base, float $marginRatio, array $filters): array
     {
         $candidats = (int) $centres->sum('total_candidats');
+        $etrangers = (int) $centres->sum('total_etrangers');
+        $epsInaptes = (int) $centres->sum('total_eps_inaptes');
         $totalCentres = $centres->count();
-        $centresSansLangue = (int) $centres->filter(fn (array $centre) => (int) ($centre['total_langues'] ?? 0) <= 0)->count();
+        $isSimplifiedBepc = str_starts_with((string) ($filters['annee'] ?? ''), '2026');
+        $centresSansLangue = (int) $centres->filter(fn (array $centre) => $isSimplifiedBepc
+            ? (int) ($centre['total_etrangers'] ?? 0) <= 0
+            : (int) ($centre['total_langues'] ?? 0) <= 0)->count();
         $centresSansLanguePercent = $totalCentres > 0 ? round(($centresSansLangue / $totalCentres) * 100, 1) : 0;
         $feuillesDouble = (int) ceil($candidats * $marginRatio * 9);
         $feuillesSimple = (int) ceil($candidats * $marginRatio * 18);
@@ -6164,6 +6334,8 @@ class RepartitionReportController extends Controller
             'code_postal' => (string) ($base['code_postal'] ?? ''),
             'row_type' => (string) ($base['row_type'] ?? 'cisco'),
             'total_candidats' => $candidats,
+            'total_etrangers' => $etrangers,
+            'total_eps_inaptes' => $epsInaptes,
             'total_centres' => $totalCentres,
             'centres_sans_langue' => $centresSansLangue,
             'centres_sans_langue_percent' => $centresSansLanguePercent,

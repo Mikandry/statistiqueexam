@@ -563,6 +563,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('vacation2026.dashboard.global');
     Route::get('/vacation-2026/dashboards/men-central', [Vacation2026DashboardController::class, 'menCentral'])
         ->name('vacation2026.dashboard.men-central');
+    Route::get('/vacation-2026/dashboards/men-central/excel', [Vacation2026DashboardController::class, 'exportMenCentralExcel'])
+        ->name('vacation2026.dashboard.men-central.excel');
     Route::get('/vacation-2026/dashboards/dren', [Vacation2026DashboardController::class, 'dren'])
         ->name('vacation2026.dren');
     Route::get('/vacation-2026/dashboards/cisco', [Vacation2026DashboardController::class, 'cisco'])

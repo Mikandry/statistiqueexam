@@ -23,7 +23,6 @@ class HrSettingsController extends Controller
             'direction' => ['nullable', 'string', 'max:255'],
             'service' => ['nullable', 'string', 'max:255'],
             'reference_prefix' => ['nullable', 'string', 'max:30'],
-            'next_reference_number' => ['required', 'integer', 'min:1', 'max:999999'],
             'reference_year' => ['nullable', 'integer', 'min:2000', 'max:2200'],
             'signataire' => ['nullable', 'string', 'max:255'],
             'signataire_qualite' => ['nullable', 'string', 'max:255'],

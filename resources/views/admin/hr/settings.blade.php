@@ -104,21 +104,9 @@
             </div>
 
 
-            {{-- PROCHAIN NUMÉRO --}}
-
-            <label class="text-sm font-semibold text-slate-700">
-
-                Prochain numéro
-
-                <input
-                    type="number"
-                    min="1"
-                    name="next_reference_number"
-                    value="{{ old('next_reference_number', $settings?->next_reference_number ?: 1) }}"
-                    class="mt-1 w-full rounded-xl border-slate-300 bg-slate-50/50 px-4 py-2 text-sm shadow-sm transition-all focus:border-teal-400 focus:ring-2 focus:ring-teal-200 focus:outline-none"
-                >
-
-            </label>
+            <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                Le numéro de chaque fiche est désormais saisi manuellement par l'utilisateur lors de sa demande. Un même numéro ne peut pas être attribué à deux fiches.
+            </div>
 
 
             {{-- ANNÉE --}}

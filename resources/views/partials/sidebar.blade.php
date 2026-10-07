@@ -27,6 +27,11 @@
     );
     $isLogisticsWorkspace = request()->routeIs('inventory.*', 'repartition.logistique.*', 'repartition.livraison.*', 'repartition.export.dispatching.*');
     $hasWorkspace = $isVacationWorkspace || $isRhWorkspace || $isStatisticsWorkspace || $isLogisticsWorkspace;
+
+    // Les administrateurs conservent les raccourcis transversaux.
+    // Cela évite que les liens historiques disparaissent lorsqu'ils consultent
+    // une page d'un espace particulier.
+    $canSeeAllWorkspaces = $user?->isAdmin();
 @endphp
 
 <div class="app-sidebar-shell" id="appSidebarShell" data-sidebar-state="expanded">
@@ -98,7 +103,7 @@
             @endif
 
             {{-- SECTION : LOGISTIQUE --}}
-            @if((! $hasWorkspace || $isLogisticsWorkspace) && ($user?->canAccessLogistics() || $user?->isLogistique() || $user?->isAdmin()))
+            @if((! $hasWorkspace || $isLogisticsWorkspace || $canSeeAllWorkspaces) && ($user?->canAccessLogistics() || $user?->isLogistique() || $user?->isAdmin()))
                 <div class="app-sidebar-section-label app-sidebar-label">Logistique</div>
 
                 <a class="{{ request()->routeIs('inventory.*') ? $activeItem : $idleItem }}" href="{{ route('inventory.index') }}">
@@ -143,7 +148,7 @@
             @endif
 
             {{-- SECTION : RESSOURCES HUMAINES --}}
-            @if((! $hasWorkspace || $isRhWorkspace) && ($user?->isRh() || $user?->canAccessRh() || $user?->isAdmin()))
+            @if((! $hasWorkspace || $isRhWorkspace || $canSeeAllWorkspaces) && ($user?->isRh() || $user?->canAccessRh() || $user?->isAdmin()))
                 <div class="app-sidebar-section-label app-sidebar-label">Ressources Humaines</div>
 
                 <a class="{{ request()->routeIs('hr.*') ? $activeItem : $idleItem }}" href="{{ route('hr.dashboard') }}">
@@ -158,7 +163,7 @@
             @endif
 
             {{-- SECTION : SAISIE & EXAMENS --}}
-            @if((! $hasWorkspace || $isStatisticsWorkspace) && ($user?->canAccessExams() || (! $user?->isLogistique() && ! $user?->isRh() && ! $user?->isStats()) || $user?->isAdmin()))
+            @if((! $hasWorkspace || $isStatisticsWorkspace || $canSeeAllWorkspaces) && ($user?->canAccessExams() || (! $user?->isLogistique() && ! $user?->isRh() && ! $user?->isStats()) || $user?->isAdmin()))
                 <div class="app-sidebar-section-label app-sidebar-label">Examens & Saisie</div>
 
                 <a class="{{ request()->routeIs('bepc.repartition.create') ? $activeItem : $idleItem }}" href="{{ route('bepc.repartition.create') }}">
@@ -223,7 +228,7 @@
             @endif
 
             {{-- SECTION : ANALYSES & STATISTIQUES --}}
-            @if((! $hasWorkspace || $isStatisticsWorkspace) && ($user?->isStats() || $user?->canAccessStats() || $user?->isAdmin()))
+            @if((! $hasWorkspace || $isStatisticsWorkspace || $canSeeAllWorkspaces) && ($user?->isStats() || $user?->canAccessStats() || $user?->isAdmin()))
                 <div class="app-sidebar-section-label app-sidebar-label">Analyses & Tirages</div>
 
                 <a class="{{ request()->routeIs('repartition.stats.report*') ? $activeItem : $idleItem }}" href="{{ route('repartition.stats.report') }}">
@@ -320,7 +325,7 @@
             @endif
 
             {{-- SECTION : ADMINISTRATION --}}
-            @if($user?->isAdmin() && ! $hasWorkspace)
+            @if($user?->isAdmin())
                 <div class="app-sidebar-section-label app-sidebar-label">Administration</div>
 
                 <a class="{{ request()->routeIs('admin.hr.*') ? $activeItem : $idleItem }}" href="{{ route('admin.hr.settings') }}">
