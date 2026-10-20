@@ -21,6 +21,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -251,13 +252,6 @@ class Vacation2026Controller extends Controller
             $agent = null;
             $agentByIm = Vacation2026Agent::query()->where('im', $im)->first();
             if ($agentByIm) {
-                $sameNom = $this->normalizeText($agentByIm->nom) === $this->normalizeText($nom);
-                $sameLocalite = $this->normalizeText($agentByIm->localite_service) === $this->normalizeText($localite);
-                if (! $sameNom || ! $sameLocalite) {
-                    $errors++;
-                    $rejects[] = "Ligne {$lineNumber}: IM {$im} rejeté (ne correspond pas au nom/localité existants en base).";
-                    continue;
-                }
                 $agent = $agentByIm;
             }
 
@@ -721,40 +715,24 @@ class Vacation2026Controller extends Controller
                 $sheet->setCellValue("A{$line}", 'Aucune donnée affectée.');
             }
         } elseif ($document === 'presence') {
+            $mealOptions = [
+                'petit_dejeuner' => 'Petit déjeuner',
+                'gouter_matin' => 'Goûter',
+                'dejeuner' => 'Déjeuner',
+                'gouter_apres_midi' => 'Goûter après-midi',
+                'diner' => 'Dîner',
+            ];
+            $selectedMeals = array_values(array_intersect(
+                array_keys($mealOptions),
+                (array) $request->query('restauration', [])
+            ));
             $maxDays = (int) max(1, $rows->max('jours') ?? 1);
-            $dayHeaders = [];
-            for ($d = 1; $d <= $maxDays; $d++) {
-                $dayHeaders[] = "J{$d}";
-            }
-            $headers = array_merge(['N°', 'ACTIVITE', 'NOM', 'IM', 'LOCALITE DE SERVICE'], $dayHeaders);
-            $sheet->fromArray($headers, null, 'A1');
-            $presenceLastColumn = Coordinate::stringFromColumnIndex(count($headers));
-            $sheet->getStyle("A1:{$presenceLastColumn}1")->getFont()->setBold(true);
-            $sheet->getStyle("A1:{$presenceLastColumn}1")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDBEAFE');
+            $this->buildPresenceWorksheet($sheet, $rows, $setting, $activity, $maxDays, $mealOptions, $selectedMeals, false);
+            $sheet->setTitle('PRESENCE');
 
-            $line = 2;
-            foreach ($rows as $index => $item) {
-                $jours = (int) $item['jours'];
-                $dayCells = [];
-                for ($d = 1; $d <= $maxDays; $d++) {
-                    $dayCells[] = $d <= $jours ? '' : '-';
-                }
-
-                $sheet->fromArray(array_merge([
-                    $index + 1,
-                    $item['activite'],
-                    $item['nom'],
-                    $item['im'],
-                    $item['localite'],
-                ], $dayCells), null, "A{$line}");
-                $line++;
-            }
-
-            if ($line === 2) {
-                $sheet->setCellValue('A2', 'Aucune donnée affectée.');
-            }
-
-            $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
+            $restorationSheet = $spreadsheet->createSheet();
+            $restorationSheet->setTitle('RESTAURATION');
+            $this->buildPresenceWorksheet($restorationSheet, $rows, $setting, $activity, $maxDays, $mealOptions, $selectedMeals, true);
         } elseif ($document === 'recap') {
             $headers = ['EXAMEN', 'ACTIVITE', 'PARTICIPANTS', 'NB JOURS', 'TAUX MOYEN', 'MONTANT MOYEN', 'MONTANT TOTAL'];
             $sheet->fromArray($headers, null, 'A1');
@@ -866,7 +844,10 @@ class Vacation2026Controller extends Controller
 
             $lastIndex = Coordinate::columnIndexFromString($lastColumn);
             for ($i = 1; $i <= $lastIndex; $i++) {
-                $currentSheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setAutoSize(true);
+                $column = Coordinate::stringFromColumnIndex($i);
+                if ($document !== 'presence') {
+                    $currentSheet->getColumnDimension($column)->setAutoSize(true);
+                }
             }
         }
 
@@ -878,6 +859,66 @@ class Vacation2026Controller extends Controller
         }, $fileName, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
+    }
+
+    private function buildPresenceWorksheet(
+        Worksheet $sheet,
+        Collection $rows,
+        ?Vacation2026Setting $setting,
+        ?Vacation2026Activity $activity,
+        int $maxDays,
+        array $mealOptions,
+        array $selectedMeals,
+        bool $restauration
+    ): void {
+        $days = [];
+        for ($day = 1; $day <= $maxDays; $day++) {
+            if ($restauration) {
+                foreach ($selectedMeals as $meal) {
+                    $days[] = ['label' => "J{$day} - {$mealOptions[$meal]}", 'day' => $day];
+                }
+            } else {
+                $days[] = ['label' => "J{$day}", 'day' => $day];
+            }
+        }
+        $headers = array_merge(['N°', 'ACTIVITÉ', 'NOM ET PRÉNOMS', 'IM', 'LOCALITÉ DE SERVICE'], array_column($days, 'label'));
+        $lastColumn = Coordinate::stringFromColumnIndex(count($headers));
+        $line = $this->writeWorksheetHeader($sheet, $lastColumn, $this->resolveDocumentTitle('presence', $setting).($restauration ? ' - RESTAURATION' : ''), $setting, $activity);
+        $headerRow = $line++;
+        $sheet->fromArray($headers, null, "A{$headerRow}");
+        $sheet->getStyle("A{$headerRow}:{$lastColumn}{$headerRow}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$headerRow}:{$lastColumn}{$headerRow}")->getAlignment()->setHorizontal('center')->setVertical('center')->setWrapText(true);
+        $sheet->getRowDimension($headerRow)->setRowHeight(30);
+
+        foreach ($rows as $index => $item) {
+            $values = [$index + 1, $item['activite'], $item['nom'], $item['im'], $item['localite']];
+            foreach ($days as $day) {
+                $values[] = $day['day'] <= (int) $item['jours'] ? '' : '-';
+            }
+            $sheet->fromArray($values, null, "A{$line}");
+            $sheet->getRowDimension($line)->setRowHeight(50);
+            $line++;
+        }
+        if ($line === $headerRow + 1) {
+            $sheet->setCellValue("A{$line}", 'Aucune donnée affectée.');
+        }
+
+        foreach (['A' => 5, 'B' => 20, 'C' => 28, 'D' => 12, 'E' => 20] as $column => $width) {
+            $sheet->getColumnDimension($column)->setWidth($width);
+        }
+        for ($i = 6; $i <= count($headers); $i++) {
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setWidth(30);
+        }
+        $sheet->getStyle("A{$headerRow}:{$lastColumn}".($line - 1))->getAlignment()->setVertical('center');
+        $sheet->getStyle("A{$headerRow}:{$lastColumn}".($line - 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
+        $sheet->getPageSetup()->setPaperSize(PageSetup::PAPERSIZE_A3);
+        $sheet->getPageSetup()->setFitToWidth(1)->setFitToHeight(0);
+        $sheet->getPageSetup()->setScale(0);
+        $sheet->getPageMargins()->setLeft(0.2)->setRight(0.2)->setTop(0.3)->setBottom(0.3)->setHeader(0.1)->setFooter(0.1);
+        $sheet->getPageSetup()->setPrintArea("A1:{$lastColumn}".max(1, $line - 1));
+        $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd($headerRow, $headerRow);
+        $sheet->getHeaderFooter()->setOddHeader('&C&B'.$this->resolveDocumentTitle('presence', $setting));
     }
 
     public function exportPdf(Request $request, string $document)
@@ -1234,6 +1275,22 @@ class Vacation2026Controller extends Controller
             trim($documentTitle),
             'Activité : '.($activity ? trim($activity->examen.' - '.$activity->libelle) : 'Toutes activités'),
         ], fn ($value) => $value !== ''));
+
+        if ($sheet->getTitle() === 'PRESENCE' || $sheet->getTitle() === 'RESTAURATION') {
+            $sheet->mergeCells("A{$line}:{$lastColumn}{$line}");
+            $sealPath = public_path('images/drapeau-madagascar.jpeg');
+            if (is_file($sealPath) && @getimagesize($sealPath) !== false) {
+                $seal = new Drawing();
+                $seal->setPath($sealPath);
+                $seal->setHeight(34);
+                $seal->setCoordinates("A{$line}");
+                $seal->setOffsetX(8);
+                $seal->setWorksheet($sheet);
+            }
+            $sheet->getStyle("A{$line}:{$lastColumn}{$line}")->getAlignment()->setHorizontal('center');
+            $sheet->getRowDimension($line)->setRowHeight(28);
+            $line++;
+        }
 
         foreach ($blocks as $index => $block) {
             $sheet->mergeCells("A{$line}:{$lastColumn}{$line}");

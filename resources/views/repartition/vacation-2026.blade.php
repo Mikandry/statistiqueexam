@@ -365,14 +365,25 @@
 
                         <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                             <div class="mb-2 font-medium text-slate-700">Fiche de présence (Excel paysage)</div>
-                            <form method="GET" action="{{ route('vacation2026.exports.xlsx', ['document' => 'presence']) }}" class="grid grid-cols-1 gap-2 md:grid-cols-4">
-                                <select name="activity_id" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                            <form method="GET" action="{{ route('vacation2026.exports.xlsx', ['document' => 'presence']) }}" class="space-y-3">
+                                <select name="activity_id" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                                     <option value="">Toutes activités</option>
                                     @foreach($activities as $activity)
                                         <option value="{{ $activity['id'] }}">{{ $activity['examen'] }} - {{ $activity['libelle'] }}</option>
                                     @endforeach
                                 </select>
-                                <button type="submit" class="rounded-lg bg-blue-700 px-3 py-2 text-xs font-medium text-white hover:bg-blue-600">Présence (Excel)</button>
+                                <fieldset>
+                                    <legend class="mb-1 text-xs font-medium text-slate-700">Repas à inscrire sur la feuille restauration</legend>
+                                    <div class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-600">
+                                        @foreach(['petit_dejeuner' => 'Petit déjeuner', 'gouter_matin' => 'Goûter', 'dejeuner' => 'Déjeuner', 'gouter_apres_midi' => 'Goûter après-midi', 'diner' => 'Dîner'] as $meal => $label)
+                                            <label class="inline-flex items-center gap-1.5">
+                                                <input type="checkbox" name="restauration[]" value="{{ $meal }}" checked class="rounded border-slate-300">
+                                                {{ $label }}
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                </fieldset>
+                                <button type="submit" class="rounded-lg bg-blue-700 px-3 py-2 text-xs font-medium text-white hover:bg-blue-600">Présence + restauration (Excel)</button>
                             </form>
                         </div>
 

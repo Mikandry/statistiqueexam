@@ -1,0 +1,116 @@
+diff --git a/app/Models/Dren.php b/app/Models/Dren.php
+index 3f84170..036f33e 100644
+--- a/app/Models/Dren.php
++++ b/app/Models/Dren.php
+@@ -7,7 +7,12 @@
+ 
+ class Dren extends Model
+ {
+-    protected $fillable = ['nom'];
++    protected $fillable = ['nom', 'province', 'is_chef_lieu_province'];
++
++    protected function casts(): array
++    {
++        return ['is_chef_lieu_province' => 'boolean'];
++    }
+ 
+     public function ciscos(): HasMany
+     {
+diff --git a/resources/views/partials/sidebar.blade.php b/resources/views/partials/sidebar.blade.php
+index 7ed9e8e..e5a59be 100644
+--- a/resources/views/partials/sidebar.blade.php
++++ b/resources/views/partials/sidebar.blade.php
+@@ -306,6 +306,57 @@
+                     </span>
+                 </a>
+ 
++                <div class="app-sidebar-section-label app-sidebar-label">Besoins &amp; montants 2026</div>
++
++                <a class="{{ request()->routeIs('vacation2026.besoins.dashboard*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.dashboard') }}">
++                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110">
++                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 14l4-4 4 4 5-6"/></svg>
++                    </span>
++                    <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Besoins & montants</span><span class="app-sidebar-link-meta">Madagascar · tableau de bord</span></span>
++                </a>
++
++                <a class="{{ request()->routeIs('vacation2026.besoins.activites*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.activites') }}">
++                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110">
++                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
++                    </span>
++                    <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Personnes par activité</span><span class="app-sidebar-link-meta">Effectifs mobilisés</span></span>
++                </a>
++
++                <a class="{{ request()->routeIs('vacation2026.besoins.dren*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.dren') }}">
++                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110">
++                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
++                    </span>
++                    <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Par DREN</span><span class="app-sidebar-link-meta">Effectifs et montants</span></span>
++                </a>
++
++                <a class="{{ request()->routeIs('vacation2026.besoins.cisco*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.cisco') }}">
++                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110">
++                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
++                    </span>
++                    <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Par CISCO</span><span class="app-sidebar-link-meta">Effectifs et montants</span></span>
++                </a>
++
++                <a class="{{ request()->routeIs('vacation2026.besoins.centres*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.centres') }}">
++                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110">
++                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
++                    </span>
++                    <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Par centre</span><span class="app-sidebar-link-meta">Écrit · correction · EPS</span></span>
++                </a>
++
++                <a class="{{ request()->routeIs('vacation2026.besoins.baremes*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.baremes') }}">
++                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110">
++                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
++                    </span>
++                    <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Barèmes (taux)</span><span class="app-sidebar-link-meta">Arrêté · indemnités</span></span>
++                </a>
++
++                <a class="{{ request()->routeIs('vacation2026.besoins.parametres*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.parametres') }}">
++                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110">
++                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
++                    </span>
++                    <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Paramètres du calcul</span><span class="app-sidebar-link-meta">Provinces · options</span></span>
++                </a>
++
+                 <a class="{{ request('tab') === 'settings' ? $activeItem : $idleItem }}" href="{{ route('vacation2026.index', ['tab' => 'settings']) }}">
+                     <span class="app-sidebar-icon-wrap bg-slate-700 text-slate-200 group-hover:scale-110">
+                         <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6.364.364l-1.414 1.414M18.364 5.636l1.414-1.414M6.343 6.343L4.929 4.929M18.364 18.364l1.414 1.414M4 12H2m20 0h-2M12 4V2m0 20v-2m0-4a4 4 0 100-8 4 4 0 000 8z"/></svg>
+diff --git a/routes/web.php b/routes/web.php
+index c44dd25..6b72448 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -20,6 +20,7 @@
+ use App\Http\Controllers\RepartitionReportController;
+ use App\Http\Controllers\Vacation2026Controller;
+ use App\Http\Controllers\Vacation2026DashboardController;
++use App\Http\Controllers\Vacation2026BesoinsController;
+ use Illuminate\Support\Facades\Route;
+ 
+ // Route::get('/', function () {
+@@ -558,6 +559,23 @@
+     Route::get('/vacation-2026/exports/{document}/pdf', [Vacation2026Controller::class, 'exportPdf'])
+         ->name('vacation2026.exports.pdf');
+ 
++    // Vacation 2026 — Besoins & Montants (effectifs mobilisés par activité, sans affectation d'agents)
++    Route::prefix('/vacation-2026/besoins')->name('vacation2026.besoins.')->group(function () {
++        Route::get('/', [Vacation2026BesoinsController::class, 'dashboard'])->name('dashboard');
++        Route::get('/activites', [Vacation2026BesoinsController::class, 'activites'])->name('activites');
++        Route::get('/dren', [Vacation2026BesoinsController::class, 'dren'])->name('dren');
++        Route::get('/dren/{dren}', [Vacation2026BesoinsController::class, 'showDren'])->name('dren.show');
++        Route::get('/cisco', [Vacation2026BesoinsController::class, 'cisco'])->name('cisco');
++        Route::get('/cisco/{cisco}', [Vacation2026BesoinsController::class, 'showCisco'])->whereNumber('cisco')->name('cisco.show');
++        Route::get('/centres', [Vacation2026BesoinsController::class, 'centres'])->name('centres');
++        Route::get('/centres/{key}', [Vacation2026BesoinsController::class, 'showCentre'])->name('centres.show');
++        Route::get('/export', [Vacation2026BesoinsController::class, 'export'])->name('export');
++        Route::get('/baremes', [Vacation2026BesoinsController::class, 'baremes'])->name('baremes');
++        Route::put('/baremes', [Vacation2026BesoinsController::class, 'updateBaremes'])->name('baremes.update');
++        Route::get('/parametres', [Vacation2026BesoinsController::class, 'parametres'])->name('parametres');
++        Route::put('/parametres', [Vacation2026BesoinsController::class, 'updateParametres'])->name('parametres.update');
++    });
++
+     // Vacation 2026 Dashboards
+     Route::get('/vacation-2026/dashboards/global', [Vacation2026DashboardController::class, 'global'])
+         ->name('vacation2026.dashboard.global');

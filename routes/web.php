@@ -20,7 +20,9 @@ use App\Http\Controllers\ReferenceImportController;
 use App\Http\Controllers\RepartitionReportController;
 use App\Http\Controllers\Vacation2026Controller;
 use App\Http\Controllers\Vacation2026DashboardController;
+use App\Http\Controllers\Vacation2026BesoinsController;
 use Illuminate\Support\Facades\Route;
+
 
 // Route::get('/', function () {
 //     return redirect()->route(auth()->check() ? 'bepc.repartition.create' : 'login');
@@ -557,6 +559,39 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('vacation2026.exports.xlsx');
     Route::get('/vacation-2026/exports/{document}/pdf', [Vacation2026Controller::class, 'exportPdf'])
         ->name('vacation2026.exports.pdf');
+            // Vacation 2026 — Besoins & Montants (effectifs mobilisés par activité, sans affectation d'agents) TEST SI DEJA CLONER
+    Route::prefix('/vacation-2026/besoins')->name('vacation2026.besoins.')->group(function () {
+        Route::get('/', [Vacation2026BesoinsController::class, 'dashboard'])->name('dashboard');
+        Route::get('/activites', [Vacation2026BesoinsController::class, 'activites'])->name('activites');
+        Route::get('/dren', [Vacation2026BesoinsController::class, 'dren'])->name('dren');
+        Route::get('/dren/{dren}', [Vacation2026BesoinsController::class, 'showDren'])->name('dren.show');
+        Route::get('/cisco', [Vacation2026BesoinsController::class, 'cisco'])->name('cisco');
+        Route::get('/cisco/{cisco}', [Vacation2026BesoinsController::class, 'showCisco'])->whereNumber('cisco')->name('cisco.show');
+        Route::get('/centres', [Vacation2026BesoinsController::class, 'centres'])->name('centres');
+        Route::get('/centres/{key}', [Vacation2026BesoinsController::class, 'showCentre'])->name('centres.show');
+        Route::get('/export', [Vacation2026BesoinsController::class, 'export'])->name('export');
+        Route::get('/baremes', [Vacation2026BesoinsController::class, 'baremes'])->name('baremes');
+        Route::put('/baremes', [Vacation2026BesoinsController::class, 'updateBaremes'])->name('baremes.update');
+        Route::get('/parametres', [Vacation2026BesoinsController::class, 'parametres'])->name('parametres');
+        Route::put('/parametres', [Vacation2026BesoinsController::class, 'updateParametres'])->name('parametres.update');
+    });
+
+    // Vacation 2026 — Besoins & Montants (effectifs mobilisés par activité, sans affectation d'agents)
+    Route::prefix('/vacation-2026/besoins')->name('vacation2026.besoins.')->group(function () {
+        Route::get('/', [Vacation2026BesoinsController::class, 'dashboard'])->name('dashboard');
+        Route::get('/activites', [Vacation2026BesoinsController::class, 'activites'])->name('activites');
+        Route::get('/dren', [Vacation2026BesoinsController::class, 'dren'])->name('dren');
+        Route::get('/dren/{dren}', [Vacation2026BesoinsController::class, 'showDren'])->name('dren.show');
+        Route::get('/cisco', [Vacation2026BesoinsController::class, 'cisco'])->name('cisco');
+        Route::get('/cisco/{cisco}', [Vacation2026BesoinsController::class, 'showCisco'])->whereNumber('cisco')->name('cisco.show');
+        Route::get('/centres', [Vacation2026BesoinsController::class, 'centres'])->name('centres');
+        Route::get('/centres/{key}', [Vacation2026BesoinsController::class, 'showCentre'])->name('centres.show');
+        Route::get('/export', [Vacation2026BesoinsController::class, 'export'])->name('export');
+        Route::get('/baremes', [Vacation2026BesoinsController::class, 'baremes'])->name('baremes');
+        Route::put('/baremes', [Vacation2026BesoinsController::class, 'updateBaremes'])->name('baremes.update');
+        Route::get('/parametres', [Vacation2026BesoinsController::class, 'parametres'])->name('parametres');
+        Route::put('/parametres', [Vacation2026BesoinsController::class, 'updateParametres'])->name('parametres.update');
+    });
 
     // Vacation 2026 Dashboards
     Route::get('/vacation-2026/dashboards/global', [Vacation2026DashboardController::class, 'global'])

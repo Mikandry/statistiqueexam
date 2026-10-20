@@ -7,7 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class Dren extends Model
 {
-    protected $fillable = ['nom'];
+    protected $fillable = ['nom', 'province', 'is_chef_lieu_province'];
+
+    protected function casts(): array
+    {
+        return ['is_chef_lieu_province' => 'boolean'];
+    }
 
     public function ciscos(): HasMany
     {
