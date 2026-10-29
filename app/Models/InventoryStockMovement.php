@@ -12,6 +12,16 @@ class InventoryStockMovement extends Model
 
     public const TYPE_IN = 'entree';
     public const TYPE_OUT = 'sortie';
+    public const TYPE_RETURN = 'retour';
+
+    /** Mouvements qui augmentent le stock. */
+    public const IN_TYPES = [self::TYPE_IN, self::TYPE_RETURN];
+
+    public const TYPES = [
+        self::TYPE_IN => 'Entrée (réception)',
+        self::TYPE_OUT => 'Sortie (remise)',
+        self::TYPE_RETURN => 'Retour',
+    ];
 
     protected $fillable = [
         'material_id',
@@ -29,6 +39,8 @@ class InventoryStockMovement extends Model
         'reason',
         'signature',
         'observation',
+        'request_token',
+        'supporting_document',
     ];
 
     protected function casts(): array

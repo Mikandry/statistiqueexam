@@ -7,6 +7,7 @@ use App\Models\CentreCorrection;
 use App\Models\CentreEcrit;
 use App\Models\Cisco;
 use App\Models\Dren;
+use App\Models\Province;
 use App\Models\GlobalSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,6 +35,7 @@ class ReferenceManagementController extends Controller
         $centreTypeForForms = $selectedTypeExamen === 'ALL' ? self::TYPE_BEPC : $selectedTypeExamen;
 
         $drens = Dren::query()->orderBy('nom')->get();
+        $provinces = Province::query()->orderBy('nom')->get();
         $allCiscos = Cisco::query()->with('dren')->orderBy('nom')->get();
         $allCentresCorrection = CentreCorrection::query()->with('cisco.dren')->orderBy('nom')->get();
 
@@ -138,6 +140,7 @@ class ReferenceManagementController extends Controller
             'formCentresCorrection' => $formCentresCorrection,
             'filterCiscos' => $filterCiscos,
             'filterCentresCorrection' => $filterCentresCorrection,
+            'provinces' => $provinces,
             'drensPage' => Dren::query()->orderBy('nom')->paginate($perPage, ['*'], 'page_drens')->withQueryString(),
             'ciscosPage' => $ciscosQuery->paginate($perPage, ['*'], 'page_ciscos')->withQueryString(),
             'centresCorrectionPage' => $centresCorrectionQuery->paginate($perPage, ['*'], 'page_centres_correction')->withQueryString(),
@@ -192,10 +195,15 @@ class ReferenceManagementController extends Controller
     {
         $validated = $request->validate([
             'nom' => ['required', 'string', 'max:255', 'unique:drens,nom'],
+            // La province doit être identifiée avant la création de la DREN.
+            'province_id' => ['required', 'integer', 'exists:provinces,id'],
         ]);
 
+        $province = Province::query()->findOrFail((int) $validated['province_id']);
         Dren::query()->create([
             'nom' => trim((string) $validated['nom']),
+            'province_id' => $province->id,
+            'province' => $province->nom,
         ]);
 
         return back()->with('status', 'DREN ajouté.');
@@ -205,10 +213,14 @@ class ReferenceManagementController extends Controller
     {
         $validated = $request->validate([
             'nom' => ['required', 'string', 'max:255', Rule::unique('drens', 'nom')->ignore($dren->id)],
+            'province_id' => ['nullable', 'integer', 'exists:provinces,id'],
         ]);
 
+        $province = ! empty($validated['province_id']) ? Province::query()->find((int) $validated['province_id']) : null;
         $dren->update([
             'nom' => trim((string) $validated['nom']),
+            'province_id' => $province?->id,
+            'province' => $province?->nom,
         ]);
 
         return back()->with('status', 'DREN modifié.');
@@ -225,12 +237,15 @@ class ReferenceManagementController extends Controller
     public function storeCisco(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'dren_id' => ['required', 'integer', 'exists:drens,id'],
+            'dren_id' => ['nullable', 'integer', 'exists:drens,id', 'required_without:province_id'],
+            'province_id' => ['nullable', 'integer', 'exists:provinces,id'],
             'nom' => ['required', 'string', 'max:255'],
         ]);
 
         Cisco::query()->create([
-            'dren_id' => (int) $validated['dren_id'],
+            'dren_id' => ! empty($validated['dren_id']) ? (int) $validated['dren_id'] : null,
+            // Sans DREN (enregistrement historique), la CISCO se rattache directement à sa province.
+            'province_id' => empty($validated['dren_id']) && ! empty($validated['province_id']) ? (int) $validated['province_id'] : null,
             'nom' => trim((string) $validated['nom']),
         ]);
 
@@ -240,12 +255,14 @@ class ReferenceManagementController extends Controller
     public function updateCisco(Request $request, Cisco $cisco): RedirectResponse
     {
         $validated = $request->validate([
-            'dren_id' => ['required', 'integer', 'exists:drens,id'],
+            'dren_id' => ['nullable', 'integer', 'exists:drens,id', 'required_without:province_id'],
+            'province_id' => ['nullable', 'integer', 'exists:provinces,id'],
             'nom' => ['required', 'string', 'max:255'],
         ]);
 
         $cisco->update([
-            'dren_id' => (int) $validated['dren_id'],
+            'dren_id' => ! empty($validated['dren_id']) ? (int) $validated['dren_id'] : null,
+            'province_id' => empty($validated['dren_id']) && ! empty($validated['province_id']) ? (int) $validated['province_id'] : null,
             'nom' => trim((string) $validated['nom']),
         ]);
 
@@ -417,6 +434,7 @@ class ReferenceManagementController extends Controller
             'centre_correction_id' => ['required', 'integer', 'exists:centre_corrections,id'],
             'nom' => ['required', 'string', 'max:255'],
             'type_examen' => ['required', 'in:'.self::TYPE_BEPC.','.self::TYPE_CEPE],
+            'same_site_as_correction' => ['nullable', 'boolean'],
         ]);
 
         $centreCorrection = CentreCorrection::query()->findOrFail((int) $validated['centre_correction_id']);
@@ -430,6 +448,7 @@ class ReferenceManagementController extends Controller
             'centre_correction_id' => (int) $validated['centre_correction_id'],
             'nom' => trim((string) $validated['nom']),
             'type_examen' => $validated['type_examen'],
+            'same_site_as_correction' => $request->boolean('same_site_as_correction'),
         ]);
 
         return back()->with('status', 'Centre d\'écrit ajouté.');
@@ -441,6 +460,7 @@ class ReferenceManagementController extends Controller
             'centre_correction_id' => ['required', 'integer', 'exists:centre_corrections,id'],
             'nom' => ['required', 'string', 'max:255'],
             'type_examen' => ['required', 'in:'.self::TYPE_BEPC.','.self::TYPE_CEPE],
+            'same_site_as_correction' => ['nullable', 'boolean'],
         ]);
 
         $centreCorrection = CentreCorrection::query()->findOrFail((int) $validated['centre_correction_id']);
@@ -454,6 +474,7 @@ class ReferenceManagementController extends Controller
             'centre_correction_id' => (int) $validated['centre_correction_id'],
             'nom' => trim((string) $validated['nom']),
             'type_examen' => $validated['type_examen'],
+            'same_site_as_correction' => $request->boolean('same_site_as_correction'),
         ]);
 
         return back()->with('status', 'Centre d\'écrit modifié.');

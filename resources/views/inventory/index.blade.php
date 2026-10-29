@@ -12,6 +12,8 @@
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{{ $errors->first() }}</div>
     @endif
 
+    <div class="flex justify-end"><a href="{{ route('inventory.reconciliation') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Rapprochement du stock</a></div>
+
     <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         @foreach([
             ['Total matériels', $stats['total_materials'], 'bg-slate-900 text-white'],
@@ -109,7 +111,7 @@
                     @forelse($materials as $material)
                         <tr>
                             <td class="px-3 py-3 font-bold">{{ $material->code }}</td>
-                            <td class="px-3 py-3">{{ $material->name }}<br><span class="text-xs text-slate-500">{{ $material->condition }}</span></td>
+                            <td class="px-3 py-3">{{ $material->name }}<br><span class="text-xs text-slate-500">{{ $material->condition }}</span> · <a class="text-xs text-blue-700 underline" href="{{ route('inventory.materials.history', $material) }}">historique</a></td>
                             <td class="px-3 py-3">{{ $material->category }}</td>
                             <td class="px-3 py-3">{{ $material->available_quantity }} {{ $material->unit }}</td>
                             <td class="px-3 py-3">{{ $material->minimum_threshold }}</td>
@@ -160,8 +162,10 @@
             <h2 class="font-black">Mouvement de stock</h2>
             <form method="POST" action="{{ route('inventory.movements.store') }}" class="mt-4 grid gap-3 md:grid-cols-2">
                 @csrf
+                <input type="hidden" name="request_token" value="{{ \Illuminate\Support\Str::uuid() }}">
                 <input type="date" name="movement_date" value="{{ date('Y-m-d') }}" class="rounded-lg border-slate-300 text-sm" required>
-                <input name="voucher_number" placeholder="Numéro de sortie" class="rounded-lg border-slate-300 text-sm">
+                <input name="voucher_number" placeholder="Numéro de la pièce (bon de sortie, bon de livraison…)" class="rounded-lg border-slate-300 text-sm">
+                <input name="supporting_document" placeholder="Pièce justificative (référence)" class="rounded-lg border-slate-300 text-sm md:col-span-2">
                 <input name="requester_name" placeholder="Nom du demandeur" class="rounded-lg border-slate-300 text-sm">
                 <input name="requesting_service" placeholder="Service demandeur" class="rounded-lg border-slate-300 text-sm">
                 <input name="function" placeholder="Fonction" class="rounded-lg border-slate-300 text-sm">
@@ -169,9 +173,9 @@
                     <option value="">Matériel demandé</option>
                     @foreach($materialsAll as $material)<option value="{{ $material->id }}">{{ $material->name }} · stock {{ $material->available_quantity }}</option>@endforeach
                 </select>
-                <select name="movement_type" class="rounded-lg border-slate-300 text-sm"><option value="sortie">Sortie</option><option value="entree">Entrée</option></select>
+                <select name="movement_type" class="rounded-lg border-slate-300 text-sm">@foreach(\App\Models\InventoryStockMovement::TYPES as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
                 <input type="number" min="0" name="requested_quantity" placeholder="Quantité demandée" class="rounded-lg border-slate-300 text-sm" required>
-                <input type="number" min="0" name="granted_quantity" placeholder="Quantité accordée" class="rounded-lg border-slate-300 text-sm" required>
+                <input type="number" min="1" name="granted_quantity" placeholder="Quantité accordée" class="rounded-lg border-slate-300 text-sm" required>
                 <input name="signature" placeholder="Signature" class="rounded-lg border-slate-300 text-sm">
                 <textarea name="reason" placeholder="Motif" class="rounded-lg border-slate-300 text-sm"></textarea>
                 <textarea name="observation" placeholder="Observation" class="rounded-lg border-slate-300 text-sm"></textarea>

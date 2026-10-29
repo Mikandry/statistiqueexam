@@ -78,7 +78,9 @@ class InventoryController extends Controller
     {
         $this->authorize('create', InventoryMaterial::class);
 
-        $material = InventoryMaterial::query()->create($this->validateMaterial($request));
+        $data = $this->validateMaterial($request);
+        $data['available_quantity'] = $data['initial_quantity']; // le stock de départ est la quantité initiale
+        $material = InventoryMaterial::query()->create($data);
         AuditLog::record($request, 'inventory_material_created', ['material_id' => $material->id]);
 
         return back()->with('success', 'Matériel enregistré.');
@@ -88,10 +90,18 @@ class InventoryController extends Controller
     {
         $this->authorize('update', $material);
 
-        $material->update($this->validateMaterial($request, $material));
+        $data = $this->validateMaterial($request, $material);
+        // Le stock ne se corrige que par un mouvement tracé : jamais en modifiant directement la quantité.
+        $stockChangeIgnored = (int) $data['available_quantity'] !== (int) $material->available_quantity
+            || (int) $data['initial_quantity'] !== (int) $material->initial_quantity;
+        unset($data['available_quantity'], $data['initial_quantity']);
+
+        $material->update($data);
         AuditLog::record($request, 'inventory_material_updated', ['material_id' => $material->id]);
 
-        return back()->with('success', 'Matériel mis à jour.');
+        return back()->with('success', $stockChangeIgnored
+            ? 'Matériel mis à jour. Les quantités n\'ont pas été modifiées : enregistrez un mouvement (entrée, sortie ou retour) pour corriger le stock.'
+            : 'Matériel mis à jour.');
     }
 
     public function destroyMaterial(Request $request, InventoryMaterial $material)
@@ -111,31 +121,51 @@ class InventoryController extends Controller
         $data = $request->validate([
             'material_id' => ['required', 'exists:inventory_materials,id'],
             'movement_date' => ['required', 'date'],
-            'movement_type' => ['required', 'in:entree,sortie'],
+            'movement_type' => ['required', 'in:'.implode(',', array_keys(InventoryStockMovement::TYPES))],
             'voucher_number' => ['nullable', 'string', 'max:120'],
+            'supporting_document' => ['nullable', 'string', 'max:255'],
+            'request_token' => ['nullable', 'string', 'max:64'],
             'requester_name' => ['nullable', 'string', 'max:180'],
             'requesting_service' => ['nullable', 'string', 'max:180'],
             'function' => ['nullable', 'string', 'max:180'],
             'requested_quantity' => ['required', 'integer', 'min:0'],
-            'granted_quantity' => ['required', 'integer', 'min:0'],
+            'granted_quantity' => ['required', 'integer', 'min:1'],
             'reason' => ['nullable', 'string', 'max:5000'],
             'signature' => ['nullable', 'string', 'max:180'],
             'observation' => ['nullable', 'string', 'max:5000'],
         ]);
 
+        // Double envoi du même formulaire : le mouvement existe déjà, rien n'est enregistré une seconde fois.
+        if (! empty($data['request_token']) && InventoryStockMovement::query()->where('request_token', $data['request_token'])->exists()) {
+            return back()->with('success', 'Ce mouvement était déjà enregistré : aucun doublon créé.');
+        }
+
+        if ($data['movement_type'] === InventoryStockMovement::TYPE_OUT && (int) $data['granted_quantity'] > (int) $data['requested_quantity']) {
+            throw ValidationException::withMessages(['granted_quantity' => 'La quantité accordée dépasse la quantité demandée.']);
+        }
+
         DB::transaction(function () use ($request, $data): void {
             $material = InventoryMaterial::query()->lockForUpdate()->findOrFail($data['material_id']);
+
+            // Un même numéro de pièce ne peut pas servir deux fois pour le même matériel et le même type.
+            if (! empty($data['voucher_number']) && InventoryStockMovement::query()
+                ->where('material_id', $material->id)
+                ->where('movement_type', $data['movement_type'])
+                ->where('voucher_number', $data['voucher_number'])
+                ->exists()) {
+                throw ValidationException::withMessages(['voucher_number' => 'Ce numéro de pièce est déjà utilisé pour ce matériel et ce type de mouvement.']);
+            }
+
             $stockBefore = (int) $material->available_quantity;
             $granted = (int) $data['granted_quantity'];
-            if ($data['movement_type'] === InventoryStockMovement::TYPE_OUT && $granted > $stockBefore) {
+            $increases = in_array($data['movement_type'], InventoryStockMovement::IN_TYPES, true);
+            if (! $increases && $granted > $stockBefore) {
                 throw ValidationException::withMessages([
                     'granted_quantity' => 'La quantité accordée dépasse le stock disponible.',
                 ]);
             }
 
-            $stockAfter = $data['movement_type'] === InventoryStockMovement::TYPE_IN
-                ? $stockBefore + $granted
-                : $stockBefore - $granted;
+            $stockAfter = $increases ? $stockBefore + $granted : $stockBefore - $granted;
 
             $movement = InventoryStockMovement::query()->create(array_merge($data, [
                 'validated_by' => $request->user()->id,
@@ -148,6 +178,32 @@ class InventoryController extends Controller
         });
 
         return back()->with('success', 'Mouvement de stock enregistré.');
+    }
+
+    /** Historique complet d'un matériel, avec rapprochement du stock. */
+    public function history(InventoryMaterial $material)
+    {
+        $this->authorize('viewAny', InventoryMaterial::class);
+
+        return view('inventory.history', [
+            'material' => $material->load('supplier'),
+            'movements' => $material->movements()->with('validator')->orderBy('movement_date')->orderBy('id')->get(),
+            'reconciliation' => $material->reconciliation(),
+        ]);
+    }
+
+    /** Rapprochement de tous les matériels : stock constaté contre stock reconstitué par les mouvements. */
+    public function reconciliation()
+    {
+        $this->authorize('viewAny', InventoryMaterial::class);
+
+        $rows = InventoryMaterial::query()->orderBy('name')->get()
+            ->map(fn (InventoryMaterial $m) => ['material' => $m, 'rec' => $m->reconciliation()]);
+
+        return view('inventory.reconciliation', [
+            'rows' => $rows,
+            'gaps' => $rows->filter(fn ($r) => $r['rec']['gap'] !== 0)->count(),
+        ]);
     }
 
     public function storeSupplier(Request $request)
@@ -263,7 +319,7 @@ class InventoryController extends Controller
             'low' => $materials->filter(fn ($item) => $item->available_quantity > 0 && $item->needsSupply())->count(),
             'out' => $materials->where('available_quantity', '<=', 0)->count(),
             'total_out' => InventoryStockMovement::query()->where('movement_type', 'sortie')->sum('granted_quantity'),
-            'total_in' => InventoryStockMovement::query()->where('movement_type', 'entree')->sum('granted_quantity'),
+            'total_in' => InventoryStockMovement::query()->whereIn('movement_type', InventoryStockMovement::IN_TYPES)->sum('granted_quantity'),
             'stock_value' => $materials->sum('total_value'),
             'alerts' => $materials->filter->needsSupply()->count(),
         ];
@@ -271,8 +327,9 @@ class InventoryController extends Controller
 
     private function buildCharts(): array
     {
+        $monthExpr = DB::connection()->getDriverName() === 'sqlite' ? "strftime('%Y-%m', movement_date)" : "DATE_FORMAT(movement_date, '%Y-%m')";
         $movementsByMonth = InventoryStockMovement::query()
-            ->selectRaw("DATE_FORMAT(movement_date, '%Y-%m') as month, SUM(CASE WHEN movement_type = 'entree' THEN granted_quantity ELSE -granted_quantity END) as quantity")
+            ->selectRaw("{$monthExpr} as month, SUM(CASE WHEN movement_type IN ('entree','retour') THEN granted_quantity ELSE -granted_quantity END) as quantity")
             ->groupBy('month')
             ->orderBy('month')
             ->pluck('quantity', 'month');

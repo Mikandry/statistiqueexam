@@ -8,11 +8,21 @@ use Illuminate\Database\Eloquent\Model;
 
 class Cisco extends Model
 {
-    protected $fillable = ['dren_id', 'nom', 'manual_eps_candidates'];
+    protected $fillable = ['dren_id', 'province_id', 'nom', 'manual_eps_candidates'];
 
     public function dren(): BelongsTo
     {
         return $this->belongsTo(Dren::class);
+    }
+
+    public function provinceRef(): BelongsTo
+    {
+        return $this->belongsTo(Province::class, 'province_id');
+    }
+
+    public function transcriptionCentres(): HasMany
+    {
+        return $this->hasMany(TranscriptionCentre::class)->orderBy('ordre')->orderBy('nom');
     }
 
     public function centresCorrection(): HasMany

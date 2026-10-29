@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+
+    <style>
+        /* ============================================================
+           MARGES ET FORMAT PAGE (A4)
+           ============================================================ */
+        @page {
+            /* Gabarit volontairement compact : une fiche = une page A4. */
+            margin: 0.65cm 0.85cm 0.7cm;
+            size: A4;
+        }
+
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 8.5pt;
+            color: #1e293b;
+            line-height: 1.15;
+            background: white;
+        }
+          /* ============================================================
+           DRAPEAU DE FOND (optionnel)
+           ============================================================ */
+           .flag {
+            display: inline-block;
+            width: 95px;
+            height: auto;
+           }
+
+        /* ============================================================
+           EN-TÊTE INSTITUTIONNEL (avec logo simulé)
+           ============================================================ */
+        .institution {
+            width: 45%;
+            margin-left: 0;
+            margin-right: auto;
+            text-align: center;
+            font-weight: bold;
+            font-size: 7.5pt;
+            line-height: 1.1;
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
+            color: #0f172a;
+        }
+
+        /* .institution::before {
+            content: "SOE";
+            display: inline-block;
+            font-size: 14pt;
+            font-weight: 900;
+            background: #0f766e;
+            color: white;
+            width: 50px;
+            height: 50px;
+            line-height: 50px;
+            border-radius: 8px;
+            text-align: center;
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            letter-spacing: 0;
+        } */
+
+        .institution .stars {
+            font-size: 7pt;
+            letter-spacing: 2px;
+            color: #0f766e;
+            margin: 1px 0;
+        }
+
+        .header-rule {
+            border-bottom: 3px solid #0f766e;
+            width: 30%;
+            margin: 3px auto 0;
+            border-radius: 2px;
+            margin-right: auto;
+            margin-left: 117px;
+            text-align: center;
+        }
+
+        /* ============================================================
+           RÉFÉRENCE
+           ============================================================ */
+        .reference {
+            text-align: left;
+            font-size: 9.5pt;
+            font-weight: 600;
+            margin-top: 5px;
+            color: #334155;
+            letter-spacing: 0.5px;
+        }
+        .reference-left {
+            text-align: left !important;
+        }
+
+        /* ============================================================
+           TITRE PRINCIPAL
+           ============================================================ */
+        .title {
+            text-align: center;
+            font-size: 11pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #0f172a;
+            margin: 7px 0 6px;
+            padding-bottom: 4px;
+            border-bottom: 1.5px solid #cbd5e1;
+            display: inline-block;
+            width: 100%;
+        }
+
+        /* ============================================================
+           CORPS DU TEXTE
+           ============================================================ */
+        .body-text {
+            text-align: justify;
+            margin: 0.35em 0;
+            font-size: 8.5pt;
+            text-indent: 1em;
+        }
+
+        /* ============================================================
+           TABLEAU DES INFORMATIONS DE L'AGENT
+           ============================================================ */
+        .agent-info {
+            margin: 4px 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: #f8fafc;
+            padding: 3px 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .agent-info table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8pt;
+        }
+
+        .agent-info td {
+            vertical-align: top;
+            padding: 1px 4px 1px 0;
+        }
+
+        .agent-info .label {
+            font-weight: 600;
+            color: #334155;
+            width: 34%;
+            white-space: nowrap;
+        }
+
+        .agent-info .label::after {
+            content: " :";
+        }
+
+        .agent-info td:last-child {
+            font-weight: 500;
+            color: #0f172a;
+        }
+
+        /* ============================================================
+           ENCADRÉS (ÉVÉNEMENTS)
+           ============================================================ */
+        .event-box {
+            margin: 4px 0;
+            padding: 4px 7px;
+            border-left: 4px solid #0f766e;
+            background: #f1f5f9;
+            border-radius: 4px;
+            font-size: 8pt;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+
+        .event-box p {
+            margin: 1px 0;
+        }
+
+        .event-box strong {
+            color: #0f172a;
+        }
+
+        /* ============================================================
+           SIGNATURE
+           ============================================================ */
+        .signature {
+            margin-top: 6px;
+            text-align: right;
+            padding-right: 20px;
+        }
+
+        .signature .ville-date {
+            font-weight: 500;
+            color: #334155;
+            margin-bottom: 15px;
+            font-size: 10pt;
+        }
+
+        .signature .fonction {
+            font-weight: 600;
+            font-size: 11.5pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #1e293b;
+        }
+
+        .signature .nom-signataire {
+            font-weight: bold;
+            font-size: 13pt;
+            margin-top: 6px;
+        }
+
+        .signature .signature-line {
+            width: 220px;
+            border-bottom: 1.5px solid #1e293b;
+            margin: 12px auto 0;
+            display: inline-block;
+        }
+
+        /* ============================================================
+           PIED DE PAGE (optionnel)
+           ============================================================ */
+        .footer {
+            margin-top: 5px;
+            font-size: 8pt;
+            text-align: center;
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 14px;
+        }
+
+        /* ============================================================
+           SAUT DE PAGE
+           ============================================================ */
+        .page-break {
+            page-break-before: always;
+        }
+
+        /* ============================================================
+           ZONE DE SIGNATURES ET DE VALIDATION ADMINISTRATIVE
+           (fiche de congé — partie inférieure, avant le pied de page)
+           Présentation sobre : bordures noires/grises, fond blanc.
+           ============================================================ */
+        .validation-zone {
+            margin-top: 2mm;
+            page-break-inside: avoid;
+        }
+
+        .validation-zone .zone-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 8.5pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #0f172a;
+        }
+
+        /* Encadré de visa manuscrit, séparé du tableau */
+        .interesse-box {
+            border: 1.2px solid #1e293b;
+            background: white;
+            padding: 3pt 6pt;
+            page-break-inside: avoid;
+        }
+
+        .interesse-box .signature-leaf {
+            min-height: 8mm;
+            padding-left: 6pt;
+            font-size: 8pt;
+            color: #1e293b;
+        }
+
+        /* Trait de signature (espace réservé à la main) */
+        .sig-blank {
+            display: inline-block;
+            min-width: 28mm;
+            border-bottom: 1px solid #64748b;
+            white-space: nowrap;
+        }
+
+        /* Tableau de validation en 3 colonnes */
+        .validation-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            margin-top: 1.5mm;
+            page-break-inside: avoid;
+        }
+
+        .validation-table th,
+        .validation-table td {
+            border: 1.3px solid #1e293b;
+            background: white;
+            padding: 3pt 4pt;
+            font-size: 8pt;
+            vertical-align: top;
+            color: #1e293b;
+        }
+
+        .validation-table th {
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #0f172a;
+        }
+
+        .validation-table .field {
+            line-height: 1.5;
+        }
+
+        .validation-table .spacer {
+            height: 10mm;
+        }
+    </style>
+</head>
+
+<body>
+
+@php
+    $headerLines = collect([
+        $settings?->ministere,
+        $settings?->secretariat_general,
+        $settings?->direction_generale,
+        $settings?->direction,
+        $settings?->service,
+    ])->filter();
+@endphp
+
+{{-- ========================================================= --}}
+{{-- EN-TETE --}}
+{{-- ========================================================= --}}
+<div class="header">
+    <div style="text-align:center;">
+        <img src="{{ public_path('images/drapeau-madagascar.jpeg') }}" class="flag" alt="Drapeau de Madagascar">
+    </div>
+    <div class="institution">
+        @foreach($headerLines as $index => $line)
+            @if($index > 0)
+                <div class="stars">**********</div>
+            @endif
+            <div>
+                {{ $line }}
+            </div>
+        @endforeach
+    </div>
+    <div class="header-rule"></div>
+</div>
+
+{{-- ========================================================= --}}
+{{-- REFERENCE --}}
+{{-- ========================================================= --}}
+<div class="reference">
+    {{ $reference }}
+</div>
+
+{{-- ========================================================= --}}
+{{-- TITRE --}}
+{{-- ========================================================= --}}
+<h1 class="title">
+    {{ $title }}
+</h1>
+
+{{-- ========================================================= --}}
+{{-- NON INTERRUPTION --}}
+{{-- ========================================================= --}}
+@if($document === 'non-interruption')
+
+    <p class="body-text">
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
+        atteste que :
+    </p>
+
+    @include('hr.documents.partials.agent-info-pdf')
+
+    <p class="body-text">
+        A servi sans interruption au sein du Ministère de l’Education Nationale
+        depuis la date de son entrée dans l’administration jusqu’à ce jour.
+    </p>
+
+    <p class="body-text">
+        En foi de quoi, la présente attestation lui est délivrée pour servir
+        et valoir ce que de droit.
+    </p>
+
+@elseif($document === 'prise-service')
+
+    <p class="body-text">
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }}, certifie que l’agent ci-dessous
+        a effectivement pris service au sein de l’administration.
+    </p>
+
+    @include('hr.documents.partials.agent-info-pdf')
+
+    <div class="event-box">
+        <p><strong>Date de prise de service :</strong> {{ $agent->date_prise_service?->format('d/m/Y') ?: 'Non renseignée' }}</p>
+        <p><strong>Fonction :</strong> {{ $agent->fonction ?: 'Non renseignée' }}</p>
+        <p><strong>Direction :</strong> {{ $agent->direction ?: 'Non renseignée' }}</p>
+        <p><strong>Service :</strong> {{ $agent->service ?: 'Non renseigné' }}</p>
+    </div>
+
+    <p class="body-text">La présente fiche est délivrée pour servir et valoir ce que de droit.</p>
+
+{{-- ========================================================= --}}
+{{-- NON-JOUISSANCE DE CONGE --}}
+{{-- ========================================================= --}}
+@elseif($document === 'non-jouissance')
+
+    @include('hr.documents.partials.agent-info-pdf')
+
+    <p class="body-text">
+        Après vérification des registres disponibles, il est attesté que
+        l’agent désigné ci-dessus n’a pas bénéficié de congé durant
+        {{ $period ?? 'l’année en cours' }}.
+    </p>
+
+    <p class="body-text">
+        La présente attestation est délivrée pour servir et valoir ce que de droit.
+    </p>
+
+{{-- ========================================================= --}}
+{{-- CONGE --}}
+{{-- ========================================================= --}}
+@elseif($document === 'conge')
+
+    <p class="body-text">
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
+        autorise par la présente :
+    </p>
+
+    @include('hr.documents.partials.agent-info-pdf')
+
+    @if($event)
+        <div class="event-box">
+            <p><strong>Nature :</strong> Congé</p>
+            <p><strong>Période :</strong> du {{ $event->date_debut?->format('d/m/Y') }} @if($event->date_fin) au {{ $event->date_fin->format('d/m/Y') }} @endif</p>
+            @if($event->motif)<p><strong>Motif :</strong> {{ $event->motif }}</p>@endif
+        </div>
+    @endif
+
+{{-- ========================================================= --}}
+{{-- MISSION --}}
+{{-- ========================================================= --}}
+@elseif($document === 'mission')
+
+    <p class="body-text">
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }}, donne ordre à l’agent désigné
+        ci-dessus d’effectuer la mission suivante :
+    </p>
+
+    @include('hr.documents.partials.agent-info-pdf')
+
+    @if($event)
+        <div class="event-box">
+            <p><strong>Objet :</strong> {{ $event->title ?: 'Mission' }}</p>
+            <p>
+                <strong>Période :</strong>
+                du {{ $event->date_debut?->format('d/m/Y') }}
+                @if($event->date_fin)
+                    au {{ $event->date_fin->format('d/m/Y') }}
+                @endif
+            </p>
+            @if($event->lieu || $event->destination)
+                <p><strong>Déplacement :</strong> de {{ $event->lieu ?: '—' }} à {{ $event->destination ?: '—' }}</p>
+            @endif
+            @if($event->vehicle_type)
+                <p><strong>Moyen de déplacement :</strong> {{ [
+                    'administrative' => 'Voiture administrative',
+                    'taxi_brousse' => 'Taxi-brousse',
+                    'bus' => 'Bus',
+                    'avion' => 'Avion',
+                    'vehicule_personnel' => 'Véhicule personnel',
+                    'autre' => 'Autre moyen',
+                ][$event->vehicle_type] ?? 'Non précisé' }}</p>
+            @endif
+            @if($event->motif)
+                <p><strong>Motif :</strong> {{ $event->motif }}</p>
+            @endif
+            @if($event->reference)
+                <p><strong>Référence :</strong> {{ $event->reference }}</p>
+            @endif
+        </div>
+    @endif
+
+    <p class="body-text">
+        Le présent ordre de mission lui est délivré pour servir et valoir ce que de droit et lui tient lieu d’ordre de route.
+    </p>
+
+{{-- ========================================================= --}}
+{{-- ABSENCE --}}
+{{-- ========================================================= --}}
+@elseif($document === 'absence')
+
+    <p class="body-text">
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
+        autorise :
+    </p>
+
+    @include('hr.documents.partials.agent-info-pdf')
+
+    @if($event)
+        <div class="event-box">
+            <p>
+                <strong>Objet de l’autorisation :</strong>
+                {{ $event->title ?: 'Autorisation d’absence' }}
+            </p>
+            <p>
+                <strong>Période :</strong>
+                du {{ $event->date_debut?->format('d/m/Y') }}
+                @if($event->date_fin)
+                    au {{ $event->date_fin?->format('d/m/Y') }}
+                @endif
+            </p>
+            @if($event->motif)
+                <p>
+                    <strong>Motif :</strong>
+                    {{ $event->motif }}
+                </p>
+            @endif
+        </div>
+    @endif
+
+    <p class="body-text">
+        L’intéressé(e) est autorisé(e) à s’absenter pendant la période
+        indiquée sous réserve du respect des dispositions administratives
+        applicables.
+    </p>
+
+{{-- ========================================================= --}}
+{{-- FORMATION --}}
+{{-- ========================================================= --}}
+@elseif($document === 'formation')
+
+    <p class="body-text">
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
+        sollicite / autorise la participation de l’agent ci-après désigné
+        à une action de formation :
+    </p>
+
+    @include('hr.documents.partials.agent-info-pdf')
+
+    @if($event)
+        <div class="event-box">
+            <p>
+                <strong>Formation :</strong>
+                {{ $event->title ?: 'Formation continue' }}
+            </p>
+            <p>
+                <strong>Période :</strong>
+                du {{ $event->date_debut?->format('d/m/Y') }}
+                @if($event->date_fin)
+                    au {{ $event->date_fin?->format('d/m/Y') }}
+                @endif
+            </p>
+            @if($event->motif)
+                <p>
+                    <strong>Motif / Objet :</strong>
+                    {{ $event->motif }}
+                </p>
+            @endif
+            @if($event->autorite)
+                <p>
+                    <strong>Organisme / Autorité :</strong>
+                    {{ $event->autorite }}
+                </p>
+            @endif
+        </div>
+    @endif
+
+    <p class="body-text">
+        La participation à cette formation est enregistrée dans le dossier
+        administratif de l’intéressé(e).
+    </p>
+
+{{-- ========================================================= --}}
+{{-- AUTRE DEMANDE --}}
+{{-- ========================================================= --}}
+@elseif($document === 'autre')
+
+    <p class="body-text">
+        Je soussigné(e), {{ $settings?->signataire_qualite ?: 'responsable habilité' }},
+        certifie que la présente demande concerne :
+    </p>
+
+    @include('hr.documents.partials.agent-info-pdf')
+
+    @if($event)
+        <div class="event-box">
+            <p>
+                <strong>Objet :</strong>
+                {{ $event->title ?: 'Demande administrative' }}
+            </p>
+            @if($event->motif)
+                <p>
+                    <strong>Motif :</strong>
+                    {{ $event->motif }}
+                </p>
+            @endif
+            <p>
+                <strong>Date :</strong>
+                {{ $event->date_debut?->format('d/m/Y') }}
+                @if($event->date_fin)
+                    au {{ $event->date_fin?->format('d/m/Y') }}
+                @endif
+            </p>
+        </div>
+    @endif
+
+    <p class="body-text">
+        La présente pièce est établie pour servir et valoir ce que de droit.
+    </p>
+
+{{-- ========================================================= --}}
+{{-- FICHE ADMINISTRATIVE --}}
+{{-- ========================================================= --}}
+@elseif($document === 'fiche-administrative')
+
+    <div class="agent-info">
+        <table>
+            <tr>
+                <td class="label">Nom et Prénoms</td>
+                <td>{{ $agent->full_name }}</td>
+            </tr>
+            <tr>
+                <td class="label">IM / Matricule</td>
+                <td>{{ $agent->matricule ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Date de naissance</td>
+                <td>{{ $agent->date_naissance?->format('d/m/Y') ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Corps</td>
+                <td>{{ $agent->corps ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Grade</td>
+                <td>{{ $agent->grade ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Indice</td>
+                <td>{{ $agent->indice ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Catégorie</td>
+                <td>{{ $agent->categorie ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Échelon</td>
+                <td>{{ $agent->echelon ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Budget</td>
+                <td>{{ $agent->budget ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Chapitre</td>
+                <td>{{ $agent->chapitre ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Date de recrutement</td>
+                <td>{{ $agent->date_recrutement?->format('d/m/Y') ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Prise de service</td>
+                <td>{{ $agent->date_prise_service?->format('d/m/Y') ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Direction</td>
+                <td>{{ $agent->direction ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Service</td>
+                <td>{{ $agent->service ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Bureau</td>
+                <td>{{ $agent->bureau ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Fonction</td>
+                <td>{{ $agent->fonction ?: '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Situation administrative</td>
+                <td>{{ $agent->situation_administrative ?: '—' }}</td>
+            </tr>
+        </table>
+    </div>
+
+@endif
+
+{{-- ========================================================= --}}
+{{-- SIGNATURE --}}
+{{-- ========================================================= --}}
+<div class="signature">
+    {{ $settings?->ville ?: 'Antananarivo' }},
+    le {{ $today->format('d/m/Y') }}
+</div>
+
+{{-- ========================================================= --}}
+{{-- ZONE DE SIGNATURES ET DE VALIDATION ADMINISTRATIVE        --}}
+{{-- Fiches de congé et d'autorisation d'absence               --}}
+{{-- ========================================================= --}}
+@if(in_array($document, ['conge', 'absence'], true))
+    <div class="validation-zone">
+
+        {{-- Zone réservée à la signature manuscrite de l'agent. --}}
+        <div class="interesse-box">
+            <div class="signature-leaf">
+                <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+            </div>
+        </div>
+
+        {{-- La décision est volontairement placée en bas à droite. --}}
+        <table class="validation-table">
+            <thead>
+                <tr>
+                    <th style="width:50%">Signature du remplaçant</th>
+                    <th style="width:50%">Avis du chef hiérarchique</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="field">
+                            Nom et prénom : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        </div>
+                        <div class="spacer">&nbsp;</div>
+                        <div class="field">
+                            Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="field">☐ FAVORABLE</div>
+                        <div class="field">☐ DÉFAVORABLE</div>
+                        <div class="spacer">&nbsp;</div>
+                        <div class="field">
+                            Date : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        </div>
+                        <div class="field">
+                            Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="border:0">&nbsp;</td>
+                    <td>
+                        <div class="field" style="font-weight:bold; text-align:center; text-transform:uppercase">Décision du signataire</div>
+                        <div class="field">☐ ACCORDÉE</div>
+                        <div class="field">☐ REFUSÉE</div>
+                        <div class="spacer">&nbsp;</div>
+                        <div class="field">Date : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                        <div class="field">Signature : <span class="sig-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+    </div>
+@endif
+
+</body>
+</html>

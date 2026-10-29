@@ -227,7 +227,13 @@
                                             </div>
                                             <form method="POST" action="{{ route('admin.references.drens.store') }}" class="grid grid-cols-1 gap-3 md:grid-cols-4">
                                                 @csrf
-                                                <input class="ref-input md:col-span-3" name="nom" placeholder="Nom DREN" required>
+                                                <select class="ref-select" name="province_id" required>
+                                                    <option value="">Province (obligatoire)</option>
+                                                    @foreach($provinces as $province)
+                                                        <option value="{{ $province->id }}">{{ $province->nom }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <input class="ref-input md:col-span-2" name="nom" placeholder="Nom DREN" required>
                                                 <button class="ref-btn-primary inline-flex items-center justify-center px-4 py-3 text-sm" type="submit">Ajouter</button>
                                             </form>
                                         </div>
@@ -239,13 +245,19 @@
                                             </div>
                                             <form method="POST" action="{{ route('admin.references.ciscos.store') }}" class="grid grid-cols-1 gap-3 md:grid-cols-4">
                                                 @csrf
-                                                <select class="ref-select" name="dren_id" required>
-                                                    <option value="">DREN</option>
+                                                <select class="ref-select" name="dren_id">
+                                                    <option value="">DREN (vide = ancienne CISCO)</option>
                                                     @foreach($drens as $dren)
                                                         <option value="{{ $dren->id }}">{{ $dren->nom }}</option>
                                                     @endforeach
                                                 </select>
-                                                <input class="ref-input md:col-span-2" name="nom" placeholder="Nom CISCO" required>
+                                                <select class="ref-select" name="province_id" title="Utile seulement sans DREN">
+                                                    <option value="">Province (si sans DREN)</option>
+                                                    @foreach($provinces as $province)
+                                                        <option value="{{ $province->id }}">{{ $province->nom }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <input class="ref-input" name="nom" placeholder="Nom CISCO" required>
                                                 <button class="ref-btn-primary inline-flex items-center justify-center px-4 py-3 text-sm" type="submit">Ajouter</button>
                                             </form>
                                         </div>
@@ -310,6 +322,10 @@
                                                 <input class="ref-input" name="nom" placeholder="Nom centre écrit" required>
                                                 <div class="inline-flex items-center rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-bold text-teal-800">{{ $centreTypeForForms }}</div>
                                                 <input type="hidden" name="type_examen" value="{{ $centreTypeForForms }}">
+                                                <label class="md:col-span-4 flex items-center gap-2 text-sm text-slate-700">
+                                                    <input type="checkbox" name="same_site_as_correction" value="1">
+                                                    Même lieu que le centre de correction choisi (un seul site sert d'écrit et de correction)
+                                                </label>
                                                 <div class="md:col-span-4">
                                                     <button class="ref-btn-primary inline-flex items-center justify-center px-4 py-3 text-sm" type="submit">Ajouter Centre écrit</button>
                                                 </div>
@@ -650,6 +666,12 @@
                                                 @csrf
                                                 @method('PUT')
                                                 <input class="ref-input" name="nom" value="{{ $dren->nom }}" required>
+                                                <select class="ref-select" name="province_id">
+                                                    <option value="">Province</option>
+                                                    @foreach($provinces as $province)
+                                                        <option value="{{ $province->id }}" {{ (int) $dren->province_id === (int) $province->id ? 'selected' : '' }}>{{ $province->nom }}</option>
+                                                    @endforeach
+                                                </select>
                                         </td>
                                         <td>
                                                 <div class="flex flex-wrap gap-2">
@@ -686,9 +708,16 @@
                                             <form method="POST" action="{{ route('admin.references.ciscos.update', $cisco) }}" class="flex flex-wrap gap-2">
                                                 @csrf
                                                 @method('PUT')
-                                                <select class="ref-select" name="dren_id" required>
+                                                <select class="ref-select" name="dren_id">
+                                                    <option value="">— sans DREN (historique) —</option>
                                                     @foreach($drens as $dren)
                                                         <option value="{{ $dren->id }}" {{ (int)$cisco->dren_id === (int)$dren->id ? 'selected' : '' }}>{{ $dren->nom }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <select class="ref-select" name="province_id">
+                                                    <option value="">Province</option>
+                                                    @foreach($provinces as $province)
+                                                        <option value="{{ $province->id }}" {{ (int)$cisco->province_id === (int)$province->id ? 'selected' : '' }}>{{ $province->nom }}</option>
                                                     @endforeach
                                                 </select>
                                         </td>
@@ -794,6 +823,7 @@
                                                     <option value="BEPC" {{ $ce->type_examen === 'BEPC' ? 'selected' : '' }}>BEPC</option>
                                                     <option value="CEPE" {{ $ce->type_examen === 'CEPE' ? 'selected' : '' }}>CEPE</option>
                                                 </select>
+                                                <label class="mt-2 flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" name="same_site_as_correction" value="1" {{ $ce->same_site_as_correction ? 'checked' : '' }}> même site que la correction</label>
                                         </td>
                                         <td>
                                                 <div class="flex flex-wrap gap-2">

@@ -147,11 +147,23 @@
                 </a>
             @endif
 
+            @if($user && ! $user->isLogistique())
+                <a class="{{ request()->routeIs('carte.*') ? $activeItem : $idleItem }}" href="{{ route('carte.index') }}">
+                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Carte</span>
+                        <span class="app-sidebar-link-meta">Centres, régions, dispatching</span>
+                    </span>
+                </a>
+            @endif
+
             {{-- SECTION : RESSOURCES HUMAINES --}}
             @if((! $hasWorkspace || $isRhWorkspace || $canSeeAllWorkspaces) && ($user?->isRh() || $user?->canAccessRh() || $user?->isAdmin()))
                 <div class="app-sidebar-section-label app-sidebar-label">Ressources Humaines</div>
 
-                <a class="{{ request()->routeIs('hr.*') ? $activeItem : $idleItem }}" href="{{ route('hr.dashboard') }}">
+                <a class="{{ request()->routeIs('hr.*') && ! request()->routeIs('hr.activity.*') ? $activeItem : $idleItem }}" href="{{ route('hr.dashboard') }}">
                     <span class="app-sidebar-icon-wrap bg-cyan-500/10 text-cyan-400 group-hover:scale-110 group-hover:bg-cyan-500/20">
                         <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m6-6a4 4 0 100-8 4 4 0 000 8zm8-4h6m-3-3v6"/></svg>
                     </span>
@@ -160,6 +172,18 @@
                         <span class="app-sidebar-link-meta">Personnel & disponibilité</span>
                     </span>
                 </a>
+
+                @if($user?->isAdmin())
+                <a class="{{ request()->routeIs('hr.activity.*') ? $activeItem : $idleItem }}" href="{{ route('hr.activity.index') }}">
+                    <span class="app-sidebar-icon-wrap bg-cyan-500/10 text-cyan-400 group-hover:scale-110 group-hover:bg-cyan-500/20">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m4 2v-6m4 6V7M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block">
+                        <span class="app-sidebar-link-title">Bilan des activités</span>
+                        <span class="app-sidebar-link-meta">Formation, absence, congé</span>
+                    </span>
+                </a>
+                @endif
             @endif
 
             {{-- SECTION : SAISIE & EXAMENS --}}
@@ -322,6 +346,13 @@
                     <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Personnes par activité</span><span class="app-sidebar-link-meta">Effectifs mobilisés</span></span>
                 </a>
 
+                <a class="{{ request()->routeIs('vacation2026.besoins.province*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.province') }}">
+                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Par province</span><span class="app-sidebar-link-meta">National → province</span></span>
+                </a>
+
                 <a class="{{ request()->routeIs('vacation2026.besoins.dren*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.dren') }}">
                     <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110">
                         <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -341,6 +372,13 @@
                         <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     </span>
                     <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Par centre</span><span class="app-sidebar-link-meta">Écrit · correction · EPS</span></span>
+                </a>
+
+                <a class="{{ request()->routeIs('vacation2026.besoins.structure*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.structure') }}">
+                    <span class="app-sidebar-icon-wrap bg-emerald-500/10 text-emerald-400 group-hover:scale-110">
+                        <svg class="h-4 w-4 stroke-[2]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                    </span>
+                    <span class="app-sidebar-copy-block"><span class="app-sidebar-link-title">Transcription</span><span class="app-sidebar-link-meta">Centres par CISCO</span></span>
                 </a>
 
                 <a class="{{ request()->routeIs('vacation2026.besoins.baremes*') ? $activeItem : $idleItem }}" href="{{ route('vacation2026.besoins.baremes') }}">

@@ -95,4 +95,58 @@ class VacationBesoinsTest extends TestCase
         $this->actingAs($user)->put(route('vacation2026.besoins.baremes.update'), ['rates' => ['centre__chef_centre' => ['CEPE' => 7000]]])->assertRedirect();
         $this->assertDatabaseHas('vacation_2026_baremes', ['code' => 'centre.chef_centre', 'examen' => 'CEPE']);
     }
+
+    public function test_province_transcription_multiple_et_eps_source_unique(): void
+    {
+        $this->seedData();
+        $this->withoutVite()->withoutMiddleware();
+        $user = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $cisco = Cisco::first();
+
+        // Pages province et structure
+        $this->actingAs($user)->get(route('vacation2026.besoins.province'))->assertOk();
+        $this->actingAs($user)->get(route('vacation2026.besoins.structure'))->assertOk();
+
+        // Une CISCO peut avoir plusieurs centres de transcription (zones éloignées)
+        foreach (['Transcription Nord', 'Transcription Sud', 'Transcription Est'] as $i => $nom) {
+            $this->actingAs($user)->post(route('vacation2026.besoins.transcription.store'), [
+                'cisco_id' => $cisco->id, 'nom' => $nom, 'ordre' => $i, 'candidats_cepe' => 100,
+            ])->assertSessionHasNoErrors();
+        }
+        $this->assertSame(3, $cisco->transcriptionCentres()->count());
+
+        // Doublon refusé
+        $this->actingAs($user)->post(route('vacation2026.besoins.transcription.store'), ['cisco_id' => $cisco->id, 'nom' => 'Transcription Nord'])
+            ->assertSessionHasErrors('nom');
+        $this->assertSame(3, $cisco->transcriptionCentres()->count());
+
+        // Les 3 centres apparaissent comme lieux distincts, et le niveau TRANSCRIPTION est calculé
+        $lines = app(VacationBesoinsService::class)->lines();
+        $this->assertSame(3, $lines->where('scope_kind', 'TRANSCRIPTION')->pluck('scope_key')->unique()->count());
+
+        // Pas de dotted-name : le chef-lieu / la province sont rattachés à la DREN
+        $this->assertNotNull(Dren::first()->province);
+    }
+
+    public function test_les_candidats_saisis_par_salle_alimentent_les_vacations_du_centre(): void
+    {
+        $this->seedData();
+        $lines = app(VacationBesoinsService::class)->lines();
+        // 12 salles x 25 = 300 candidats doivent être visibles sur le centre CEPE
+        $centre = $lines->where('scope_kind', 'CENTRE')->where('exam', 'CEPE')->first();
+        $this->assertSame(300, $centre['candidates']);
+        // Un seul total de candidats CEPE (pas de double comptage entre écrit et correction)
+        $this->assertSame(300, app(VacationBesoinsService::class)->compute()['stats']['candidates']['CEPE']);
+    }
+
+    public function test_acces_reserve_a_l_administrateur(): void
+    {
+        $this->withoutVite();
+        $this->get(route('vacation2026.besoins.dashboard'))->assertRedirect(); // non connecté
+        foreach ([User::ROLE_USER, User::ROLE_LOGISTIQUE] as $role) {
+            $u = User::factory()->create(['role' => $role]);
+            $this->actingAs($u)->get(route('vacation2026.besoins.dashboard'))->assertStatus(403);
+            $this->actingAs($u)->post(route('vacation2026.besoins.transcription.store'), ['cisco_id' => 1, 'nom' => 'X'])->assertStatus(403);
+        }
+    }
 }

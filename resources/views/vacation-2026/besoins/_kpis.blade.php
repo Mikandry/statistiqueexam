@@ -1,10 +1,10 @@
 @php $n = fn ($v) => number_format((float) $v, 0, ',', ' '); @endphp
-<div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p class="text-xs uppercase text-emerald-700">Montant total</p><p class="mt-1 text-2xl font-semibold text-emerald-900">{{ $n($totals['amount']) }} Ar</p></div>
-    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4"><p class="text-xs uppercase text-blue-700">Personnes mobilisées (postes)</p><p class="mt-1 text-2xl font-semibold text-blue-900">{{ $n($totals['persons']) }}</p></div>
-    <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-4"><p class="text-xs uppercase text-indigo-700">Jours-agents</p><p class="mt-1 text-2xl font-semibold text-indigo-900">{{ $n($totals['person_days']) }}</p></div>
-    <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">Activités</p><p class="mt-1 text-2xl font-semibold text-slate-900">{{ $totals['activities'] }}</p></div>
+<div class="ui-grid c4">
+    <div class="ui-kpi hero"><div class="l">Montant estimé</div><div class="v">{{ $n($totals['amount']) }}<small>Ar</small></div><div class="n">selon le décret et les barèmes saisis</div></div>
+    <div class="ui-kpi blue"><div class="l">Personnes mobilisées</div><div class="v">{{ $n($totals['persons']) }}</div><div class="n">postes (une personne par activité)</div></div>
+    <div class="ui-kpi violet"><div class="l">Jours-agents</div><div class="v">{{ $n($totals['person_days']) }}</div><div class="n">postes × jours</div></div>
+    <div class="ui-kpi slate"><div class="l">Activités</div><div class="v">{{ $totals['activities'] }}</div><div class="n">du décret, pour cette sélection</div></div>
 </div>
 @if(($totals['missing_rates'] ?? 0) > 0)
-    <p class="mb-4 text-xs text-amber-700">{{ $totals['missing_rates'] }} code(s) de taux sans taux saisi : montants partiels. <a class="underline" href="{{ route('vacation2026.besoins.baremes') }}">Saisir les barèmes</a></p>
+    <div class="ui-note warn">{{ $totals['missing_rates'] }} code(s) de taux n'ont pas de taux saisi : montant partiel. <a href="{{ route('vacation2026.besoins.baremes') }}">Saisir les barèmes</a></div>
 @endif

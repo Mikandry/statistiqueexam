@@ -42,6 +42,14 @@ class Vacation2026Parametre extends Model
         'nb_provinces' => '0',
         // Centres EPS par CISCO quand aucun centre EPS n'est configuré.
         'eps_centres_par_cisco' => '1',
+        // Carte : fond de carte en ligne (OpenStreetMap) quand la connexion le permet.
+        'carte_tuiles_en_ligne' => '1',
+        // Carte : source en ligne des 22 régions (GeoJSON). En cas d'échec, le fichier local public/geo/madagascar-regions.geojson est utilisé.
+        'carte_geojson_url' => 'https://media.githubusercontent.com/media/wmgeolab/geoBoundaries/main/releaseData/gbOpen/MDG/ADM1/geoBoundaries-MDG-ADM1_simplified.geojson',
+        // Carte : point de départ des tournées de dispatching (modifiable).
+        'carte_depart_nom' => 'MEN - Antananarivo',
+        'carte_depart_lat' => '-18.8792',
+        'carte_depart_lng' => '47.5079',
     ];
 
     /** @return array<string, string> */

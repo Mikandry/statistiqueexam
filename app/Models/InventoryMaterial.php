@@ -59,6 +59,30 @@ class InventoryMaterial extends Model
         return $this->hasMany(InventorySupplyOrder::class, 'material_id');
     }
 
+    /**
+     * Rapprochement : stock théorique = quantité initiale + entrées + retours − sorties.
+     * Un écart non nul signale un stock modifié hors mouvement ou un mouvement manquant.
+     *
+     * @return array{initial:int,in:int,out:int,expected:int,actual:int,gap:int,last_stock_after:?int}
+     */
+    public function reconciliation(): array
+    {
+        $in = (int) $this->movements()->whereIn('movement_type', InventoryStockMovement::IN_TYPES)->sum('granted_quantity');
+        $out = (int) $this->movements()->where('movement_type', InventoryStockMovement::TYPE_OUT)->sum('granted_quantity');
+        $expected = (int) $this->initial_quantity + $in - $out;
+        $last = $this->movements()->orderByDesc('id')->value('stock_after');
+
+        return [
+            'initial' => (int) $this->initial_quantity,
+            'in' => $in,
+            'out' => $out,
+            'expected' => $expected,
+            'actual' => (int) $this->available_quantity,
+            'gap' => (int) $this->available_quantity - $expected,
+            'last_stock_after' => $last === null ? null : (int) $last,
+        ];
+    }
+
     public function needsSupply(): bool
     {
         return $this->available_quantity <= $this->minimum_threshold;

@@ -4,6 +4,8 @@
     <link rel="stylesheet" href="{{ asset('css/tailwind-fallback.css') }}">
 @endif
 <link rel="stylesheet" href="{{ asset('css/font-awesome.min.css') }}">
+{{-- Composants de l'application (CSS pur : rendu identique avec ou sans `npm run build`) --}}
+<link rel="stylesheet" href="{{ asset('css/exam-ui.css') }}?v={{ @filemtime(public_path('css/exam-ui.css')) }}">
 <style>
     :root {
         --app-font-sans: "Avenir Next", "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;

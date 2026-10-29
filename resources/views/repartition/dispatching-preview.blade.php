@@ -71,10 +71,12 @@
                         </div>
                     </form>
 
+                    @if(session('success'))<div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{{ session('success') }}</div>@endif
                     <form method="GET" action="{{ route('repartition.export.dispatching.preview') }}" class="mb-6 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4">
                         <input type="hidden" name="annee" value="{{ $filters['annee'] }}">
                         <input type="hidden" name="type_examen" value="{{ $filters['type_examen'] }}">
                         <input type="hidden" name="dren" value="{{ $filters['dren'] }}">
+                        @csrf
 
                         <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                             <div class="w-full md:max-w-md">
@@ -89,7 +91,8 @@
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 <button class="rounded-lg border border-indigo-200 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50" type="submit">Afficher les points</button>
-                                <button class="rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-800" type="submit">Appliquer l'ordre</button>
+                                <button class="rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-800" type="submit">Prévisualiser l'ordre</button>
+                                <button class="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800" type="submit" formmethod="POST" formaction="{{ route('repartition.export.dispatching.order.save') }}">Enregistrer cet ordre</button>
                                 <button class="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800" type="submit" formaction="{{ route('repartition.export.dispatching') }}">Télécharger avec cet ordre</button>
                             </div>
                         </div>

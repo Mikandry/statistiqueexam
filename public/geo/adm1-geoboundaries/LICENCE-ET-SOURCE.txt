@@ -1,0 +1,9 @@
+Régions de Madagascar (niveau administratif 1, 22 régions)
+Source : geoBoundaries (William & Mary geoLab), version simplifiée, ADM1, construite le 12/12/2023.
+Données d'origine : OpenStreetMap contributors (Wambacher boundaries), millésime 2017.
+Licence : Open Data Commons Open Database License (ODbL) 1.0 — https://www.openstreetmap.org/copyright
+Attribution à conserver : « Limites © contributeurs OpenStreetMap, via geoBoundaries ».
+
+Fichiers :
+  regions.geojson  : même géométrie, coordonnées arrondies à 4 décimales (~11 m), propriétés réduites à nom et id
+  regions.shp / .shx / .dbf / .prj : shapefile d'origine (WGS84), pour QGIS ou tout SIG

@@ -3325,6 +3325,28 @@ class RepartitionReportController extends Controller
         ]);
     }
 
+    /** Enregistre durablement l'ordre de livraison des points d'un axe. */
+    public function saveDispatchingOrder(Request $request)
+    {
+        $data = $request->validate([
+            'order_axe' => ['required', 'string', 'max:191'],
+            'point_order_positions' => ['required', 'array', 'max:500'],
+            'point_order_positions.*' => ['required', 'integer', 'min:1', 'max:9999'],
+        ]);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($data) {
+            foreach ($data['point_order_positions'] as $point => $position) {
+                \App\Models\DispatchingPointOrder::query()->updateOrCreate(
+                    ['axe' => $data['order_axe'], 'point' => (string) $point],
+                    ['position' => (int) $position]
+                );
+            }
+        });
+
+        return redirect()->route('repartition.export.dispatching.preview', $request->only(['annee', 'type_examen', 'dren', 'order_axe']))
+            ->with('success', "Ordre de livraison enregistré pour l'axe « {$data['order_axe']} ».");
+    }
+
     public function exportDispatchingExcel(Request $request)
     {
         [$rows, $filters] = $this->getFilteredRows($request);
@@ -3847,9 +3869,10 @@ class RepartitionReportController extends Controller
                 ->values()
             : collect();
 
+        // Priorité : ordre demandé dans l'URL, puis ordre enregistré en base, puis ordre alphabétique.
         $requestedPositions = $request->query('point_order_positions', []);
-        if (! is_array($requestedPositions)) {
-            $requestedPositions = [];
+        if (! is_array($requestedPositions) || $requestedPositions === []) {
+            $requestedPositions = $selectedAxe !== '' ? \App\Models\DispatchingPointOrder::positionsFor($selectedAxe) : [];
         }
 
         $positionByPoint = [];
@@ -3890,11 +3913,15 @@ class RepartitionReportController extends Controller
             ->map(fn (int $rank) => $rank + 1)
             ->all();
 
+        // Ordres enregistrés pour les autres axes : les documents respectent l'ordre choisi sur tous les axes.
+        $savedByAxe = \App\Models\DispatchingPointOrder::query()->orderBy('position')->get()->groupBy('axe')
+            ->map(fn ($g) => $g->pluck('position', 'point')->map(fn ($p) => (int) $p)->all())->all();
+
         return $dispatchRows
-            ->sort(function (array $left, array $right) use ($selectedAxe, $pointRanks) {
+            ->sort(function (array $left, array $right) use ($selectedAxe, $pointRanks, $savedByAxe) {
                 foreach ([
                     strcmp((string) $left['axe_dispatching'], (string) $right['axe_dispatching']),
-                    $this->dispatchingPointRank($left, $selectedAxe, $pointRanks) <=> $this->dispatchingPointRank($right, $selectedAxe, $pointRanks),
+                    $this->dispatchingPointRank($left, $selectedAxe, $pointRanks, $savedByAxe) <=> $this->dispatchingPointRank($right, $selectedAxe, $pointRanks, $savedByAxe),
                     strcmp((string) $left['point_largage'], (string) $right['point_largage']),
                     strcmp((string) $left['dren'], (string) $right['dren']),
                     strcmp((string) $left['cisco'], (string) $right['cisco']),
@@ -3910,10 +3937,10 @@ class RepartitionReportController extends Controller
             ->values();
     }
 
-    private function dispatchingPointRank(array $row, string $selectedAxe, array $pointRanks): int
+    private function dispatchingPointRank(array $row, string $selectedAxe, array $pointRanks, array $savedByAxe = []): int
     {
         if ($selectedAxe === '' || (string) $row['axe_dispatching'] !== $selectedAxe) {
-            return 999999;
+            return (int) ($savedByAxe[(string) $row['axe_dispatching']][(string) $row['point_largage']] ?? 999999);
         }
 
         return (int) ($pointRanks[(string) $row['point_largage']] ?? 999999);

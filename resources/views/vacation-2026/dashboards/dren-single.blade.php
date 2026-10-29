@@ -47,7 +47,8 @@
             <div class="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-purple-100 p-4 text-sm md:grid-cols-5"><div><span class="block text-purple-700">Centres EPS</span><strong>{{ $eps_total['centres'] }}</strong></div><div><span class="block text-purple-700">Candidats</span><strong>{{ number_format($eps_total['candidates'], 0, ',', ' ') }}</strong></div><div><span class="block text-purple-700">Agents requis</span><strong>{{ $eps_total['planned'] }}</strong></div><div><span class="block text-purple-700">Agents affectés</span><strong>{{ $eps_total['assigned'] }}</strong></div><div><span class="block text-purple-700">Montant EPS DREN</span><strong>{{ number_format($eps_total['amount'], 0, ',', ' ') }} Ar</strong></div></div>
         </div>
         @endif --}}
-        @if($selectedDrenId && isset($eps_ciscos))
+        {{-- Le tableau EPS n'apparaît que s'il y a vraiment des centres EPS ou des agents EPS à prévoir (ex. masqué pour le CEPE sans EPS). --}}
+        @if($selectedDrenId && isset($eps_ciscos) && (($eps_total['centres'] ?? 0) > 0 || ($eps_total['planned'] ?? 0) > 0))
 <div class="rounded-2xl border border-purple-200 bg-white p-5 shadow-sm">
 
     <div class="overflow-x-auto rounded-xl border border-slate-200">

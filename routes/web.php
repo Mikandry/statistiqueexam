@@ -45,6 +45,13 @@ Route::post('/logout', [AuthController::class, 'logout'])
     ->name('logout');
 
 Route::middleware(['auth', 'nonlogistique'])->group(function () {
+    Route::get('/carte', [\App\Http\Controllers\MapController::class, 'index'])->name('carte.index');
+    Route::get('/carte/donnees', [\App\Http\Controllers\MapController::class, 'data'])->name('carte.data');
+    Route::get('/carte/coordonnees', [\App\Http\Controllers\MapController::class, 'coordinates'])->name('carte.coordonnees');
+    Route::put('/carte/coordonnees', [\App\Http\Controllers\MapController::class, 'saveCoordinates'])->name('carte.coordonnees.save');
+    Route::put('/carte/parametres', [\App\Http\Controllers\MapController::class, 'saveSettings'])->name('carte.parametres');
+    Route::get('/carte/modele-csv', [\App\Http\Controllers\MapController::class, 'template'])->name('carte.modele');
+    Route::post('/carte/import', [\App\Http\Controllers\MapController::class, 'import'])->name('carte.import');
     Route::get('/resultats-cap-cae', [CapCaeResultController::class, 'index'])
         ->name('cap-cae-results.index');
     Route::post('/resultats-cap-cae/import', [CapCaeResultController::class, 'import'])
@@ -225,6 +232,9 @@ Route::middleware('auth')->group(function () {
             HrPersonnelController::class,
             'index'
         ])->name('hr.agents.index');
+
+        Route::get('/rh/bilan-activites', [\App\Http\Controllers\HrActivityTotalsController::class, 'index'])->name('hr.activity.index');
+        Route::get('/rh/bilan-activites/{agent}', [\App\Http\Controllers\HrActivityTotalsController::class, 'show'])->name('hr.activity.show');
 
         Route::get('/rh/personnel/{agent}', [
             HrPersonnelController::class,
@@ -472,6 +482,8 @@ Route::get(
         ->name('repartition.export.dispatching.preview');
     Route::get('/repartition/export/dispatching', [RepartitionReportController::class, 'exportDispatchingExcel'])
         ->name('repartition.export.dispatching');
+    Route::post('/repartition/export/dispatching/ordre', [RepartitionReportController::class, 'saveDispatchingOrder'])
+        ->name('repartition.export.dispatching.order.save');
     Route::get('/repartition/options-langues/stats', [RepartitionReportController::class, 'languageOptionStats'])
         ->name('repartition.options.langues.stats');
 });
@@ -487,6 +499,10 @@ Route::middleware(['auth', 'logistics'])->group(function () {
         ->name('inventory.materials.destroy');
     Route::post('/logistique/comptabilite-matieres/mouvements', [InventoryController::class, 'storeMovement'])
         ->name('inventory.movements.store');
+    Route::get('/logistique/comptabilite-matieres/materiels/{material}/historique', [InventoryController::class, 'history'])
+        ->name('inventory.materials.history');
+    Route::get('/logistique/comptabilite-matieres/rapprochement', [InventoryController::class, 'reconciliation'])
+        ->name('inventory.reconciliation');
     Route::post('/logistique/comptabilite-matieres/fournisseurs', [InventoryController::class, 'storeSupplier'])
         ->name('inventory.suppliers.store');
     Route::post('/logistique/comptabilite-matieres/commandes', [InventoryController::class, 'storeOrder'])
@@ -559,10 +575,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('vacation2026.exports.xlsx');
     Route::get('/vacation-2026/exports/{document}/pdf', [Vacation2026Controller::class, 'exportPdf'])
         ->name('vacation2026.exports.pdf');
-            // Vacation 2026 — Besoins & Montants (effectifs mobilisés par activité, sans affectation d'agents) TEST SI DEJA CLONER
+            // Vacation 2026 — Besoins & Montants (effectifs mobilisés par activité, sans affectation d'agents)
     Route::prefix('/vacation-2026/besoins')->name('vacation2026.besoins.')->group(function () {
         Route::get('/', [Vacation2026BesoinsController::class, 'dashboard'])->name('dashboard');
         Route::get('/activites', [Vacation2026BesoinsController::class, 'activites'])->name('activites');
+        Route::get('/province', [Vacation2026BesoinsController::class, 'provinces'])->name('province');
         Route::get('/dren', [Vacation2026BesoinsController::class, 'dren'])->name('dren');
         Route::get('/dren/{dren}', [Vacation2026BesoinsController::class, 'showDren'])->name('dren.show');
         Route::get('/cisco', [Vacation2026BesoinsController::class, 'cisco'])->name('cisco');
@@ -570,28 +587,16 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/centres', [Vacation2026BesoinsController::class, 'centres'])->name('centres');
         Route::get('/centres/{key}', [Vacation2026BesoinsController::class, 'showCentre'])->name('centres.show');
         Route::get('/export', [Vacation2026BesoinsController::class, 'export'])->name('export');
+        Route::get('/structure', [Vacation2026BesoinsController::class, 'structure'])->name('structure');
+        Route::post('/structure/transcription', [Vacation2026BesoinsController::class, 'storeTranscription'])->name('transcription.store');
+        Route::put('/structure/transcription/{transcription}', [Vacation2026BesoinsController::class, 'updateTranscription'])->name('transcription.update');
+        Route::delete('/structure/transcription/{transcription}', [Vacation2026BesoinsController::class, 'destroyTranscription'])->name('transcription.destroy');
         Route::get('/baremes', [Vacation2026BesoinsController::class, 'baremes'])->name('baremes');
         Route::put('/baremes', [Vacation2026BesoinsController::class, 'updateBaremes'])->name('baremes.update');
         Route::get('/parametres', [Vacation2026BesoinsController::class, 'parametres'])->name('parametres');
         Route::put('/parametres', [Vacation2026BesoinsController::class, 'updateParametres'])->name('parametres.update');
     });
 
-    // Vacation 2026 — Besoins & Montants (effectifs mobilisés par activité, sans affectation d'agents)
-    Route::prefix('/vacation-2026/besoins')->name('vacation2026.besoins.')->group(function () {
-        Route::get('/', [Vacation2026BesoinsController::class, 'dashboard'])->name('dashboard');
-        Route::get('/activites', [Vacation2026BesoinsController::class, 'activites'])->name('activites');
-        Route::get('/dren', [Vacation2026BesoinsController::class, 'dren'])->name('dren');
-        Route::get('/dren/{dren}', [Vacation2026BesoinsController::class, 'showDren'])->name('dren.show');
-        Route::get('/cisco', [Vacation2026BesoinsController::class, 'cisco'])->name('cisco');
-        Route::get('/cisco/{cisco}', [Vacation2026BesoinsController::class, 'showCisco'])->whereNumber('cisco')->name('cisco.show');
-        Route::get('/centres', [Vacation2026BesoinsController::class, 'centres'])->name('centres');
-        Route::get('/centres/{key}', [Vacation2026BesoinsController::class, 'showCentre'])->name('centres.show');
-        Route::get('/export', [Vacation2026BesoinsController::class, 'export'])->name('export');
-        Route::get('/baremes', [Vacation2026BesoinsController::class, 'baremes'])->name('baremes');
-        Route::put('/baremes', [Vacation2026BesoinsController::class, 'updateBaremes'])->name('baremes.update');
-        Route::get('/parametres', [Vacation2026BesoinsController::class, 'parametres'])->name('parametres');
-        Route::put('/parametres', [Vacation2026BesoinsController::class, 'updateParametres'])->name('parametres.update');
-    });
 
     // Vacation 2026 Dashboards
     Route::get('/vacation-2026/dashboards/global', [Vacation2026DashboardController::class, 'global'])

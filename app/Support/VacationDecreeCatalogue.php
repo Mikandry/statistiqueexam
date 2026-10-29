@@ -54,6 +54,7 @@ final class VacationDecreeCatalogue
     public const CENTRE_JUMELES = "CENTRE D'ECRIT ET CORRECTION JUMELES";
     public const CENTRE_TRANSCRIPTION = 'CENTRE DE TRANSCRIPTION';
     public const CENTRE_SOUS = 'SOUS-CENTRE';
+    public const CENTRE_EPS = 'EPS/GYM';
 
     /** Matières du CEPE (7) — « un correcteur par matière », 7 coordonnateurs. */
     public const CEPE_MATIERES = 7;
@@ -169,6 +170,30 @@ final class VacationDecreeCatalogue
     // =====================================================================
     // Utilitaires
     // =====================================================================
+
+    /**
+     * Catégorie de personnel d'un code de taux (pour la ventilation du tableau de bord).
+     */
+    public static function category(string $rateCode): string
+    {
+        $leaf = substr($rateCode, (int) strrpos($rateCode, '.') + 1);
+        $group = strtok($rateCode, '.');
+
+        return match (true) {
+            $group === 'speciale' => 'Indemnité spéciale (Art. 7)',
+            $group === 'transcription' && in_array($leaf, ['saisie', 'lecteur', 'papillon', 'verificateur', 'agrafeur'], true) => 'Transcription (saisie, lecture)',
+            in_array($leaf, ['directeur', 'chef_service', 'chef', 'chef_division', 'chef_centre', 'chef_adjoint'], true) => 'Encadrement et direction',
+            str_starts_with($leaf, 'surveillant') => 'Surveillance',
+            in_array($leaf, ['agent_secretariat', 'secretaire_salle', 'secretaire'], true) => 'Secrétariat',
+            in_array($leaf, ['resp_securite', 'resp_securite_sujets', 'resp_securite_copies', 'securite', 'gardien', 'comite_vigilance', 'scellage'], true) => 'Sécurité et vigilance',
+            in_array($leaf, ['correcteur', 'correcteur_litteraire', 'coordonnateur'], true) => 'Correction',
+            in_array($leaf, ['ati', 'resp_informatique', 'informatique'], true) => 'Informatique',
+            in_array($leaf, ['interrogateur', 'medecin', 'agent_stade'], true) => 'EPS (terrain)',
+            in_array($leaf, ['enseignant', 'conseiller_pedagogique', 'agent_elaboration'], true) => 'Élaboration des sujets',
+            $group === 'central' => 'Travaux du MEN central',
+            default => 'Agents',
+        };
+    }
 
     /** Division par excès : nombre de tranches entamées. */
     public static function tranches(int $value, int $per): int

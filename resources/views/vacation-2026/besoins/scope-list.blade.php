@@ -1,35 +1,43 @@
 @extends('layouts.app')
-@section('title', $title.' - Vacation 2026')
+@section('title', $title.' · Vacation 2026')
 @section('content')
 @php $n = fn ($v) => number_format((float) $v, 0, ',', ' '); @endphp
-<div class="space-y-4">
-    <h1 class="text-3xl font-bold text-slate-900">{{ $title }}</h1>
+<div class="ui-page">
+    <div class="ui-head"><div><h1 class="ui-title">{{ $title }}</h1></div></div>
     @include('vacation-2026.besoins._nav')
     @include('vacation-2026.besoins._filters')
     @include('vacation-2026.besoins._kpis')
-    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white"><table class="w-full text-sm">
-        <thead class="bg-slate-100 text-left text-xs uppercase text-slate-600"><tr>
+    <div class="ui-card"><div class="ui-table-wrap"><table class="ui-table">
+        <thead><tr>
         @if($kind === 'CENTRE')
-            <th class="p-2">Centre</th><th class="p-2">Type</th><th class="p-2">CISCO</th><th class="p-2">DREN</th><th class="p-2">Examen</th><th class="p-2 text-right">Candidats</th><th class="p-2 text-right">Personnes</th><th class="p-2 text-right">Montant Ar</th>
+            <th>Centre</th><th>Type</th><th>CISCO</th><th>DREN</th><th>Examen</th><th class="num">Candidats</th><th class="num">Besoin</th><th class="num">Affectés</th><th class="num">Validés</th><th class="num">Montant Ar</th>
+        @elseif($kind === 'PROVINCE')
+            <th>Province</th><th class="num">DREN</th><th class="num">CISCO</th><th class="num">Centres</th><th class="num">Candidats</th><th class="num">Personnes</th><th class="num">CEPE Ar</th><th class="num">BEPC Ar</th><th class="num">Total Ar</th>
         @else
-            <th class="p-2">{{ $kind === 'CISCO' ? 'CISCO' : 'DREN' }}</th>@if($kind === 'CISCO')<th class="p-2">DREN</th>@endif
-            <th class="p-2 text-right">Personnes</th><th class="p-2 text-right">DREN/CISCO</th><th class="p-2 text-right">Écrit</th><th class="p-2 text-right">Correction</th><th class="p-2 text-right">Transcr.</th><th class="p-2 text-right">EPS</th><th class="p-2 text-right">CEPE Ar</th><th class="p-2 text-right">BEPC Ar</th><th class="p-2 text-right">Total Ar</th>
+            <th>{{ $kind }}</th>@if($kind === 'CISCO')<th>DREN</th>@endif
+            <th class="num">Besoin</th><th class="num">Affectés</th><th class="num">Validés</th><th class="num">DREN/CISCO</th><th class="num">Écrit</th><th class="num">Correction</th><th class="num">Transcr.</th><th class="num">EPS</th><th class="num">CEPE Ar</th><th class="num">BEPC Ar</th><th class="num">Total Ar</th>
         @endif
         </tr></thead><tbody>
-        @foreach($rows as $r)
-            <tr class="border-t">
+        @forelse($rows as $r)
+            <tr>
             @if($kind === 'CENTRE')
-                <td class="p-2"><a class="text-blue-700 underline" href="{{ route('vacation2026.besoins.centres.show', $r['key']) }}">{{ $r['nom'] }}</a>@if($r['parent_nom'])<div class="text-xs text-slate-500">sous-centre de {{ $r['parent_nom'] }}</div>@endif</td>
-                <td class="p-2 text-xs">{{ $r['type'] }}</td><td class="p-2">{{ $r['cisco_nom'] }}</td><td class="p-2">{{ $r['dren_nom'] }}</td><td class="p-2">{{ implode('+', $r['exams']) }}</td>
-                <td class="p-2 text-right">{{ $n($r['candidates']) }}</td><td class="p-2 text-right">{{ $n($r['persons']) }}</td><td class="p-2 text-right font-semibold">{{ $n($r['amount']) }}</td>
+                <td><a href="{{ route('vacation2026.besoins.centres.show', $r['key']) }}">{{ $r['nom'] }}</a>@if($r['parent_nom'])<span class="sub">{{ $r['type'] === 'TRANSCRIPTION' ? 'Lieu : ' : 'Sous-centre de ' }}{{ $r['parent_nom'] }}</span>@endif</td>
+                <td><span class="ui-badge">{{ $r['type'] }}</span></td><td>{{ $r['cisco_nom'] }}</td><td>{{ $r['dren_nom'] }}</td><td>{{ implode(' + ', $r['exams']) }}</td>
+                <td class="num">{{ $n($r['candidates']) }}</td><td class="num">{{ $n($r['persons']) }}</td><td class="num">{{ $n($r['assign']['assigned'] ?? 0) }}</td><td class="num">{{ $n($r['assign']['validated'] ?? 0) }}</td><td class="num strong">{{ $n($r['amount']) }}</td>
+            @elseif($kind === 'PROVINCE')
+                <td class="strong">{{ $r['nom'] }}</td><td class="num">{{ $r['drens'] }}</td><td class="num">{{ $r['ciscos'] }}</td><td class="num">{{ $r['centres'] }}</td><td class="num">{{ $n($r['candidates']) }}</td><td class="num">{{ $n($r['persons']) }}</td>
+                <td class="num">{{ $n($r['by_exam']['CEPE']['amount'] ?? 0) }}</td><td class="num">{{ $n($r['by_exam']['BEPC']['amount'] ?? 0) }}</td><td class="num strong">{{ $n($r['amount']) }}</td>
             @else
                 @php $bl = $r['by_level']; $lv = fn ($k) => $bl[$k]['amount'] ?? 0; @endphp
-                <td class="p-2"><a class="text-blue-700 underline" href="{{ route($kind === 'CISCO' ? 'vacation2026.besoins.cisco.show' : 'vacation2026.besoins.dren.show', $r['id']) }}">{{ $r['nom'] }}</a></td>
-                @if($kind === 'CISCO')<td class="p-2">{{ $r['dren_nom'] }}</td>@endif
-                <td class="p-2 text-right">{{ $n($r['persons']) }}</td><td class="p-2 text-right">{{ $n($lv('DREN') + $lv('CISCO')) }}</td><td class="p-2 text-right">{{ $n($lv('CENTRE_ECRIT')) }}</td><td class="p-2 text-right">{{ $n($lv('CENTRE_CORRECTION')) }}</td><td class="p-2 text-right">{{ $n($lv('TRANSCRIPTION')) }}</td><td class="p-2 text-right">{{ $n($lv('EPS')) }}</td>
-                <td class="p-2 text-right">{{ $n($r['by_exam']['CEPE']['amount'] ?? 0) }}</td><td class="p-2 text-right">{{ $n($r['by_exam']['BEPC']['amount'] ?? 0) }}</td><td class="p-2 text-right font-semibold">{{ $n($r['amount']) }}</td>
+                <td><a href="{{ route($kind === 'CISCO' ? 'vacation2026.besoins.cisco.show' : 'vacation2026.besoins.dren.show', $r['id']) }}">{{ $r['nom'] }}</a></td>
+                @if($kind === 'CISCO')<td>{{ $r['dren_nom'] ?? '' }}</td>@endif
+                <td class="num">{{ $n($r['persons']) }}</td><td class="num">{{ $n($r['assign']['assigned'] ?? 0) }}</td><td class="num">{{ $n($r['assign']['validated'] ?? 0) }}</td>
+                <td class="num">{{ $n($lv('DREN') + $lv('CISCO')) }}</td><td class="num">{{ $n($lv('CENTRE_ECRIT')) }}</td><td class="num">{{ $n($lv('CENTRE_CORRECTION')) }}</td><td class="num">{{ $n($lv('TRANSCRIPTION')) }}</td><td class="num">{{ $n($lv('EPS')) }}</td>
+                <td class="num">{{ $n($r['by_exam']['CEPE']['amount'] ?? 0) }}</td><td class="num">{{ $n($r['by_exam']['BEPC']['amount'] ?? 0) }}</td><td class="num strong">{{ $n($r['amount']) }}</td>
             @endif
             </tr>
-        @endforeach</tbody></table></div>
+        @empty
+            <tr><td colspan="12" class="ui-empty">Aucune ligne pour cette sélection.</td></tr>
+        @endforelse</tbody></table></div></div>
 </div>
 @endsection

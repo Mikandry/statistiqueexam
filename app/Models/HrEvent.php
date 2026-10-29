@@ -12,6 +12,7 @@ class HrEvent extends Model
         'autorisation_absence' => 'Autorisation d’absence',
         'mission' => 'Mission',
         'formation' => 'Formation',
+        'atelier' => 'Atelier',
         'mise_disposition' => 'Mise à disposition',
         'autre' => 'Autre indisponibilité',
     ];

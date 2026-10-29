@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Cisco;
 use App\Models\Dren;
+use App\Models\Province;
+use App\Models\TranscriptionCentre;
 use App\Models\Vacation2026Bareme;
 use App\Models\Vacation2026Parametre;
 use App\Services\VacationBesoinsService;
@@ -40,9 +43,13 @@ class Vacation2026BesoinsController extends Controller
         $byLevel = $this->besoins->groupTotals($lines, 'level');
         $byExam = $this->besoins->groupTotals($lines, 'exam');
         $byPhase = $this->besoins->groupTotals($lines, 'phase');
+
+        // Les niveaux sans aucune ligne pour la sélection sont masqués (ex. EPS quand on filtre le CEPE).
+        $levels = collect(Cat::LEVELS)->filter(fn ($label, $level) => $lines->where('level', $level)->isNotEmpty())->all();
+        $exams = $filters['exam'] !== '' ? [$filters['exam']] : Cat::EXAMS;
         $matrix = [];
-        foreach (Cat::LEVELS as $level => $label) {
-            foreach (Cat::EXAMS as $exam) {
+        foreach ($levels as $level => $label) {
+            foreach ($exams as $exam) {
                 $matrix[$level][$exam] = $this->besoins->totals($lines->where('level', $level)->where('exam', $exam));
             }
         }
@@ -51,21 +58,28 @@ class Vacation2026BesoinsController extends Controller
         $ciscos = $this->besoins->byCisco($lines);
         $centres = $this->besoins->byCentre($lines);
 
+        $assign = $this->besoins->assignmentTotals(['exam' => $filters['exam'], 'dren_id' => $filters['dren_id'], 'cisco_id' => $filters['cisco_id']]);
+
         return view('vacation-2026.besoins.dashboard', [
             'filters' => $filters,
             'filterData' => $this->filterData(),
             'totals' => $this->besoins->totals($lines),
+            'assign' => $assign,
             'byLevel' => $byLevel,
             'byExam' => $byExam,
             'byPhase' => $byPhase,
+            'byProvince' => $this->besoins->byProvince($lines),
+            'byCategory' => $this->besoins->byCategory($lines),
             'matrix' => $matrix,
+            'exams' => $exams,
             'topDrens' => $drens->take(10),
             'drenCount' => $drens->count(),
             'ciscoCount' => $ciscos->count(),
             'centreCount' => $centres->count(),
             'stats' => $data['stats'],
+            'checks' => $data['checks'],
             'warnings' => $data['warnings'],
-            'levels' => Cat::LEVELS,
+            'levels' => $levels,
             'phases' => Cat::PHASES,
             'ratesDefined' => $data['rates_defined'],
         ]);
@@ -101,7 +115,7 @@ class Vacation2026BesoinsController extends Controller
         $filters = $this->filters($request);
         $data = $this->besoins->compute();
         $lines = $this->besoins->lines($filters);
-        $rows = $this->besoins->byDren($lines);
+        $rows = $this->besoins->byDren($lines)->map(fn ($r) => $r + ['assign' => $this->besoins->assignmentTotals(['exam' => $filters['exam'], 'dren_id' => $r['id']])]);
 
         return view('vacation-2026.besoins.scope-list', [
             'kind' => 'DREN',
@@ -124,7 +138,7 @@ class Vacation2026BesoinsController extends Controller
         return view('vacation-2026.besoins.scope-list', [
             'kind' => 'CISCO',
             'title' => 'Besoins et montants par CISCO',
-            'rows' => $this->besoins->byCisco($lines),
+            'rows' => $this->besoins->byCisco($lines)->map(fn ($r) => $r + ['assign' => $this->besoins->assignmentTotals(['exam' => $filters['exam'], 'cisco_id' => $r['id']])]),
             'filters' => $filters,
             'filterData' => $this->filterData(),
             'totals' => $this->besoins->totals($lines),
@@ -138,7 +152,7 @@ class Vacation2026BesoinsController extends Controller
         $filters = $this->filters($request);
         $data = $this->besoins->compute();
         $lines = $this->besoins->lines($filters);
-        $rows = $this->besoins->byCentre($lines);
+        $rows = $this->besoins->byCentre($lines)->map(fn ($r) => $r + ['assign' => $this->besoins->assignmentTotals(['exam' => $filters['exam'], 'scope_key' => $r['key']])]);
 
         $type = (string) $request->query('type', '');
         if ($type !== '') {
@@ -157,12 +171,31 @@ class Vacation2026BesoinsController extends Controller
         ]);
     }
 
+    public function provinces(Request $request)
+    {
+        $filters = $this->filters($request);
+        $data = $this->besoins->compute();
+        $lines = $this->besoins->lines($filters);
+
+        return view('vacation-2026.besoins.scope-list', [
+            'kind' => 'PROVINCE',
+            'title' => 'Besoins et montants par province',
+            'rows' => $this->besoins->byProvince($lines),
+            'filters' => $filters,
+            'filterData' => $this->filterData(),
+            'totals' => $this->besoins->totals($lines),
+            'levels' => Cat::LEVELS,
+            'warnings' => $data['warnings'],
+        ]);
+    }
+
     public function showDren(Request $request, Dren $dren)
     {
         $lines = $this->besoins->lines(['dren_id' => $dren->id] + $this->filters($request));
 
         return $this->detail($request, "DREN {$dren->nom}", $dren->province ? 'Province de '.$dren->province : null, $lines, [
             'back' => route('vacation2026.besoins.dren'),
+            'assign' => $this->besoins->assignmentTotals(['exam' => $this->filters($request)['exam'], 'dren_id' => $dren->id]),
             'ciscos' => $this->besoins->byCisco($lines),
             'centres' => $this->besoins->byCentre($lines),
         ]);
@@ -175,6 +208,7 @@ class Vacation2026BesoinsController extends Controller
 
         return $this->detail($request, 'CISCO '.($first['cisco_nom'] ?? "#{$cisco}"), $first ? 'DREN '.$first['dren_nom'] : null, $lines, [
             'back' => route('vacation2026.besoins.cisco'),
+            'assign' => $this->besoins->assignmentTotals(['exam' => $this->filters($request)['exam'], 'cisco_id' => $cisco]),
             'centres' => $this->besoins->byCentre($lines),
         ]);
     }
@@ -191,21 +225,42 @@ class Vacation2026BesoinsController extends Controller
 
         return $this->detail($request, $first['scope_nom'], $subtitle, $lines, [
             'back' => route('vacation2026.besoins.centres'),
+            'assign' => $this->besoins->assignmentTotals(['exam' => $this->filters($request)['exam'], 'scope_key' => $key]),
         ]);
     }
 
     private function detail(Request $request, string $title, ?string $subtitle, Collection $lines, array $extra)
     {
+        $filters = $this->filters($request);
+        $activities = $this->besoins->byActivity($lines);
+
+        // Avant / pendant / après la session : une section par phase du décret
+        $phaseBlocks = collect(Cat::PHASES)->map(function ($label, $phase) use ($lines, $activities) {
+            $rows = $lines->where('phase', $phase);
+            if ($rows->isEmpty()) {
+                return null;
+            }
+
+            return [
+                'phase' => $phase, 'label' => $label,
+                'totals' => $this->besoins->totals($rows),
+                'activities' => $activities->where('phase', $phase)->values(),
+            ];
+        })->filter()->values();
+
         return view('vacation-2026.besoins.detail', $extra + [
             'title' => $title,
             'subtitle' => $subtitle,
-            'filters' => $this->filters($request),
+            'filters' => $filters,
             'filterData' => $this->filterData(),
             'totals' => $this->besoins->totals($lines),
-            'activities' => $this->besoins->byActivity($lines),
+            'assign' => $extra['assign'] ?? null,
+            'activities' => $activities,
+            'phaseBlocks' => $phaseBlocks,
             'roles' => $this->besoins->byRole($lines),
             'byExam' => $this->besoins->groupTotals($lines, 'exam'),
             'byLevel' => $this->besoins->groupTotals($lines, 'level'),
+            'byCategory' => $this->besoins->byCategory($lines),
             'levels' => Cat::LEVELS,
             'phases' => Cat::PHASES,
             'ciscos' => $extra['ciscos'] ?? collect(),
@@ -276,6 +331,77 @@ class Vacation2026BesoinsController extends Controller
     }
 
     // =====================================================================
+    // Structure : centres de transcription (plusieurs possibles par CISCO)
+    // =====================================================================
+
+    public function structure(Request $request)
+    {
+        $drenId = $request->query('dren_id') ? (int) $request->query('dren_id') : null;
+        $ciscos = Cisco::query()->with(['dren', 'provinceRef', 'transcriptionCentres'])
+            ->when($drenId, fn ($q) => $q->where('dren_id', $drenId))
+            ->orderBy('nom')->get();
+
+        return view('vacation-2026.besoins.structure', [
+            'ciscos' => $ciscos,
+            'drens' => Dren::query()->orderBy('nom')->get(),
+            'drenId' => $drenId,
+            'withCentres' => $ciscos->filter(fn ($c) => $c->transcriptionCentres->isNotEmpty())->count(),
+        ]);
+    }
+
+    public function storeTranscription(Request $request)
+    {
+        $data = $this->validateTranscription($request);
+        $exists = TranscriptionCentre::query()->where('cisco_id', $data['cisco_id'])->where('nom', $data['nom'])->exists();
+        if ($exists) {
+            return back()->withErrors(['nom' => 'Cette CISCO a déjà un centre de transcription de ce nom.'])->withInput();
+        }
+        TranscriptionCentre::query()->create($data);
+
+        return back()->with('success', 'Centre de transcription ajouté.');
+    }
+
+    public function updateTranscription(Request $request, TranscriptionCentre $transcription)
+    {
+        $data = $this->validateTranscription($request);
+        $dup = TranscriptionCentre::query()->where('cisco_id', $data['cisco_id'])->where('nom', $data['nom'])->where('id', '!=', $transcription->id)->exists();
+        if ($dup) {
+            return back()->withErrors(['nom' => 'Cette CISCO a déjà un centre de transcription de ce nom.'])->withInput();
+        }
+        $transcription->update($data);
+
+        return back()->with('success', 'Centre de transcription modifié.');
+    }
+
+    public function destroyTranscription(TranscriptionCentre $transcription)
+    {
+        $transcription->delete();
+
+        return back()->with('success', 'Centre de transcription supprimé.');
+    }
+
+    private function validateTranscription(Request $request): array
+    {
+        $v = $request->validate([
+            'cisco_id' => ['required', 'integer', 'exists:ciscos,id'],
+            'nom' => ['required', 'string', 'max:255'],
+            'localisation' => ['nullable', 'string', 'max:255'],
+            'ordre' => ['nullable', 'integer', 'min:0', 'max:999'],
+            'candidats_cepe' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'candidats_bepc' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+        ]);
+
+        return [
+            'cisco_id' => (int) $v['cisco_id'],
+            'nom' => trim($v['nom']),
+            'localisation' => ($v['localisation'] ?? '') !== '' ? trim($v['localisation']) : null,
+            'ordre' => (int) ($v['ordre'] ?? 0),
+            'candidats_cepe' => ($v['candidats_cepe'] ?? '') !== '' ? (int) $v['candidats_cepe'] : null,
+            'candidats_bepc' => ($v['candidats_bepc'] ?? '') !== '' ? (int) $v['candidats_bepc'] : null,
+        ];
+    }
+
+    // =====================================================================
     // Paramètres
     // =====================================================================
 
@@ -283,8 +409,8 @@ class Vacation2026BesoinsController extends Controller
     {
         return view('vacation-2026.besoins.parametres', [
             'params' => Vacation2026Parametre::values(),
-            'drens' => Dren::query()->orderBy('nom')->get(),
-            'provinces' => MadagascarProvinces::PROVINCES,
+            'drens' => Dren::query()->with('provinceRef')->orderBy('nom')->get(),
+            'provinces' => Province::query()->orderBy('nom')->get(),
             'transcriptionChoices' => Vacation2026Parametre::TRANSCRIPTION_TYPES_ALL,
         ]);
     }
@@ -304,7 +430,7 @@ class Vacation2026BesoinsController extends Controller
             'nb_provinces' => ['required', 'integer', 'min:0', 'max:30'],
             'eps_centres_par_cisco' => ['required', 'integer', 'min:1', 'max:20'],
             'drens' => ['nullable', 'array'],
-            'drens.*.province' => ['nullable', 'string', 'max:60'],
+            'drens.*.province_id' => ['nullable', 'integer', 'exists:provinces,id'],
             'drens.*.chef_lieu' => ['nullable', 'boolean'],
         ]);
 
@@ -320,8 +446,10 @@ class Vacation2026BesoinsController extends Controller
         if ($request->has('drens')) {
             foreach (Dren::query()->get() as $dren) {
                 $row = $request->input("drens.{$dren->id}", []);
+                $province = ! empty($row['province_id']) ? Province::query()->find((int) $row['province_id']) : null;
                 $dren->update([
-                    'province' => ($row['province'] ?? '') !== '' ? $row['province'] : null,
+                    'province_id' => $province?->id,
+                    'province' => $province?->nom,
                     'is_chef_lieu_province' => ! empty($row['chef_lieu']),
                 ]);
             }
@@ -331,7 +459,8 @@ class Vacation2026BesoinsController extends Controller
             foreach (Dren::query()->get() as $dren) {
                 $guess = MadagascarProvinces::guess((string) $dren->nom);
                 if ($guess !== null) {
-                    $dren->update(['province' => $guess['province'], 'is_chef_lieu_province' => $guess['chef_lieu']]);
+                    $province = Province::query()->where('nom', $guess['province'])->first();
+                    $dren->update(['province_id' => $province?->id, 'province' => $guess['province'], 'is_chef_lieu_province' => $guess['chef_lieu']]);
                 }
             }
         }
@@ -382,6 +511,20 @@ class Vacation2026BesoinsController extends Controller
                 $a['units'], $a['persons'], $a['persons_per_unit'], $a['days_min'], $a['days_max'], $a['person_days'], $a['amount'], $a['rule'],
             ])->all());
 
+        $this->addSheet($spreadsheet, 'Par province',
+            ['Province', 'DREN', 'CISCO', 'Centres', 'Candidats', 'Postes mobilisés', 'Jours-agents', 'Montant (Ar)', 'CEPE (Ar)', 'BEPC (Ar)'],
+            $this->besoins->byProvince($lines)->map(fn ($r) => [
+                $r['nom'], $r['drens'], $r['ciscos'], $r['centres'], $r['candidates'], $r['persons'], $r['person_days'], $r['amount'],
+                (float) ($r['by_exam']['CEPE']['amount'] ?? 0), (float) ($r['by_exam']['BEPC']['amount'] ?? 0),
+            ])->all());
+
+        $this->addSheet($spreadsheet, 'Par catégorie',
+            ['Catégorie de personnel', 'Postes mobilisés', 'Jours-agents', 'Montant (Ar)', 'CEPE (Ar)', 'BEPC (Ar)'],
+            $this->besoins->byCategory($lines)->map(fn ($r) => [
+                $r['category'], $r['persons'], $r['person_days'], $r['amount'],
+                (float) ($r['by_exam']['CEPE']['amount'] ?? 0), (float) ($r['by_exam']['BEPC']['amount'] ?? 0),
+            ])->all());
+
         $this->addSheet($spreadsheet, 'Par DREN',
             ['DREN', 'Postes mobilisés', 'Jours-agents', 'Montant total (Ar)', 'dont DREN', 'dont CISCO', "dont centres d'écrit", 'dont centres de correction', 'dont transcription', 'dont EPS', 'CEPE (Ar)', 'BEPC (Ar)'],
             $this->besoins->byDren($lines)->map(fn ($r) => [
@@ -398,17 +541,17 @@ class Vacation2026BesoinsController extends Controller
             ])->all());
 
         $this->addSheet($spreadsheet, 'Par centre',
-            ['Centre', 'Type', 'Sous-centre de', 'DREN', 'CISCO', 'Examen(s)', 'Candidats', 'Postes mobilisés', 'Jours-agents', 'Montant (Ar)'],
+            ['Centre', 'Type', 'Sous-centre de / localisation', 'Province', 'DREN', 'CISCO', 'Examen(s)', 'Candidats', 'Postes mobilisés', 'Jours-agents', 'Montant (Ar)'],
             $this->besoins->byCentre($lines)->map(fn ($r) => [
-                $r['nom'], $r['type'], $r['parent_nom'], $r['dren_nom'], $r['cisco_nom'], implode('+', $r['exams']),
+                $r['nom'], $r['type'], $r['parent_nom'], $r['province'], $r['dren_nom'], $r['cisco_nom'], implode('+', $r['exams']),
                 $r['candidates'], $r['persons'], $r['person_days'], $r['amount'],
             ])->all());
 
         $this->addSheet($spreadsheet, 'Détail par rôle',
-            ['Examen', 'Niveau', 'Phase', 'Activité', 'Rôle', 'Périmètre', 'DREN', 'CISCO', 'Personnes', 'Jours', 'Taux (Ar)', 'Mode', 'Montant (Ar)'],
+            ['Examen', 'Niveau', 'Phase', 'Activité', 'Rôle', 'Catégorie', 'Périmètre', 'Province', 'DREN', 'CISCO', 'Personnes', 'Jours', 'Taux (Ar)', 'Mode', 'Montant (Ar)'],
             $lines->map(fn ($l) => [
-                $l['exam'], Cat::LEVELS[$l['level']] ?? $l['level'], Cat::PHASES[$l['phase']] ?? $l['phase'], $l['activity'], $l['role'],
-                $l['scope_nom'], $l['dren_nom'], $l['cisco_nom'], $l['persons'], $l['days'], $l['rate'], $l['mode'], $l['amount'],
+                $l['exam'], Cat::LEVELS[$l['level']] ?? $l['level'], Cat::PHASES[$l['phase']] ?? $l['phase'], $l['activity'], $l['role'], $l['category'],
+                $l['scope_nom'], $l['province'], $l['dren_nom'], $l['cisco_nom'], $l['persons'], $l['days'], $l['rate'], $l['mode'], $l['amount'],
             ])->all());
 
         $writer = new Xlsx($spreadsheet);
@@ -443,7 +586,7 @@ class Vacation2026BesoinsController extends Controller
     // Filtres
     // =====================================================================
 
-    /** @return array{exam:string, dren_id:?int, cisco_id:?int, level:string, phase:string} */
+    /** @return array{exam:string, province_id:?int, dren_id:?int, cisco_id:?int, level:string, phase:string} */
     private function filters(Request $request): array
     {
         $exam = strtoupper(trim((string) $request->query('exam', '')));
@@ -452,6 +595,7 @@ class Vacation2026BesoinsController extends Controller
 
         return [
             'exam' => in_array($exam, Cat::EXAMS, true) ? $exam : '',
+            'province_id' => $request->query('province_id') ? (int) $request->query('province_id') : null,
             'dren_id' => $request->query('dren_id') ? (int) $request->query('dren_id') : null,
             'cisco_id' => $request->query('cisco_id') ? (int) $request->query('cisco_id') : null,
             'level' => array_key_exists($level, Cat::LEVELS) ? $level : '',
@@ -464,6 +608,7 @@ class Vacation2026BesoinsController extends Controller
         $topo = $this->besoins->compute()['topology'];
 
         return [
+            'provinces' => $topo['provinces'],
             'drens' => $topo['drens'],
             'ciscos' => $topo['ciscos'],
             'levels' => Cat::LEVELS,

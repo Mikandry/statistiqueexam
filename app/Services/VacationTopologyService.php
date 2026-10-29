@@ -6,6 +6,8 @@ use App\Models\CentreCorrection;
 use App\Models\CentreEcrit;
 use App\Models\Cisco;
 use App\Models\Dren;
+use App\Models\Province;
+use App\Models\TranscriptionCentre;
 use App\Models\Vacation2026EpsCentre;
 use App\Support\VacationDecreeCatalogue as Cat;
 use Illuminate\Support\Facades\DB;
@@ -38,20 +40,45 @@ class VacationTopologyService
      */
     public function build(string $annee, array $params): array
     {
-        $drens = Dren::query()->orderBy('nom')->get()->keyBy('id');
+        $provinces = Province::query()->orderBy('nom')->get()->keyBy('id');
+        $drens = Dren::query()->with('provinceRef')->orderBy('nom')->get()->keyBy('id');
         $ciscos = Cisco::query()->orderBy('nom')->get()->keyBy('id');
+
+        // Province de chaque DREN et de chaque CISCO. Une CISCO historique sans DREN se rattache
+        // directement à sa province ; sinon elle hérite de celle de sa DREN.
+        $provinceOfDren = [];
+        foreach ($drens as $d) {
+            $provinceOfDren[(int) $d->id] = ['id' => $d->province_id ? (int) $d->province_id : null, 'nom' => $d->provinceNom()];
+        }
+        $provinceOfCisco = [];
+        foreach ($ciscos as $c) {
+            $fromDren = $c->dren_id ? ($provinceOfDren[(int) $c->dren_id] ?? null) : null;
+            if ($fromDren && $fromDren['nom']) {
+                $provinceOfCisco[(int) $c->id] = $fromDren;
+            } elseif ($c->province_id && $provinces->has((int) $c->province_id)) {
+                $provinceOfCisco[(int) $c->id] = ['id' => (int) $c->province_id, 'nom' => (string) $provinces[(int) $c->province_id]->nom];
+            } else {
+                $provinceOfCisco[(int) $c->id] = ['id' => null, 'nom' => null];
+            }
+        }
+
         $corrections = CentreCorrection::query()->get()->keyBy('id');
         $ecrits = CentreEcrit::query()->get();
 
         [$salleStats, $specialIds] = $this->salleStats($annee, (int) ($params['bepc_jours_ecrit_defaut'] ?? 4));
+        $rawTotals = ['CEPE' => 0, 'BEPC' => 0];
+        foreach ($salleStats as $byExam) {
+            $rawTotals['CEPE'] += $byExam['CEPE']['candidates'];
+            $rawTotals['BEPC'] += $byExam['BEPC']['candidates'];
+        }
 
         $warnings = [];
         $sites = []; // sites d'écrit exploitables
         $orphans = 0;
 
         foreach ($ecrits as $ecrit) {
-            if ($ecrit->is_eps_gym) {
-                continue; // salle de sport : traité par le niveau EPS
+            if ($this->isEpsOnly($ecrit)) {
+                continue; // site EPS seul : ses candidats viennent de eps_capacity, jamais des salles
             }
             $correction = $corrections->get((int) $ecrit->centre_correction_id);
             if ($correction === null) {
@@ -76,6 +103,7 @@ class VacationTopologyService
                 'langues' => $examStats['langues'],
                 'days_bepc' => $examStats['days_bepc'],
                 'special' => isset($specialIds[(int) $ecrit->id]) || $examStats['special'],
+                'same_site' => (bool) $ecrit->same_site_as_correction,
             ];
         }
 
@@ -96,8 +124,8 @@ class VacationTopologyService
         $usedSites = [];
 
         foreach ($corrections as $c) {
-            if ($c->is_eps_gym) {
-                continue;
+            if ($this->isEpsOnly($c)) {
+                continue; // centre EPS seul : traité dans epsCentres()
             }
             $declared = strtoupper(trim((string) $c->centre_type));
             $isSousRow = $declared === Cat::CENTRE_SOUS || $c->parent_centre_correction_id;
@@ -120,7 +148,7 @@ class VacationTopologyService
             $twin = null;
             foreach ($pool as $siteId) {
                 $s = $sites[$siteId];
-                if (! $s['sous_centre'] && $this->norm($s['nom']) === $this->norm((string) $c->nom)) {
+                if (! $s['sous_centre'] && ($s['same_site'] || $this->norm($s['nom']) === $this->norm((string) $c->nom))) {
                     $twin = $s;
                     break;
                 }
@@ -143,6 +171,8 @@ class VacationTopologyService
                 'type' => $type,
                 'cisco_id' => $ciscoId,
                 'dren_id' => (int) ($ciscos->get($ciscoId)?->dren_id ?? 0) ?: null,
+                'province_id' => $provinceOfCisco[$ciscoId]['id'] ?? null,
+                'province' => $provinceOfCisco[$ciscoId]['nom'] ?? null,
                 'parent_nom' => null,
                 'ecrit' => $twin,
                 'corr_candidates' => $corrCandidates,
@@ -175,6 +205,8 @@ class VacationTopologyService
                 'type' => $site['sous_centre'] ? Cat::CENTRE_SOUS : Cat::CENTRE_ECRIT,
                 'cisco_id' => $ciscoId,
                 'dren_id' => (int) ($ciscos->get($ciscoId)?->dren_id ?? 0) ?: null,
+                'province_id' => $provinceOfCisco[$ciscoId]['id'] ?? null,
+                'province' => $provinceOfCisco[$ciscoId]['nom'] ?? null,
                 'parent_nom' => $parentNom,
                 'ecrit' => $site,
                 'corr_candidates' => 0,
@@ -199,20 +231,78 @@ class VacationTopologyService
             $ciscoStats[$centre['cisco_id']][$centre['exam']] ??= ['candidates' => 0, 'centres' => 0, 'salles' => 0, 'eps_inapt' => 0];
         }
 
-        $epsCentres = $this->epsCentres($ciscos, $corrections, $ciscoStats, $params);
+        $epsCentres = $this->epsCentres($ciscos, $corrections, $ciscoStats, $params, $provinceOfCisco, $warnings);
+        $transcription = $this->transcriptionCentres($ciscos, $ciscoStats, $provinceOfCisco);
+
+        // Table de correspondance centre <-> clé de périmètre (pour rapprocher les affectations réelles)
+        $siteKey = [];
+        $correctionKey = [];
+        foreach ($centres as $centre) {
+            if ($centre['ecrit']) {
+                $siteKey[$centre['ecrit']['id']] = $centre['key'];
+            }
+            if (str_starts_with($centre['key'], 'C')) {
+                $correctionKey[(int) substr($centre['key'], 1)] = $centre['key'];
+            }
+        }
+        foreach ($corrections as $c) {
+            if (! isset($correctionKey[(int) $c->id])) {
+                foreach ($sitesByCorrection[(int) $c->id] ?? [] as $sid) {
+                    if (isset($siteKey[$sid])) {
+                        $correctionKey[(int) $c->id] = $siteKey[$sid];
+                        break;
+                    }
+                }
+            }
+        }
+        foreach ($epsCentres['centres'] as $eps) {
+            if (! empty($eps['correction_id'])) {
+                $correctionKey['eps'.$eps['correction_id']] = $eps['key'];
+            }
+        }
+
+        // Contrôle de cohérence : total brut des salles vs total rattaché à un centre exploitable
+        $attached = ['CEPE' => 0, 'BEPC' => 0];
+        foreach ($sites as $site) {
+            $attached[$site['exam']] += $site['candidates'];
+        }
+        // Une salle saisie pour un examen différent de celui du centre n'est pas rattachée : on le détecte
+        $unattachedCepe = max(0, $rawTotals['CEPE'] - $attached['CEPE']);
+        $unattachedBepc = max(0, $rawTotals['BEPC'] - $attached['BEPC']);
+        if ($unattachedCepe > 0 || $unattachedBepc > 0) {
+            $warnings[] = "Écart de cohérence : {$unattachedCepe} candidat(s) CEPE et {$unattachedBepc} candidat(s) BEPC saisis par salle ne sont rattachés à aucun centre exploitable "
+                .'(centre d\'écrit sans centre de correction, centre EPS seul ou type d\'examen différent).';
+        }
 
         if ($orphans > 0) {
             $warnings[] = "{$orphans} centre(s) d'écrit sans centre de correction rattaché ont été ignorés.";
         }
+        $noGeo = $ciscos->filter(fn ($c) => ! $c->dren_id && ! $c->province_id)->count();
+        if ($noGeo > 0) {
+            $warnings[] = "{$noGeo} CISCO sans DREN ni province : renseignez au moins la province (Références).";
+        }
 
         return [
+            'provinces' => $provinces,
+            'province_of_dren' => $provinceOfDren,
+            'province_of_cisco' => $provinceOfCisco,
             'drens' => $drens,
             'ciscos' => $ciscos,
             'centres' => $centres,
             'eps_centres' => $epsCentres,
+            'transcription' => $transcription,
+            'site_key' => $siteKey,
+            'correction_key' => $correctionKey,
             'cisco_stats' => $ciscoStats,
+            'checks' => ['raw' => $rawTotals, 'attached' => $attached],
             'warnings' => $warnings,
         ];
+    }
+
+    /** Centre (écrit ou correction) marqué « EPS seul » dans les références. */
+    private function isEpsOnly($centre): bool
+    {
+        return (bool) $centre->is_eps_gym || strtoupper(trim((string) $centre->centre_type)) === Cat::CENTRE_EPS;
     }
 
     // ---------------------------------------------------------------------
@@ -374,65 +464,145 @@ class VacationTopologyService
     // ---------------------------------------------------------------------
 
     /**
-     * Centres EPS : ceux configurés par CISCO (vacation_2026_eps_centres) ; à défaut des centres
-     * « EPS/GYM » existants ; à défaut N centres estimés (paramètre eps_centres_par_cisco).
-     * Candidats EPS d'une CISCO = somme des centres configurés, sinon saisie manuelle,
-     * sinon candidats BEPC moins inaptes EPS.
+     * Centres EPS et candidats EPS par CISCO. Source de vérité, par ordre de priorité :
+     *   1. centres EPS configurés par la CISCO (vacation_2026_eps_centres)
+     *   2. centres « EPS seul » des références : centre_corrections.eps_capacity (champ existant)
+     *   3. saisie globale de la CISCO (ciscos.manual_eps_candidates)
+     *   4. estimation : candidats BEPC de la CISCO moins les inaptes EPS
+     * Une seule source est retenue par CISCO : jamais de cumul, donc pas de double comptage.
      *
-     * @return array{centres: array<int,array>, cisco_candidates: array<int,int>}
+     * @return array{centres: array<int,array>, cisco_candidates: array<int,int>, sources: array<int,string>}
      */
-    private function epsCentres($ciscos, $corrections, array $ciscoStats, array $params): array
+    private function epsCentres($ciscos, $corrections, array $ciscoStats, array $params, array $provinceOfCisco, array &$warnings): array
     {
         $configured = Schema::hasTable('vacation_2026_eps_centres')
             ? Vacation2026EpsCentre::query()->get()->groupBy('cisco_id')
             : collect();
-        $legacy = $corrections->filter(fn ($c) => $c->is_eps_gym && strtoupper((string) $c->type_examen) === 'BEPC')->groupBy('cisco_id');
+        $epsOnly = $corrections
+            ->filter(fn ($c) => $this->isEpsOnly($c) && strtoupper((string) $c->type_examen) !== 'CEPE')
+            ->groupBy('cisco_id');
         $defaultN = max(1, (int) ($params['eps_centres_par_cisco'] ?? 1));
 
         $centres = [];
         $ciscoCandidates = [];
+        $sources = [];
 
         foreach ($ciscos as $cisco) {
-            $stats = $ciscoStats[(int) $cisco->id]['BEPC'] ?? null;
-            $bepcCandidates = (int) ($stats['candidates'] ?? 0);
-            $aptes = max(0, $bepcCandidates - (int) ($stats['eps_inapt'] ?? 0));
+            $cid = (int) $cisco->id;
+            $geo = ['dren_id' => (int) $cisco->dren_id ?: null, 'province_id' => $provinceOfCisco[$cid]['id'] ?? null, 'province' => $provinceOfCisco[$cid]['nom'] ?? null];
+            $stats = $ciscoStats[$cid]['BEPC'] ?? null;
+            $aptes = max(0, (int) ($stats['candidates'] ?? 0) - (int) ($stats['eps_inapt'] ?? 0));
 
-            $cfg = $configured->get($cisco->id, collect());
+            $cfg = $configured->get($cid, collect());
+            $cfgTotal = (int) $cfg->sum('candidate_count');
+            $own = $epsOnly->get($cid, collect());
+            $ownTotal = (int) $own->sum(fn ($c) => (int) ($c->eps_capacity ?? 0));
             $manual = (int) ($cisco->manual_eps_candidates ?? 0);
 
-            if ($cfg->isNotEmpty() && (int) $cfg->sum('candidate_count') > 0) {
-                $total = (int) $cfg->sum('candidate_count');
+            if ($cfgTotal > 0 && $ownTotal > 0 && $cfgTotal !== $ownTotal) {
+                $warnings[] = "CISCO {$cisco->nom} : candidats EPS saisis deux fois ({$cfgTotal} dans les centres EPS configurés, {$ownTotal} dans les références). Seuls les centres EPS configurés sont retenus.";
+            }
+
+            if ($cfgTotal > 0) {
                 foreach ($cfg as $c) {
-                    $centres[] = ['key' => 'P'.$c->id, 'nom' => (string) $c->name, 'cisco_id' => (int) $cisco->id,
-                        'dren_id' => (int) $cisco->dren_id ?: null, 'candidates' => (int) $c->candidate_count, 'estime' => false];
+                    $centres[] = ['key' => 'P'.$c->id, 'nom' => (string) $c->name, 'cisco_id' => $cid, 'candidates' => (int) $c->candidate_count,
+                        'estime' => false, 'source' => 'configure', 'correction_id' => null] + $geo;
                 }
+                $total = $cfgTotal;
+                $sources[$cid] = 'configure';
+            } elseif ($ownTotal > 0) {
+                foreach ($own as $c) {
+                    $n = (int) ($c->eps_capacity ?? 0);
+                    if ($n > 0) {
+                        $centres[] = ['key' => 'G'.$c->id, 'nom' => (string) $c->nom, 'cisco_id' => $cid, 'candidates' => $n,
+                            'estime' => false, 'source' => 'centre', 'correction_id' => (int) $c->id] + $geo;
+                    }
+                }
+                $total = $ownTotal;
+                $sources[$cid] = 'centre';
             } else {
                 $total = $manual > 0 ? $manual : $aptes;
-                if ($total <= 0 && $cfg->isEmpty()) {
-                    $ciscoCandidates[(int) $cisco->id] = 0;
+                if ($total <= 0) {
+                    $ciscoCandidates[$cid] = 0;
                     continue;
                 }
-                $names = $cfg->isNotEmpty()
-                    ? $cfg->pluck('name')->all()
-                    : ($legacy->has($cisco->id) ? $legacy->get($cisco->id)->pluck('nom')->all() : []);
+                $names = $own->pluck('nom')->all();
                 $n = $names ? count($names) : $defaultN;
                 $each = (int) ceil($total / $n);
                 for ($i = 0; $i < $n; $i++) {
                     $share = $i < $n - 1 ? min($each, $total) : max(0, $total - $each * ($n - 1));
                     $centres[] = [
-                        'key' => 'X'.$cisco->id.'-'.($i + 1),
+                        'key' => 'X'.$cid.'-'.($i + 1),
                         'nom' => $names[$i] ?? ('Centre EPS '.($i + 1).' — '.$cisco->nom),
-                        'cisco_id' => (int) $cisco->id,
-                        'dren_id' => (int) $cisco->dren_id ?: null,
-                        'candidates' => $share,
-                        'estime' => true,
-                    ];
+                        'cisco_id' => $cid, 'candidates' => $share, 'estime' => true,
+                        'source' => $manual > 0 ? 'cisco' : 'estime', 'correction_id' => $own->values()->get($i)?->id,
+                    ] + $geo;
                 }
+                $sources[$cid] = $manual > 0 ? 'cisco' : 'estime';
             }
-            $ciscoCandidates[(int) $cisco->id] = $total;
+            $ciscoCandidates[$cid] = $total;
         }
 
-        return ['centres' => $centres, 'cisco_candidates' => $ciscoCandidates];
+        return ['centres' => $centres, 'cisco_candidates' => $ciscoCandidates, 'sources' => $sources];
+    }
+
+    // ---------------------------------------------------------------------
+    // Centres de transcription (distincts des centres d'écrit et de correction)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Candidats transcrits par centre et par examen.
+     * Candidats saisis sur le centre si renseignés ; sinon les candidats de la CISCO sont
+     * répartis à parts égales entre ses centres de transcription (le reste va aux premiers).
+     *
+     * @return array{centres: array<int,array>, cisco_ids: array<int,bool>}
+     */
+    private function transcriptionCentres($ciscos, array $ciscoStats, array $provinceOfCisco): array
+    {
+        if (! Schema::hasTable('transcription_centres')) {
+            return ['centres' => [], 'cisco_ids' => []];
+        }
+
+        $byCisco = TranscriptionCentre::query()->orderBy('ordre')->orderBy('nom')->get()->groupBy('cisco_id');
+        $out = [];
+        $ciscoIds = [];
+
+        foreach ($byCisco as $cid => $list) {
+            $cisco = $ciscos->get((int) $cid);
+            if ($cisco === null) {
+                continue;
+            }
+            $ciscoIds[(int) $cid] = true;
+            $perExam = [];
+            foreach (['CEPE' => 'candidats_cepe', 'BEPC' => 'candidats_bepc'] as $exam => $col) {
+                $total = (int) ($ciscoStats[(int) $cid][$exam]['candidates'] ?? 0);
+                $explicit = $list->filter(fn ($c) => $c->{$col} !== null);
+                $free = $list->filter(fn ($c) => $c->{$col} === null)->values();
+                $remaining = max(0, $total - (int) $explicit->sum($col));
+                $share = [];
+                if ($free->isNotEmpty()) {
+                    $base = intdiv($remaining, $free->count());
+                    $extra = $remaining - $base * $free->count();
+                    foreach ($free as $i => $c) {
+                        $share[$c->id] = $base + ($i < $extra ? 1 : 0);
+                    }
+                }
+                foreach ($list as $c) {
+                    $perExam[$c->id][$exam] = $c->{$col} !== null ? (int) $c->{$col} : (int) ($share[$c->id] ?? 0);
+                }
+            }
+            foreach ($list as $c) {
+                $out[] = [
+                    'id' => (int) $c->id, 'key' => 'T'.$c->id, 'nom' => (string) $c->nom, 'localisation' => $c->localisation,
+                    'cisco_id' => (int) $cid, 'dren_id' => (int) $cisco->dren_id ?: null,
+                    'province_id' => $provinceOfCisco[(int) $cid]['id'] ?? null, 'province' => $provinceOfCisco[(int) $cid]['nom'] ?? null,
+                    'candidates' => $perExam[$c->id],
+                    'explicit' => $c->candidats_cepe !== null || $c->candidats_bepc !== null,
+                ];
+            }
+        }
+
+        return ['centres' => $out, 'cisco_ids' => $ciscoIds];
     }
 
     private function norm(string $name): string

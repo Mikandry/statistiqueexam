@@ -7,11 +7,22 @@ use Illuminate\Database\Eloquent\Model;
 
 class Dren extends Model
 {
-    protected $fillable = ['nom', 'province', 'is_chef_lieu_province'];
+    protected $fillable = ['nom', 'province', 'province_id', 'is_chef_lieu_province'];
 
     protected function casts(): array
     {
         return ['is_chef_lieu_province' => 'boolean'];
+    }
+
+    public function provinceRef(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Province::class, 'province_id');
+    }
+
+    /** Nom de la province : référence si renseignée, sinon ancien texte. */
+    public function provinceNom(): ?string
+    {
+        return $this->provinceRef?->nom ?? ($this->province ?: null);
     }
 
     public function ciscos(): HasMany
