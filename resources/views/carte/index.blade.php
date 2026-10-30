@@ -50,6 +50,11 @@
         <div id="axes" class="ui-muted ui-sm" style="margin-top:8px"></div>
     </div></div>
 
+    <div class="ui-card"><div class="ui-card-h">Candidats par région et par axe</div>
+        <p class="ui-sm ui-muted" style="padding:0 16px">Un centre est compté dans la région qui contient ses coordonnées. Les centres sans coordonnées ne sont pas comptés.</p>
+        <div class="ui-table-wrap"><table class="ui-table"><thead><tr id="region-head"></tr></thead><tbody id="region-rows"><tr><td class="ui-muted">Chargement…</td></tr></tbody></table></div>
+        <p class="ui-sm" id="region-note" style="padding:0 16px"></p></div>
+
     @if(count($payload['without_coordinates']))
     <details class="ui-details"><summary>{{ count($payload['without_coordinates']) }} centre(s) sans coordonnées</summary>
         <div class="ui-table-wrap"><table class="ui-table"><thead><tr><th>Centre</th><th>CISCO</th><th>Rôle</th></tr></thead><tbody>
@@ -77,12 +82,65 @@
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 17, attribution: '© OpenStreetMap'}).addTo(map);
     }
 
+    // --- Totaux par région : chaque centre localisé est rattaché à la région qui le contient ---
+    function ring(pt, r) { let inside = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+        const xi = r[i][0], yi = r[i][1], xj = r[j][0], yj = r[j][1];
+        if (((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi)) inside = !inside; } return inside; }
+    function polys(g) { return g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []; }
+    function contains(g, pt) { return polys(g).some(p => ring(pt, p[0]) && !p.slice(1).some(h => ring(pt, h))); }
+    function nearDist(g, pt) { let m = 1e9; polys(g).forEach(p => p[0].forEach(v => { const d = Math.hypot(v[0]-pt[0], v[1]-pt[1]); if (d < m) m = d; })); return m; }
+    function regionIndex(features, lat, lng) {
+        const pt = [lng, lat]; let k = features.findIndex(f => contains(f.geometry, pt));
+        if (k >= 0) return k;
+        let best = -1, bd = 0.25; // côte simplifiée : on tolère un point juste en mer
+        features.forEach((f, i) => { const d = nearDist(f.geometry, pt); if (d < bd) { bd = d; best = i; } });
+        return best;
+    }
+    const OWN = ['ecrit', 'ecrit_correction', 'sous_centre']; // seuls les centres d'écrit portent des candidats propres
+    function aggregate(features) {
+        const R = features.map(f => ({nom: f.properties.nom || f.properties.shapeName || f.properties.region || '—', candidates: 0, salles: 0, centres: 0, axes: {}}));
+        let outside = 0;
+        D.centres.filter(c => OWN.includes(c.role)).forEach(c => {
+            const k = regionIndex(features, c.lat, c.lng); if (k < 0) { outside++; return; }
+            R[k].candidates += c.candidates; R[k].salles += c.salles; R[k].centres++;
+        });
+        D.dispatching.axes.forEach(a => a.points.forEach(p => p.centres.forEach(c => {
+            if (c.lat === null) return; const k = regionIndex(features, c.lat, c.lng); if (k < 0) return;
+            R[k].axes[a.axe] = (R[k].axes[a.axe] || 0) + c.candidates;
+        })));
+        return {R, outside};
+    }
+    function regionPopup(r) {
+        let h = '<div class="carte-pop"><h3>' + esc(r.nom) + '</h3><table>' + row('Candidats (centres d\'écrit localisés)', nf(r.candidates))
+            + row('Centres d\'écrit', nf(r.centres)) + row('Salles', nf(r.salles)) + '</table>';
+        const ax = Object.entries(r.axes).sort((a, b) => a[0].localeCompare(b[0], 'fr', {numeric: true}));
+        h += ax.length ? '<div style="margin-top:6px;font-weight:600">Par axe de dispatching</div><table>' + ax.map(([a, n]) => row(esc(a), nf(n))).join('') + '</table>'
+            : '<div class="ui-muted" style="font-size:11px;margin-top:6px">Aucun axe de dispatching dans cette région.</div>';
+        return h + '</div>';
+    }
     function drawRegions(gj, label) {
+        const feats = gj.features || [];
+        const {R, outside} = aggregate(feats);
+        const max = Math.max(1, ...R.map(r => r.candidates));
         L.geoJSON(gj, {
-            style: {color:'#475569', weight:1.2, fillColor:'#cbd5e1', fillOpacity: (D.geo.online && navigator.onLine) ? 0.12 : 0.35},
-            onEachFeature: (f, l) => { const n = f.properties.nom || f.properties.shapeName || f.properties.region || ''; if (n) l.bindTooltip(esc(n), {sticky:true}); }
+            style: (f) => { const r = R[feats.indexOf(f)]; const t = r.candidates / max;
+                return {color:'#475569', weight:1.2, fillColor: t > 0 ? '#2563eb' : '#cbd5e1', fillOpacity: t > 0 ? 0.10 + 0.45 * t : 0.25}; },
+            onEachFeature: (f, l) => { const r = R[feats.indexOf(f)];
+                l.bindTooltip('<b>' + esc(r.nom) + '</b><br>' + nf(r.candidates) + ' candidats', {sticky: true});
+                l.bindPopup(regionPopup(r), {maxWidth: 320});
+                l.on('mouseover', () => l.setStyle({weight: 2.6})); l.on('mouseout', () => l.setStyle({weight: 1.2})); }
         }).addTo(map).bringToBack();
         document.getElementById('geo-source').textContent = 'Régions : ' + label;
+        const body = document.getElementById('region-rows');
+        if (body) {
+            const axes = D.dispatching.axes.map(a => a.axe);
+            document.getElementById('region-head').innerHTML = '<th>Région</th><th>Centres d\'écrit</th><th>Salles</th><th>Candidats</th>' + axes.map(a => '<th>' + esc(a) + '</th>').join('');
+            body.innerHTML = R.slice().sort((a, b) => b.candidates - a.candidates).map(r => '<tr><td>' + esc(r.nom) + '</td><td>' + nf(r.centres) + '</td><td>' + nf(r.salles) + '</td><td><b>' + nf(r.candidates) + '</b></td>'
+                + axes.map(a => '<td>' + nf(r.axes[a] || 0) + '</td>').join('') + '</tr>').join('')
+                + '<tr><td><b>Total</b></td><td><b>' + nf(R.reduce((s, r) => s + r.centres, 0)) + '</b></td><td><b>' + nf(R.reduce((s, r) => s + r.salles, 0)) + '</b></td><td><b>' + nf(R.reduce((s, r) => s + r.candidates, 0)) + '</b></td>'
+                + axes.map(a => '<td><b>' + nf(R.reduce((s, r) => s + (r.axes[a] || 0), 0)) + '</b></td>').join('') + '</tr>';
+            if (outside) document.getElementById('region-note').textContent = outside + ' centre(s) hors de toute région (coordonnées à vérifier) non comptés.';
+        }
     }
     async function getJson(url, ms) {
         const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);

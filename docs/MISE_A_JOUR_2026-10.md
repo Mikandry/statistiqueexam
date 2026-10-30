@@ -12,6 +12,7 @@
 - `2026_10_26_000001_add_provinces_transcription_centres_and_widen_eps` : provinces, centres de transcription (plusieurs par CISCO), `same_site_as_correction`, élargissement de `eps_capacity` (valeur > 255).
 - `2026_10_26_000002_create_dispatching_point_orders_table` : ordre de livraison des points de largage.
 - `2026_10_28_000001_harden_inventory_movements` : jeton anti-doublon et pièce justificative sur les mouvements de matières.
+- `2026_10_30_000001_create_dispatching_parcels_table` : nombre de colis par centre d'écrit et par année.
 - `2026_10_28_000002_add_map_coordinates` : latitude/longitude sur les centres de correction, d'écrit et de transcription ; table des coordonnées des points de largage.
 
 ## Ce qui est fait
@@ -23,6 +24,10 @@
 - **/home** : cartes et indicateurs selon le rôle (administrateur, RH, statistique, examens, utilisateur) ; la logistique garde sa redirection. Les routes restent protégées côté serveur.
 - **Carte** (menu « Carte », onglet « Carte » de Vacation) : régions de Madagascar, un point par centre coloré selon son rôle (écrit seul, correction seule, écrit + correction, sous-centre, transcription, EPS). Un clic affiche salles, candidats, rôle ; pour l'administrateur, les agents requis avant / pendant / après la session, le total des postes et les affectés/validés. Filtres examen, DREN, type. Vue « trajet du dispatching » : un tracé par axe, de votre point de départ jusqu'aux points de largage dans l'ordre enregistré, avec candidats et salles déposés à chaque point.
 - **Coordonnées de la carte** (`/carte/coordonnees`, administrateur, statistique, examens) : saisie par centre, modèle CSV à remplir dans Excel puis import, paramètres (données en ligne oui/non, URL GeoJSON, point de départ). Toute valeur hors de Madagascar est refusée (latitude et longitude inversées détectées).
+- **Carte par région** : survol ou clic sur une région = total des candidats (centres d'écrit localisés), centres, salles et détail par axe de dispatching ; tableau récapitulatif région × axe sous la carte. La carte est ouverte à tous les comptes ; les agents (Vacation) restent réservés à l'administrateur, la saisie des coordonnées aux comptes administrateur, statistique et examens.
+- **Import** : colonne `province` (import général et import DREN) ; la province est créée si besoin et reliée à la DREN, une DREN existante est rattachée à la province indiquée.
+- **Colis, fiche de largage, accusé de réception** (Dispatching > « Colis · Fiche de largage · Accusé », `/repartition/dispatching/colis`) : saisie des colis par centre ; arrêtage (total candidats, salles, colis) à la fin de chaque point de largage ; fiche de largage par axe ou par point, accusé de réception par point, chacun en PDF et en Word (.docx) avec sceau de Madagascar, ministère, Service de l'Organisation des Examens, « DISPATCHING DE SUJET DU … », axe, tableau N° / centre / candidats / salles / colis (vide) / observation. Pied de page : remettant, forces de l'ordre, réceptionnaire(s) pour la fiche ; remettant, sécurité (conservation des colis), agents du MEN réceptionnaires pour l'accusé. Les noms se saisissent une fois dans la page de saisie des colis ; les cases vides s'impriment en pointillés.
+- Le fichier `public/madagascar-seal.png` du projet contenait une page d'erreur Wikimedia et non une image ; il est remplacé par le sceau tiré de `madagascar-seal.svg`.
 - Feuille de style `public/css/exam-ui.css` pour les pages Vacation, RH, matières et accueil.
 
 ## Carte : fonctionnement hors ligne et en ligne
@@ -46,4 +51,4 @@
 - Aucun contrôle de non-cumul des indemnités entre activités.
 
 ## Tests
-`vendor/bin/phpunit` : 30 tests, 28 réussis (dont 6 pour la carte : données, droits, saisie, import CSV, trajet, bornes). Deux échecs existaient déjà avant ces changements (`ExampleTest`, `HrPersonnelTest`).
+`vendor/bin/phpunit` : 34 tests, 32 réussis (dont la carte, l'import avec province et les documents de dispatching). Deux échecs existaient déjà avant ces changements (`ExampleTest`, `HrPersonnelTest`).

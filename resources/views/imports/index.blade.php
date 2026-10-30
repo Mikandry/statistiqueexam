@@ -96,6 +96,7 @@
                             Importer DREN, CISCO, centre de correction et centre d'écrit en même temps. Les doublons ne sont pas ajoutés.
                             Format accepté: avec en-têtes ou directement 4 colonnes dans l'ordre
                             <code>DREN</code>, <code>CISCO</code>, <code>Centre correction</code>, <code>Centre écrit</code>.
+                            Avec en-têtes, ajoutez la colonne <code>province</code> : la province est créée si besoin et reliée à la DREN.
                         </p>
                     </div>
                     <form method="POST" action="{{ route('imports.references') }}" enctype="multipart/form-data" class="flex flex-col gap-4 md:flex-row md:items-end">
@@ -124,7 +125,7 @@
                         <div class="h-12 w-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg"><i class="fas fa-map"></i></div>
                         <div>
                             <h2 class="text-lg font-black text-slate-900">1. DREN</h2>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Schéma : [nom]</p>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Schéma : [nom, province]</p>
                         </div>
                     </div>
                     <form method="POST" action="{{ route('imports.drens') }}" enctype="multipart/form-data" class="flex-1 flex flex-col justify-between">

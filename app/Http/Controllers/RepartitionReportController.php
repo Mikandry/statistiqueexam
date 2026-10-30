@@ -3819,7 +3819,7 @@ class RepartitionReportController extends Controller
         ];
     }
 
-    private function buildDispatchingRows(Collection $rows): Collection
+    protected function buildDispatchingRows(Collection $rows): Collection
     {
         return $rows
             ->groupBy(fn ($row) => implode('|', [$row->centre_ecrit_id, $row->annee, $row->type_examen]))
@@ -3828,6 +3828,9 @@ class RepartitionReportController extends Controller
                 $sum = fn (string $langue): int => (int) $group->where('langue', $langue)->sum('effectif');
 
                 return [
+                    'centre_ecrit_id' => (int) $first->centre_ecrit_id,
+                    'annee' => (string) $first->annee,
+                    'type_examen' => (string) $first->type_examen,
                     'dren' => $first->dren,
                     'cisco' => $first->cisco,
                     'centre_correction' => $first->centre_correction,
@@ -3847,7 +3850,7 @@ class RepartitionReportController extends Controller
             ->values();
     }
 
-    private function buildDispatchingPointOrder(Request $request, Collection $dispatchRows): array
+    protected function buildDispatchingPointOrder(Request $request, Collection $dispatchRows): array
     {
         $axes = $dispatchRows
             ->pluck('axe_dispatching')
@@ -3904,7 +3907,7 @@ class RepartitionReportController extends Controller
         ];
     }
 
-    private function sortDispatchingRowsByPointOrder(Collection $dispatchRows, array $dispatchingOrder): Collection
+    protected function sortDispatchingRowsByPointOrder(Collection $dispatchRows, array $dispatchingOrder): Collection
     {
         $selectedAxe = (string) ($dispatchingOrder['selected_axe'] ?? '');
         $pointRanks = collect($dispatchingOrder['ordered_points'] ?? [])
@@ -4240,7 +4243,7 @@ class RepartitionReportController extends Controller
         ];
     }
 
-    private function getFilteredRows(Request $request): array
+    protected function getFilteredRows(Request $request): array
     {
         $annees = DB::table('repartition_salles')
             ->select('annee')

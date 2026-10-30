@@ -45,8 +45,6 @@ Route::post('/logout', [AuthController::class, 'logout'])
     ->name('logout');
 
 Route::middleware(['auth', 'nonlogistique'])->group(function () {
-    Route::get('/carte', [\App\Http\Controllers\MapController::class, 'index'])->name('carte.index');
-    Route::get('/carte/donnees', [\App\Http\Controllers\MapController::class, 'data'])->name('carte.data');
     Route::get('/carte/coordonnees', [\App\Http\Controllers\MapController::class, 'coordinates'])->name('carte.coordonnees');
     Route::put('/carte/coordonnees', [\App\Http\Controllers\MapController::class, 'saveCoordinates'])->name('carte.coordonnees.save');
     Route::put('/carte/parametres', [\App\Http\Controllers\MapController::class, 'saveSettings'])->name('carte.parametres');
@@ -195,6 +193,9 @@ Route::middleware(['auth', 'nonlogistique'])->group(function () {
 //         ->name('repartition.options.langues.stats');
 // });
 Route::middleware('auth')->group(function () {
+    // La carte est visible par tous les comptes connectés ; seuls les agents (Vacation) sont réservés à l'administrateur.
+    Route::get('/carte', [\App\Http\Controllers\MapController::class, 'index'])->name('carte.index');
+    Route::get('/carte/donnees', [\App\Http\Controllers\MapController::class, 'data'])->name('carte.data');
  Route::get('/home', [HomeController::class, 'index'])->name('home');
     /*
     |--------------------------------------------------------------------------
@@ -484,6 +485,16 @@ Route::get(
         ->name('repartition.export.dispatching');
     Route::post('/repartition/export/dispatching/ordre', [RepartitionReportController::class, 'saveDispatchingOrder'])
         ->name('repartition.export.dispatching.order.save');
+    Route::get('/repartition/dispatching/colis', [\App\Http\Controllers\DispatchingDocumentController::class, 'colis'])
+        ->name('repartition.dispatching.colis');
+    Route::put('/repartition/dispatching/colis', [\App\Http\Controllers\DispatchingDocumentController::class, 'saveColis'])
+        ->name('repartition.dispatching.colis.save');
+    Route::post('/repartition/dispatching/signataires', [\App\Http\Controllers\DispatchingDocumentController::class, 'saveSignatoriesOnly'])
+        ->name('repartition.dispatching.signataires');
+    Route::get('/repartition/dispatching/document/{doc}/pdf', [\App\Http\Controllers\DispatchingDocumentController::class, 'pdf'])
+        ->whereIn('doc', ['fiche', 'accuse'])->name('repartition.dispatching.document.pdf');
+    Route::get('/repartition/dispatching/document/{doc}/word', [\App\Http\Controllers\DispatchingDocumentController::class, 'word'])
+        ->whereIn('doc', ['fiche', 'accuse'])->name('repartition.dispatching.document.word');
     Route::get('/repartition/options-langues/stats', [RepartitionReportController::class, 'languageOptionStats'])
         ->name('repartition.options.langues.stats');
 });

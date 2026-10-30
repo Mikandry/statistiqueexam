@@ -104,7 +104,10 @@ class MapTest extends TestCase
         $this->actingAs($user)->getJson(route('carte.data'))->assertOk()->assertJsonPath('with_staff', false);
         $this->actingAs($user)->get(route('carte.coordonnees'))->assertForbidden();
         $this->actingAs($user)->put(route('carte.coordonnees.save'), [])->assertForbidden();
-        $this->actingAs($log)->get(route('carte.index'))->assertForbidden();
+        // La carte est ouverte à tous les comptes, y compris logistique (sans agents).
+        $this->actingAs($log)->get(route('carte.index'))->assertOk();
+        $this->actingAs($log)->getJson(route('carte.data'))->assertOk()->assertJsonPath('with_staff', false);
+        $this->actingAs($log)->get(route('carte.coordonnees'))->assertForbidden();
     }
 
     public function test_saisie_des_coordonnees_valide_madagascar(): void

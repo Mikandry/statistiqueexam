@@ -7,6 +7,7 @@ use App\Models\CentreEcrit;
 use App\Models\Cisco;
 use App\Models\Dren;
 use App\Models\AuditLog;
+use App\Models\Province;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -43,15 +44,18 @@ class ReferenceImportController extends Controller
         ];
         $errors = 0;
         $rejects = [];
+        $provinceStats = ['created' => 0, 'linked' => 0];
+        $provincesByNormalized = $this->provinceIndex();
 
         $drensByNormalized = Dren::query()
-            ->get(['id', 'nom'])
+            ->get(['id', 'nom', 'province_id', 'province'])
             ->keyBy(fn (Dren $dren) => $this->normalizeLabel($dren->nom));
 
         foreach ($rows as $index => $line) {
             $lineNumber = $index + 2;
             $typeExamen = $forcedTypeExamen ?? $this->normalizeExamType($line['type_examen'] ?? null);
             $drenNom = trim((string) ($line['dren'] ?? $line['dren_nom'] ?? ''));
+            $provinceNom = trim((string) ($line['province'] ?? ''));
             $ciscoNom = trim((string) ($line['cisco'] ?? $line['cisco_nom'] ?? ''));
             $centreCorrectionNom = trim((string) ($line['centre_correction'] ?? $line['centre_correction_nom'] ?? ''));
             $centreEcritNom = trim((string) ($line['centre_ecrit'] ?? $line['centre_ecrit_nom'] ?? $line['nom'] ?? ''));
@@ -71,11 +75,20 @@ class ReferenceImportController extends Controller
             $drenKey = $this->normalizeLabel($drenNom);
             $dren = $drensByNormalized->get($drenKey);
             if (! $dren) {
-                $dren = Dren::query()->create(['nom' => $drenNom]);
+                $province = $this->resolveProvince($provinceNom, $provincesByNormalized, $provinceStats);
+                $dren = Dren::query()->create(['nom' => $drenNom] + ($province ? ['province_id' => $province->id, 'province' => $province->nom] : []));
                 $drensByNormalized->put($drenKey, $dren);
                 $created['drens']++;
+                if ($province) {
+                    $provinceStats['linked']++;
+                }
             } else {
                 $updated['drens']++;
+                $province = $this->resolveProvince($provinceNom, $provincesByNormalized, $provinceStats);
+                if ($province && (int) $dren->province_id !== (int) $province->id) {
+                    $dren->forceFill(['province_id' => $province->id, 'province' => $province->nom])->save();
+                    $provinceStats['linked']++;
+                }
             }
 
             if ($ciscoNom === '') {
@@ -146,7 +159,8 @@ class ReferenceImportController extends Controller
                 "Import général terminé: DREN {$created['drens']} créé(s), {$updated['drens']} existant(s) | ".
                 "CISCO {$created['ciscos']} créé(s), {$updated['ciscos']} existant(s) | ".
                 "Correction {$created['centres_correction']} créé(s), {$updated['centres_correction']} existant(s) | ".
-                "Écrit {$created['centres_ecrit']} créé(s), {$updated['centres_ecrit']} existant(s) | {$errors} rejeté(s)."
+                "Écrit {$created['centres_ecrit']} créé(s), {$updated['centres_ecrit']} existant(s) | ".
+                "Provinces : {$provinceStats['created']} créée(s), {$provinceStats['linked']} DREN rattachée(s) | {$errors} rejeté(s)."
             )
             ->with('import_rejects', $rejects);
         AuditLog::record($request, 'import_references', [
@@ -164,32 +178,43 @@ class ReferenceImportController extends Controller
         $updated = 0;
         $errors = 0;
         $rejects = [];
+        $provinceStats = ['created' => 0, 'linked' => 0];
+        $provincesByNormalized = $this->provinceIndex();
 
         foreach ($rows as $index => $line) {
             $lineNumber = $index + 2;
-            $nom = trim((string) ($line['nom'] ?? ''));
+            $nom = trim((string) ($line['nom'] ?? $line['dren'] ?? ''));
             if ($nom === '') {
                 $errors++;
                 $this->addReject($rejects, $lineNumber, 'DREN rejetée: colonne nom vide.');
                 continue;
             }
 
+            $province = $this->resolveProvince(trim((string) ($line['province'] ?? '')), $provincesByNormalized, $provinceStats);
             $dren = Dren::query()->firstOrNew(['nom' => $nom]);
-            if ($dren->exists) {
-                $updated++;
-            } else {
+            $isNew = ! $dren->exists;
+            if ($province && (int) $dren->province_id !== (int) $province->id) {
+                $dren->province_id = $province->id;
+                $dren->province = $province->nom;
+                $provinceStats['linked']++;
+            }
+            if ($isNew) {
                 $dren->save();
                 $created++;
+            } else {
+                $dren->save();
+                $updated++;
             }
         }
 
         $response = back()
-            ->with('status', "Import DREN terminé: {$created} créé(s), {$updated} existant(s), {$errors} rejeté(s).")
+            ->with('status', "Import DREN terminé: {$created} créé(s), {$updated} existant(s), {$errors} rejeté(s) | Provinces : {$provinceStats['created']} créée(s), {$provinceStats['linked']} DREN rattachée(s).")
             ->with('import_rejects', $rejects);
         AuditLog::record($request, 'import_drens', [
             'created' => $created,
             'updated' => $updated,
             'errors' => $errors,
+            'provinces' => $provinceStats,
         ]);
         return $response;
     }
@@ -530,6 +555,7 @@ class ReferenceImportController extends Controller
             'centre_ecrit',
             'centre_ecrit_nom',
             'type_examen',
+            'province',
             'nom',
         ];
 
@@ -559,6 +585,30 @@ class ReferenceImportController extends Controller
                 'type_examen' => $row[4] ?? '',
             ];
         }, $rawRows);
+    }
+
+    /** @return array<string,Province> provinces indexées par libellé normalisé */
+    private function provinceIndex(): array
+    {
+        return Province::query()->get()->keyBy(fn (Province $p) => $this->normalizeLabel($p->nom))->all();
+    }
+
+    /** Retrouve la province par son nom (sans accent ni casse) ou la crée ; vide = aucune. */
+    private function resolveProvince(string $nom, array &$index, array &$stats): ?Province
+    {
+        if ($nom === '') {
+            return null;
+        }
+        $key = $this->normalizeLabel($nom);
+        if ($key === '') {
+            return null;
+        }
+        if (! isset($index[$key])) {
+            $index[$key] = Province::query()->create(['nom' => mb_strtoupper($nom)]);
+            $stats['created']++;
+        }
+
+        return $index[$key];
     }
 
     private function normalizeExamType(mixed $value): ?string
@@ -601,6 +651,7 @@ class ReferenceImportController extends Controller
             'cisco', 'district', 'nom cisco', 'cisco nom' => 'cisco',
             'centre correction', 'centre de correction', 'nom centre correction', 'centre correction nom' => 'centre_correction',
             'centre ecrit', 'centre d ecrit', 'centre d écrit', 'nom centre ecrit', 'centre ecrit nom', 'nom' => 'centre_ecrit',
+            'province', 'nom province', 'province nom' => 'province',
             'type examen', 'examen', 'type' => 'type_examen',
             default => $normalized,
         };

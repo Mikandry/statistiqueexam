@@ -673,10 +673,8 @@ class VacationBesoinsService
         if (isset($this->assignmentMaps[$exam])) {
             return $this->assignmentMaps[$exam];
         }
-        $acc = ['all' => [], 'scope' => [], 'dren' => [], 'cisco' => []];
+        $acc = ['all' => ['agents' => [], 'validated' => [], 'amount' => 0], 'scope' => [], 'dren' => [], 'cisco' => []];
         $add = function (array &$bucket, array $a): void {
-            $bucket['agents'] ??= [];
-            $bucket['validated'] ??= [];
             $bucket['agents'][$a['agent']] = true;
             if ($a['validated']) {
                 $bucket['validated'][$a['agent']] = true;
@@ -687,23 +685,17 @@ class VacationBesoinsService
             if ($exam !== '' && $a['exam'] !== $exam) {
                 continue;
             }
-
             $add($acc['all'], $a);
-
             $scopeKey = (string) ($a['scope_key'] ?? '');
-            $scopeBucket = $acc['scope'][$scopeKey] ?? ['agents' => [], 'validated' => [], 'amount' => 0.0];
-            $add($scopeBucket, $a);
-            $acc['scope'][$scopeKey] = $scopeBucket;
-
+            $acc['scope'][$scopeKey] ??= ['agents' => [], 'validated' => [], 'amount' => 0];
+            $add($acc['scope'][$scopeKey], $a);
             if ($a['dren_id']) {
-                $drenBucket = $acc['dren'][$a['dren_id']] ?? ['agents' => [], 'validated' => [], 'amount' => 0.0];
-                $add($drenBucket, $a);
-                $acc['dren'][$a['dren_id']] = $drenBucket;
+                $acc['dren'][$a['dren_id']] ??= ['agents' => [], 'validated' => [], 'amount' => 0];
+                $add($acc['dren'][$a['dren_id']], $a);
             }
             if ($a['cisco_id']) {
-                $ciscoBucket = $acc['cisco'][$a['cisco_id']] ?? ['agents' => [], 'validated' => [], 'amount' => 0.0];
-                $add($ciscoBucket, $a);
-                $acc['cisco'][$a['cisco_id']] = $ciscoBucket;
+                $acc['cisco'][$a['cisco_id']] ??= ['agents' => [], 'validated' => [], 'amount' => 0];
+                $add($acc['cisco'][$a['cisco_id']], $a);
             }
         }
 

@@ -34,6 +34,7 @@
                         <div class="flex flex-wrap gap-2">
                             <a class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700" href="{{ route('repartition.dashboard', ['annee' => $filters['annee'], 'type_examen' => $filters['type_examen'], 'dren' => $filters['dren']]) }}">Dashboard</a>
                             <a class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white" href="{{ route('repartition.export.dispatching', $exportParams) }}">Exporter XML Excel</a>
+                            <a class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white" href="{{ route('repartition.dispatching.colis', request()->only(['annee', 'type_examen', 'dren'])) }}">Colis · Fiche de largage · Accusé</a>
                         </div>
                     </div>
                 </div>

@@ -228,7 +228,7 @@ class MapDataService
             return ['depart' => $depart, 'axes' => []];
         }
 
-        $all = $this->centres(['exam' => $f['exam'] ?? ''], false);
+        $all = $this->centres(array_intersect_key($f, array_flip(['exam', 'dren_id', 'cisco_id'])), false);
         $byEcrit = [];
         foreach ($this->centresByEcritId() as $ecritId => $key) {
             $byEcrit[$ecritId] = $key;
@@ -257,14 +257,18 @@ class MapDataService
                     $key = $byEcrit[(int) $r->centre_ecrit_id] ?? null;
                     $centre = $key ? $everyCentre->get($key) : null;
                     if ($centre) {
-                        $served[$key] = ['key' => $key, 'nom' => $centre['nom'], 'lat' => $centre['lat'], 'lng' => $centre['lng']];
+                        $served[$key] ??= ['key' => $key, 'nom' => $centre['nom'], 'lat' => $centre['lat'], 'lng' => $centre['lng'], 'candidates' => 0, 'salles' => 0];
                     } elseif ($key && $unlocated->has($key)) {
-                        $served[$key] = ['key' => $key, 'nom' => $unlocated[$key]['nom'], 'lat' => null, 'lng' => null];
+                        $served[$key] ??= ['key' => $key, 'nom' => $unlocated[$key]['nom'], 'lat' => null, 'lng' => null, 'candidates' => 0, 'salles' => 0];
                     }
                     // Candidats et salles réellement déposés à ce point (lignes « total » uniquement, sans double compte par langue).
                     if (in_array($r->langue, ['TOTAL', RepartitionSalle::BEPC_TOTAL_KEY], true)) {
                         $cand += (int) $r->effectif;
                         $salles++;
+                        if ($key && isset($served[$key])) {
+                            $served[$key]['candidates'] += (int) $r->effectif;
+                            $served[$key]['salles']++;
+                        }
                     }
                 }
                 $saved = $coords->get($axe.'|'.$point);
